@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "shame_derive",
+    "shame_graph",
+    "shame",
+    "examples/*",
+]
+
+[profile.dev]
+split-debuginfo = "unpacked"

@@ -1,0 +1,19 @@
+[package]
+name = "shame_graph"
+version = "1.0.0"
+authors = ["RayMarch <RayMarch@users.noreply.github.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "shame_graph"
+
+[features]
+workarounds = []
+
+[dependencies]
+thiserror = "1.0.26"
+enum_properties = "0.3.0"
+smallvec = "1.6.1"

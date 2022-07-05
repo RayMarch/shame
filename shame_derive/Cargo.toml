@@ -1,0 +1,21 @@
+[package]
+name = "shame_derive"
+version = "1.0.0"
+authors = ["RayMarch <RayMarch@users.noreply.github.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "shame_derive"
+proc-macro = true
+
+[features]
+default = ["mirror"]
+mirror = []
+
+[dependencies]
+proc-macro2 = "1.0"
+syn = {version="1.0",features=["full","fold"]}
+quote = "1.0"
