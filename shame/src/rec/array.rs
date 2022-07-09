@@ -14,7 +14,7 @@ pub trait Sizing {
 /// an Array<T, Unsized> is commonly used for buffer bindings etc.
 pub struct Unsized;
 /// an Array<T, Size<N>> has known size at rust compile time and can 
-/// conveniently be created from rust types such as `[T, N]` by calling `.rec()`
+/// conveniently be created from rust types such as `[T; N]` by calling `.rec()`
 pub struct Size<const N: usize>;
 /// an Array<T, RecordedSize> is not `shame::Rec`! It has a size that is 
 /// known at shader compile time, but not at rust compile time.

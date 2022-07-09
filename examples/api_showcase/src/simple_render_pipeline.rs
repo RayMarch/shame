@@ -1,7 +1,13 @@
 
 use shame::*;
 
-pub fn simple_render_pipeline(mut feat: shame::RenderFeatures) {
+pub fn main() {
+    let out = shame::record_render_pipeline(simple_render_pipeline);
+    println!("{}", out.to_string_colored());
+}
+
+/// this serves as an overview, for more details, look at [`crate::render_pipeline`]
+fn simple_render_pipeline(mut feat: shame::RenderFeatures) {
 
     // create three individual vertex buffers as inputs for position, normal and uv.
     // Every call to `feat.io.vertex_buffer()` creates a separate vertex buffer.
