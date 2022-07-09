@@ -127,7 +127,10 @@ impl<DF: IsDepthFormat> Depth<DF> {
         with_thread_render_pipeline_info_mut(|r| {
             r.depth_test = Some(test);
             r.depth_write = Some(match write {
-                DepthWrite::Write(_) => true,
+                DepthWrite::Write(value) => {
+                    shame_graph::Any::f_frag_depth().set(value.as_any());
+                    true
+                },
                 DepthWrite::PrimitiveZ => true,
                 DepthWrite::Off => false,
             });
