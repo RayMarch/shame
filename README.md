@@ -106,7 +106,11 @@ geometry shaders | ✖️ | unsupported, not planned
 hull/domain shaders | ✖️ | unsupported, not planned
 🔥 hot reloading | ✅ | supported, see examples
 
-### you might also like
+## Community
+We have a discord server where you can ask questions, give feedback, contribute or show your creations!
+https://discord.gg/Xm5Ck7CCJk
+
+## you might also like
 
 - [wgpu](https://github.com/gfx-rs/wgpu): recommended graphics library for use with `shame`
 - [naga](https://github.com/gfx-rs/naga): if you want to convert `shame`'s GLSL output to SPIR-V etc.
