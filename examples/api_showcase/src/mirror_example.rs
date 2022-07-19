@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 ///  - a [Pod](Pod) struct that uses your preferred vector/matrix types from a `shame::Fields` struct
 ///
 /// [Pod][https://docs.rs/bytemuck/latest/bytemuck/trait.Pod.html]
-fn mirror_example() {
+pub fn main() {
     
     // first we need to do some preparations:
     

@@ -86,6 +86,11 @@ pub fn structs_example(mut feat: shame::RenderFeatures) {
     // interleaved: position, position2, unnamed_float4, uv, uv2
     let interleaved: PositionUvAnd<PositionUvAnd<float4>> = feat.io.vertex_buffer();
 
+    // (calling rasterizer just so that this is a valid render pipeline)
+    feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
 }
 
-
+pub fn main() {
+    let out = shame::record_render_pipeline(structs_example);
+    println!("{}", out.to_string_colored());
+}

@@ -73,3 +73,8 @@ fn vec_matrix_example(mut feat: shame::RenderFeatures) {
     row_matrix = id(); //identity
 
 }
+
+pub fn main() {
+    let out = shame::record_render_pipeline(vec_matrix_example);
+    println!("{}", out.to_string_colored());
+}
