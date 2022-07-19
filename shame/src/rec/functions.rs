@@ -599,7 +599,7 @@ pub fn one<S: Shape, D: DType>() -> Ten<S, D> {
         Mat(_, _) => {
             assert!(S::NUM_COMPONENTS <= 16);
             let ones = [(); 16].map(|_| D::from_f32(1.0).new_literal_any());
-            Any::new_tensor(Tensor::new(S::SHAPE, D::DTYPE), &ones)
+            Any::new_tensor(Tensor::new(S::SHAPE, D::DTYPE), &ones[..S::NUM_COMPONENTS])
             .downcast(Stage::Uniform)
         },
     }
