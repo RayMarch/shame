@@ -30,7 +30,7 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
     let surface = unsafe { instance.create_surface(&window) };
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
+            power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: false,
             // Request an adapter which can render to our surface
             compatible_surface: Some(&surface),
@@ -163,7 +163,6 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
         //let _ = (&instance, &adapter, &shader, &pipeline_layout);
         let _ = (&instance, &adapter);
 
-        *control_flow = ControlFlow::Wait;
         match event {
             Event::WindowEvent {
                 event: WindowEvent::Resized(size),
