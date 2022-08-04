@@ -116,7 +116,9 @@ https://discord.gg/Xm5Ck7CCJk
 - [naga](https://github.com/gfx-rs/naga): if you want to convert `shame`'s GLSL output to SPIR-V etc.
 - other ways to write shaders in rust:
   - [rust-gpu](https://github.com/EmbarkStudios/rust-gpu): rust as a first-class language and ecosystem for GPU graphics & compute shaders
+  - [rasen](https://github.com/leops/rasen): generates SPIR-V bytecode from an operation graph (+ DSL)
   - [shades](https://github.com/phaazon/shades): a different approach of a shader EDSL in rust
+  - [rendiation](https://github.com/mikialex/rendiation): Rendiation Rendering Framework
 
 ### license
 
