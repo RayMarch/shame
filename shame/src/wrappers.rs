@@ -9,6 +9,8 @@ impl<T> UnsafeAccess<T> {
     #[cfg(feature = "enable_unsafe_features")]
     /// obtain mutable access to the inner `T`
     ///
+    /// # Safety
+    /// 
     /// while technically `unsafe` is not required here, the intention of this
     /// wrapper is to make the user aware that the contained type `T` can, when
     /// used incorrectly, create memory race conditions on the GPU if the final
@@ -22,6 +24,8 @@ impl<T> UnsafeAccess<T> {
 
     #[cfg(feature = "enable_unsafe_features")]
     /// obtain access to the inner `T`
+    ///
+    /// # Safety
     ///
     /// while technically `unsafe` is not required here, the intention of this
     /// wrapper is to make the user aware that the contained type `T` can, when

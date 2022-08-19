@@ -128,7 +128,7 @@ pub fn try_deduce_field_select(field: &IdentSlot, args: &[Ty]) -> Result<Ty, Err
                         Context::with(|ctx| {
                             let field = ctx.idents()[**field]
                                 .clone()
-                                .unwrap_or("unnamed-field".to_string());
+                                .unwrap_or_else(|| "unnamed-field".to_string());
                             Error::FieldSelectError(format!("no field {field} in struct {ty}"))
                         })
                     })
@@ -296,7 +296,7 @@ pub fn try_deduce_operator(kind: &super::Operator, args: &[Ty]) -> Result<Ty, Er
         },
         None => (), // no operator has zero args
     };
-    return Err(invalid_arguments(kind, args));
+    Err(invalid_arguments(kind, args))
 }
 
 pub fn try_deduce_swizzle(kind: &super::Swizzle, args: &[Ty]) -> Result<Ty, Error> {

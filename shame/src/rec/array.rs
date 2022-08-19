@@ -78,6 +78,11 @@ impl<T: Rec, const N: usize> Array<T, Size<N>> {
         N
     }
 
+    /// Returns true if the array has a length of 0.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// indexing with a record-time constant, which means bounds checking is
     /// possible, therefore this function is not unsafe.
     pub fn at_const(&self, i: u32) -> T {
@@ -96,6 +101,9 @@ impl<T: Rec, Len: Sizing> Array<T, Len> {
     }
 
     /// Mutable access to an array element at index `i`.
+    ///
+    /// # Safety
+    ///
     /// The array access is not bounds checked, therefore this function is unsafe.
     pub unsafe fn at_mut<D: DType>(&mut self, i: impl AsTen<S = scal, D = D>) -> &mut T {
         self.check_last_mut_access_integrity();
@@ -121,6 +129,9 @@ impl<T: Rec, Len: Sizing> Array<T, Len> {
     }
 
     /// *copies* the value of `array[i]` in the shader.
+    ///
+    /// # Safety
+    ///
     /// The array access is not bounds checked, therefore this function is unsafe.
     ///
     /// **note: this does *NOT* produce an lvalue, which means that**
@@ -138,6 +149,9 @@ impl<T: Rec, Len: Sizing> Array<T, Len> {
 
     /// produces a subscript operation with assignment `array[i] = val` in the
     /// shader
+    ///
+    /// # Safety
+    ///
     /// The array access is not bounds checked, therefore this function is unsafe.
     pub unsafe fn set_at<D: IsDTypeInteger>(&mut self, i: impl AsTen<S = scal, D = D>, val: T) {
         let (any, stage) = scalar_to_index(i);

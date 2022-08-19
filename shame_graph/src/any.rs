@@ -272,7 +272,7 @@ impl Any {
                 Context::with(|ctx| {
                     ctx.push_error(Error::ArgumentError(format!(
                         "cannot create a matrix ({}) with {} rows",
-                        tensor.to_string(),
+                        tensor,
                         args.len()
                     )))
                 });
@@ -282,8 +282,9 @@ impl Any {
                 // this calls
                 // matMxN(row0.x, row1.x..., row0.y, row1.y... ,...)
                 let comps = (0..c)
-                    .map(|col_i| (0..r).map(move |row_i| args[row_i as usize].swizzle(&[col_i])))
-                    .flatten()
+                    .flat_map(|col_i| {
+                        (0..r).map(move |row_i| args[row_i as usize].swizzle(&[col_i]))
+                    })
                     .collect::<Vec<_>>();
                 Self::new_tensor(tensor, &comps)
             }
@@ -438,7 +439,7 @@ impl Any {
             }),
         };
         sw.map(|sw| Any::by_recording_expr(ExprKind::Swizzle(sw), &[*self]))
-            .unwrap_or_else(|| Any::not_available())
+            .unwrap_or_else(Any::not_available)
     }
 
     /// use this swizzle function if there are no repeated components in the swizzle.
@@ -513,7 +514,7 @@ impl Any {
             }),
         };
         sw.map(|sw| Any::by_recording_expr(ExprKind::Swizzle(sw), &[*self]))
-            .unwrap_or_else(|| Any::not_available())
+            .unwrap_or_else(Any::not_available)
     }
 
     //
@@ -521,11 +522,11 @@ impl Any {
     //
 
     pub fn set(&mut self, src: Any) {
-        self.ty_via_thread_ctx().map(|ty| {
+        if let Some(ty) = self.ty_via_thread_ctx() {
             if ty.access == Access::Const {
                 panic!("you are trying to assign to a value that is internally a {} value, which can be supported in the future. Until then, you can call .copy() to create a writeable copy of that value", ty);
             }
-        });
+        }
         Any::by_recording_expr(ExprKind::Operator(Operator::Assign), &[*self, src]);
 
         //// this implementation where copy() gets called leads to unintuitive semantics in the rust code. TODO: delete this comment block
@@ -854,10 +855,13 @@ impl Any {
     //  control flow
     //
 
+    #[allow(clippy::wrong_self_convention)]
     fn to_branch_state(&self) -> BranchState {
-        self.is_available()
-            .then(|| BranchState::Branch)
-            .unwrap_or(BranchState::BranchWithConditionNotAvailable)
+        if self.is_available() {
+            BranchState::Branch
+        } else {
+            BranchState::BranchWithConditionNotAvailable
+        }
     }
 
     pub fn record_then(&self, f: impl FnOnce()) {

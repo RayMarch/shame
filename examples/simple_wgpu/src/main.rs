@@ -85,7 +85,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: None,
-        entries: &vec![wgpu::BindGroupLayoutEntry {
+        entries: &[wgpu::BindGroupLayoutEntry {
             binding: 0,
             visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
             ty: wgpu::BindingType::Buffer {
@@ -108,7 +108,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
         layout: &bind_group_layout,
-        entries: &vec![wgpu::BindGroupEntry {
+        entries: &[wgpu::BindGroupEntry {
             binding: 0,
             resource: xform_buffer.as_entire_binding(),
         }],

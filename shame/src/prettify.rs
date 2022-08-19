@@ -57,11 +57,11 @@ impl RenderPipelineRecording {
         let title_color = Highlight::Preprocessor.get_color();
         set_color(&mut out, Some(title_color), true);
         out += "~~~ vertex shader ~~~\n";
-        out += &syntax_highlight_glsl(&vert);
+        out += &syntax_highlight_glsl(vert);
 
         set_color(&mut out, Some(title_color), true);
         out += "\n\n~~~ fragment shader ~~~\n";
-        out += &syntax_highlight_glsl(&frag);
+        out += &syntax_highlight_glsl(frag);
 
         set_color(&mut out, Some(title_color), true);
         out += "\n\n~~~ pipeline info ~~~\n";

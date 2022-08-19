@@ -110,7 +110,7 @@ impl Ty {
         match &self.kind {
             TyKind::Tensor(_) => true,
             TyKind::Struct(Struct(Named(fields, _))) => {
-                fields.iter().find(|Named(ty, _)| !ty.is_sized()).is_none()
+                fields.iter().all(|Named(ty, _)| ty.is_sized())
             }
             TyKind::Array(Array(ty, size)) => ty.is_sized() && size.is_some(),
             TyKind::Void
@@ -333,7 +333,7 @@ impl Struct {
 
         fields
             .iter()
-            .find_map(|Named(_, ident)| ident.eq_str(field_name).then(|| ident.clone()))
+            .find_map(|Named(_, ident)| ident.eq_str(field_name).then(|| *ident))
     }
 }
 

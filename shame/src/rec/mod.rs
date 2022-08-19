@@ -7,6 +7,7 @@ pub mod control_flow;
 
 pub mod fields;
 
+#[allow(clippy::module_inception)]
 pub mod rec;
 pub use rec::*;
 

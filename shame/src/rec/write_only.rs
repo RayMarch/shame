@@ -20,7 +20,7 @@ impl<S: Shape, D: DType> WriteOnly<S, D> {
                 )
                 .unwrap_or(any)
             })
-            .unwrap_or(Any::not_available());
+            .unwrap_or_else(Any::not_available);
 
         WriteOnly(Ten::from_downcast(any, stage))
     }

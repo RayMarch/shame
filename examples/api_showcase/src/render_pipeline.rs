@@ -23,9 +23,9 @@ fn my_render_pipeline(mut feat: RenderFeatures) {
     // common vertex buffer...
     let vertex: Vertex = feat.io.vertex_buffer(); // vertex buffer #0
                                                   // ...and access individual vertex attributes like this:
-    vertex.pos;
-    vertex.nor;
-    vertex.uv;
+                                                  // vertex.pos;
+                                                  // vertex.nor;
+                                                  // vertex.uv;
 
     // if you want each vertex attribute to be in its own vertex buffer,
     // do this:

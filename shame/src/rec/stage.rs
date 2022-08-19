@@ -156,7 +156,7 @@ pub trait HasCommonStage {
 impl HasCommonStage for [Stage] {
     #[track_caller]
     fn narrow_or_push_error(&self) -> Stage {
-        narrow_stages_or_push_error(self.iter().map(|x| *x))
+        narrow_stages_or_push_error(self.iter().copied())
     }
 }
 

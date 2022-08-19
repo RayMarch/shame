@@ -159,6 +159,10 @@ impl Shape {
         self.comps_total()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn is_vec(&self) -> bool {
         matches!(self, Shape::Vec(_))
     }

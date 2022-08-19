@@ -183,6 +183,7 @@ impl<D: DType> Ten<vec4, D> {
         Ten::from_downcast(self.any.swizzle(&[Y, Z, W]), self.stage)
     }
 
+    #[allow(clippy::type_complexity)]
     /// shorthand for `(self.x(), self.y(), self.z(), self.w())`
     pub fn x_y_z_w(&self) -> (Ten<scal, D>, Ten<scal, D>, Ten<scal, D>, Ten<scal, D>) {
         (self.x(), self.y(), self.z(), self.w())

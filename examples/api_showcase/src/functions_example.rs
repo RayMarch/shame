@@ -1,4 +1,3 @@
-use shame;
 use shame::aliases::*; // `float4` etc
 use shame::functions::*;
 use shame::rec::IntoRec as _; // `.rec()`

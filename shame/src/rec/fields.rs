@@ -41,7 +41,7 @@ pub trait Fields: IntoRec + Sized {
         let mut anys = vec![];
         let t = Self::from_fields_downcast(Self::parent_type_name(), &mut |ty, name| {
             let ty = ty.into_access(access);
-            let any = Any::global_interface(ty.clone(), Some(name.to_string()));
+            let any = Any::global_interface(ty, Some(name.to_string()));
             anys.push(any);
             (any, Stage::Uniform)
         });

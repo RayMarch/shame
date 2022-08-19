@@ -98,7 +98,7 @@ fn make_render_pipeline_layout(
 
     let range = shame.push_constant.as_ref().map(make_push_constant_range);
 
-    let bind_group_layouts: Vec<&_> = layouts.iter().map(|x| x).collect();
+    let bind_group_layouts: Vec<&_> = layouts.iter().collect();
 
     // Some => &[T], None => &[]
     let slice = range.as_ref().map_or([].as_slice(), std::slice::from_ref);
@@ -125,9 +125,9 @@ fn make_compute_pipeline_layout(
         .push_constant
         .as_ref()
         .map(make_push_constant_range)
-        .unwrap_or_else(|| empty_push_constant_range());
+        .unwrap_or_else(empty_push_constant_range);
 
-    let bind_group_layouts: Vec<&_> = layouts.iter().map(|x| x).collect();
+    let bind_group_layouts: Vec<&_> = layouts.iter().collect();
 
     device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: None,
@@ -421,7 +421,7 @@ fn make_fragment_state<'a>(
 ) -> wgpu::FragmentState<'a> {
     for target in &shame.color_targets {
         scratch.push(wgpu::ColorTargetState {
-            format: make_color_texture_format(&target.color_format, &known_surface_format),
+            format: make_color_texture_format(&target.color_format, known_surface_format),
             blend: make_blend_state(&target.blending),
             write_mask: wgpu::ColorWrites::default(), //TODO: add
         })

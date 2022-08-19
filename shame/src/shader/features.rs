@@ -57,9 +57,7 @@ pub fn record_compute_shader(f: impl FnOnce(ComputeShaderFeatures)) -> String {
             });
         });
 
-    let glsl = ctx.generate_glsl().expect("error while generating glsl");
-
-    glsl
+    ctx.generate_glsl().expect("error while generating glsl")
 }
 
 /// features available in a render shaders recording
@@ -312,7 +310,7 @@ impl<It: Iterator<Item = u32>> VertexStreamBuilder<It> {
     ) -> (T, Vec<(shame_graph::Tensor, Range<u32>)>) {
         use shame_graph::*;
         let stage = Stage::Vertex;
-        let mut loc_iter = &mut self.attribute_location_iterator;
+        let loc_iter = &mut self.attribute_location_iterator;
 
         let mut attribute_for_tensor =
             |ctx: &Context, ten: Tensor, name: &str| -> Option<(Any, Tensor, Range<u32>)> {
@@ -320,7 +318,7 @@ impl<It: Iterator<Item = u32>> VertexStreamBuilder<It> {
                 match &mut shader.stage_interface {
                     StageInterface::Vertex { inputs, .. } => {
                         let (any, range) = inputs.push_vertex_attribute_with_location_iter(
-                            &mut loc_iter,
+                            loc_iter,
                             ten,
                             Some(name.to_string()),
                         );

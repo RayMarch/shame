@@ -5,10 +5,10 @@ use shame_graph::Any;
 #[macro_export]
 macro_rules! rec_assert {
     ($cond: expr $(,)?) => {
-        crate::assert::assert_string($cond, format!("({})", stringify!($cond)))
+        $crate::assert::assert_string($cond, format!("({})", stringify!($cond)))
     };
     ($cond: expr, $s: expr) => {
-        crate::assert::assert_string($cond, $s)
+        $crate::assert::assert_string($cond, $s)
     };
 }
 

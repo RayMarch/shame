@@ -1,6 +1,7 @@
 use super::glsl_invalid_idents::GLSL_WORDS_THAT_CANNOT_BE_IDENTIFIERS;
 use super::*;
 use crate::{any::Any, common::IteratorExt, context::*, error::Error, pool::Key};
+use std::fmt::Write as _;
 use std::{cell::Cell, fmt::Display};
 
 fn arg_list_to_glsl(ex: &State, args: &[Key<Expr>]) -> String {
@@ -427,7 +428,7 @@ fn block_to_glsl(ex: &State, block: &Block) -> String {
     ex.with_deeper_indent(|| {
         for stmt in block.stmts.iter() {
             let stmt_string = stmt_to_glsl(ex, stmt);
-            s += &format!("{}{}\n", ex.indent_string(), stmt_string);
+            let _ = writeln!(s, "{}{}", ex.indent_string(), stmt_string);
         }
     });
     s += &(ex.indent_string() + "}");
@@ -581,7 +582,7 @@ fn side_effects_to_glsl(ex: &State, sfx: &SideEffects) -> Result<String, Error> 
     let groups_str = sfx
         .bind_groups
         .iter()
-        .map(|(set_i, bind_group)| {
+        .flat_map(|(set_i, bind_group)| {
             bind_group
                 .0
                 .iter()
@@ -597,7 +598,6 @@ fn side_effects_to_glsl(ex: &State, sfx: &SideEffects) -> Result<String, Error> 
                     ))
                 })
         })
-        .flatten()
         .collect::<Result<String, Error>>()?;
 
     let push_constant_str = push_constant_str(ex, sfx)?;
@@ -762,7 +762,7 @@ fn deduplicate_idents_pass(idents: &mut Vec<String>) -> usize {
     changed_counter
 }
 
-fn valid_idents_for_pool(idents: &Vec<Option<String>>) -> Vec<String> {
+fn valid_idents_for_pool(idents: &[Option<String>]) -> Vec<String> {
     let mut valids = idents.iter().map(single_valid_ident_for_slot).collect();
     loop {
         //iteratively make duplicate idents unique to prevent name collisions
