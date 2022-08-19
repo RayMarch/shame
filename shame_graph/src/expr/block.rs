@@ -1,8 +1,7 @@
-
-use crate::{pool::Key, BranchState};
 use super::*;
+use crate::{pool::Key, BranchState};
 
-//contains item it belongs to, in order to decide whether a function boundary was crossed during 
+//contains item it belongs to, in order to decide whether a function boundary was crossed during
 //recording
 pub struct Block {
     pub(crate) is_branch: Option<BranchState>,
@@ -12,8 +11,11 @@ pub struct Block {
 }
 
 impl Block {
-
-    pub(crate) fn new(parent: Option<Key<Block>>, origin_item: Key<Item>, is_branch: Option<BranchState>) -> Block {
+    pub(crate) fn new(
+        parent: Option<Key<Block>>,
+        origin_item: Key<Item>,
+        is_branch: Option<BranchState>,
+    ) -> Block {
         Self {
             is_branch,
             parent,

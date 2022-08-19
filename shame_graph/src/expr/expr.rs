@@ -1,7 +1,11 @@
-use std::{cell::Cell};
+use std::cell::Cell;
 
-use crate::{context::Context, error::Error, pool::{Key, PoolRef}};
 use super::*;
+use crate::{
+    context::Context,
+    error::Error,
+    pool::{Key, PoolRef},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RecordTime(u32);
@@ -11,7 +15,7 @@ impl RecordTime {
         thread_local! {static NEXT: Cell<u32> = Cell::new(0);}
         let time = NEXT.with(|x| x.get());
         NEXT.with(|x| x.set(time + 1));
-        Self (time)
+        Self(time)
     }
 }
 
@@ -33,10 +37,15 @@ pub enum IdentRequirement {
 
 /// traverses upward from a given expression until a non-lvalue is found
 /// if the provided expression is already not an lvalue, no traversal happens
-pub(crate) fn find_closest_ancestor_non_lvalue(exprs: &PoolRef<Expr>, mut key: Key<Expr>) -> Key<Expr> {
+pub(crate) fn find_closest_ancestor_non_lvalue(
+    exprs: &PoolRef<Expr>,
+    mut key: Key<Expr>,
+) -> Key<Expr> {
     loop {
         let expr = &exprs[key];
-        if expr.ty.access != Access::LValue {break key}
+        if expr.ty.access != Access::LValue {
+            break key;
+        }
         match expr.args.as_slice() {
             [arg,..] => key = *arg,
             [] => panic!("trying to traverse upward from lvalue expression {:?} which has no parent arguments", expr.kind)
@@ -57,13 +66,14 @@ fn update_ident_requirements(kind: &ExprKind, block: Key<Block>, args: &[Key<Exp
                 RefCount(0) => RefCount(1), //expr only used once. no identifier needed yet
                 RefCount(1) => IdentNeeded, //would be RefCount(2) => we need an identifier for this argument
                 IdentNeeded => IdentNeeded, //stays the same
-                x => panic!("unexpected enum in update_statement_requirements {:?}", x)
+                x => panic!("unexpected enum in update_statement_requirements {:?}", x),
             });
 
             //we always need an identifier if...
             if block != val.parent_block //...if our expression references an argument across a block boundary 
-                || kind.is_mutating_arg_with_index(arg_i) //...if our expression needs the first arg to be an lvalue (e.g. +=, *= etc)
-                {
+                || kind.is_mutating_arg_with_index(arg_i)
+            //...if our expression needs the first arg to be an lvalue (e.g. +=, *= etc)
+            {
                 val.ident_req.set(IdentNeeded);
             }
         }
@@ -77,15 +87,15 @@ fn validate_argument_scope(args: &[Key<Expr>]) {
 
         let stack = ctx.stack_blocks(&blocks);
 
-        //check whether all argument exprs were created in a block 
+        //check whether all argument exprs were created in a block
         //that is present in the current block stack.
         for expr in args.iter().map(|key| &exprs[*key]) {
             if !stack.clone().any(|x| x == expr.parent_block) {
-
-                let ident = expr.ident
-                .and_then(|slot| ctx.idents()[*slot].clone())
-                .map(|s| format!("'{s}' "))
-                .unwrap_or_else(|| "".to_string());
+                let ident = expr
+                    .ident
+                    .and_then(|slot| ctx.idents()[*slot].clone())
+                    .map(|s| format!("'{s}' "))
+                    .unwrap_or_else(|| "".to_string());
 
                 let ty = &expr.ty;
 
@@ -101,26 +111,32 @@ fn validate_argument_scope(args: &[Key<Expr>]) {
                 break;
             };
         }
-
     })
 }
 
 impl Expr {
-
-    pub fn new(ident: Option<IdentSlot>, kind: ExprKind, args: Vec<Key<Expr>>, parent_block: Key<Block>) -> Result<Self, Error> {
+    pub fn new(
+        ident: Option<IdentSlot>,
+        kind: ExprKind,
+        args: Vec<Key<Expr>>,
+        parent_block: Key<Block>,
+    ) -> Result<Self, Error> {
         let arg_types = args_as_types(&args);
 
         //error out if we try to write to read-only or read from write-only args
         validate_access(&kind, arg_types.as_slice(), &args).and_then(|_| {
-
-            try_deduce_type(&kind, arg_types.as_slice()).map(|ty| {
-                Self::new_internal(ident, ty, kind, args, parent_block)
-            })
-
+            try_deduce_type(&kind, arg_types.as_slice())
+                .map(|ty| Self::new_internal(ident, ty, kind, args, parent_block))
         })
     }
 
-    fn new_internal(ident: Option<IdentSlot>, ty: Ty, kind: ExprKind, args: Vec<Key<Expr>>, parent_block: Key<Block>) -> Self {
+    fn new_internal(
+        ident: Option<IdentSlot>,
+        ty: Ty,
+        kind: ExprKind,
+        args: Vec<Key<Expr>>,
+        parent_block: Key<Block>,
+    ) -> Self {
         validate_argument_scope(&args);
         update_ident_requirements(&kind, parent_block, &args);
         Self {
@@ -134,11 +150,11 @@ impl Expr {
         }
     }
 
-    /// forces the expression to be bound to an identifier with the given name, 
+    /// forces the expression to be bound to an identifier with the given name,
     /// or a generated name.
     /// this most likely causes a variable definition statement to be inserted.
     /// Calling this function multiple times on the same expression will yield the
-    /// same generated code as calling it only the last time. 
+    /// same generated code as calling it only the last time.
     pub fn force_ident(&mut self, maybe_name: Option<String>) {
         Context::with(|ctx| {
             self.ident_req.set(IdentRequirement::IdentNeeded);
@@ -156,17 +172,16 @@ impl Expr {
                 ExprKind::BuiltinVar(_) => false,
                 // ExprKind::Literal(_) => false,
                 ExprKind::Copy => true,
-                _ => true
-            }
+                _ => true,
+            },
             _ => match self.kind {
                 ExprKind::Copy => true,
-                _ => false
-            }
+                _ => false,
+            },
         }
     }
 
     pub fn needs_expr_stmt(&self) -> bool {
         self.kind.is_mutating_any_arg() //if the expression mutates any state it needs to be put into a statement
     }
-
 }

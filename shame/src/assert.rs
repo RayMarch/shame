@@ -1,7 +1,6 @@
-
 use shame_graph::Any;
 
-/// asserts a condition and pushes the error to the shader recording errors 
+/// asserts a condition and pushes the error to the shader recording errors
 /// of the current recording context
 #[macro_export]
 macro_rules! rec_assert {
@@ -15,9 +14,7 @@ macro_rules! rec_assert {
 
 #[track_caller]
 pub fn rec_error(err: shame_graph::Error) {
-    shame_graph::Context::with(|ctx| {
-        ctx.push_error(err)
-    });
+    shame_graph::Context::with(|ctx| ctx.push_error(err));
 }
 
 #[track_caller]

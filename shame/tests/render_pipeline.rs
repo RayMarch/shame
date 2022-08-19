@@ -1,6 +1,5 @@
-
-use shame::*;
 use shame::tensor_type::Tensor;
+use shame::*;
 
 mod common;
 
@@ -20,14 +19,16 @@ void main() {
 #[test]
 fn minimal_render_pipeline_record() {
     shame::record_render_pipeline(|feat: RenderFeatures| {
-        feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
+        feat.raster
+            .rasterize_indexless(float4::default(), Default::default(), Default::default());
     });
 }
 
 #[test]
 fn minimal_render_pipeline() {
     let out = record_render_pipeline(|feat: RenderFeatures| {
-        feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
+        feat.raster
+            .rasterize_indexless(float4::default(), Default::default(), Default::default());
     });
     assert_eq_code!(&out.shaders_glsl.0, EMPTY_VSH);
     assert_eq_code!(&out.shaders_glsl.1, EMPTY_FSH);
@@ -43,7 +44,6 @@ fn minimal_render_pipeline() {
 #[test]
 fn vertex_buffer_added() {
     let out = record_render_pipeline(|mut feat: RenderFeatures| {
-
         #[derive(Fields)]
         struct Vertex {
             a: float4,
@@ -51,9 +51,12 @@ fn vertex_buffer_added() {
 
         let _: Vertex = feat.io.vertex_buffer();
 
-        feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
+        feat.raster
+            .rasterize_indexless(float4::default(), Default::default(), Default::default());
     });
-    assert_eq_code!(&out.shaders_glsl.0, "
+    assert_eq_code!(
+        &out.shaders_glsl.0,
+        "
         #version 450
 
         layout(location=0) in vec4 a;
@@ -61,18 +64,18 @@ fn vertex_buffer_added() {
         void main() {
             gl_Position = vec4(0.);
         }
-    ");
+    "
+    );
     assert_eq_code!(&out.shaders_glsl.1, EMPTY_FSH);
 
     let info = RenderPipelineInfo {
-        vertex_buffers: vec![
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Vertex, 
-                attributes: vec![
-                    AttributeInfo { location: 0, type_: Tensor::vec4() },
-                ]
-            },
-        ],
+        vertex_buffers: vec![VertexBufferInfo {
+            step_mode: VertexStepMode::Vertex,
+            attributes: vec![AttributeInfo {
+                location: 0,
+                type_: Tensor::vec4(),
+            }],
+        }],
         cull: Some(Default::default()),
         primitive_topology: Some(Default::default()),
         ..Default::default()
@@ -84,9 +87,12 @@ fn vertex_buffer_added() {
 fn instance_buffer_added() {
     let out = record_render_pipeline(|mut feat: RenderFeatures| {
         let _: float4 = feat.io.instance_buffer();
-        feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
+        feat.raster
+            .rasterize_indexless(float4::default(), Default::default(), Default::default());
     });
-    assert_eq_code!(&out.shaders_glsl.0, "
+    assert_eq_code!(
+        &out.shaders_glsl.0,
+        "
         #version 450
 
 
@@ -96,18 +102,18 @@ fn instance_buffer_added() {
         void main() {
             gl_Position = vec4(0.);
         }
-    ");
+    "
+    );
     assert_eq_code!(&out.shaders_glsl.1, EMPTY_FSH);
 
     let info = RenderPipelineInfo {
-        vertex_buffers: vec![
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Instance, 
-                attributes: vec![
-                    AttributeInfo { location: 0, type_: Tensor::vec4() },
-                ]
-            },
-        ],
+        vertex_buffers: vec![VertexBufferInfo {
+            step_mode: VertexStepMode::Instance,
+            attributes: vec![AttributeInfo {
+                location: 0,
+                type_: Tensor::vec4(),
+            }],
+        }],
         cull: Some(Default::default()),
         primitive_topology: Some(Default::default()),
         ..Default::default()
@@ -118,7 +124,6 @@ fn instance_buffer_added() {
 #[test]
 fn vertex_buffer_mixed_interleaved() {
     let out = record_render_pipeline(|mut feat: RenderFeatures| {
-
         #[derive(Fields)]
         struct Vertex {
             a: float2,
@@ -128,9 +133,12 @@ fn vertex_buffer_mixed_interleaved() {
         let _: Vertex = feat.io.vertex_buffer();
         let _: float4 = feat.io.vertex_buffer();
 
-        feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
+        feat.raster
+            .rasterize_indexless(float4::default(), Default::default(), Default::default());
     });
-    assert_eq_code!(&out.shaders_glsl.0, "
+    assert_eq_code!(
+        &out.shaders_glsl.0,
+        "
         #version 450
 
         layout(location=0) in vec2 a;
@@ -140,23 +148,31 @@ fn vertex_buffer_mixed_interleaved() {
         void main() {
             gl_Position = vec4(0.);
         }
-    ");
+    "
+    );
     assert_eq_code!(&out.shaders_glsl.1, EMPTY_FSH);
 
     let info = RenderPipelineInfo {
         vertex_buffers: vec![
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Vertex, 
+            VertexBufferInfo {
+                step_mode: VertexStepMode::Vertex,
                 attributes: vec![
-                    AttributeInfo { location: 0, type_: Tensor::vec2() },
-                    AttributeInfo { location: 1, type_: Tensor::vec3() },
-                ]
+                    AttributeInfo {
+                        location: 0,
+                        type_: Tensor::vec2(),
+                    },
+                    AttributeInfo {
+                        location: 1,
+                        type_: Tensor::vec3(),
+                    },
+                ],
             },
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Vertex, 
-                attributes: vec![
-                    AttributeInfo { location: 2, type_: Tensor::vec4() },
-                ]
+            VertexBufferInfo {
+                step_mode: VertexStepMode::Vertex,
+                attributes: vec![AttributeInfo {
+                    location: 2,
+                    type_: Tensor::vec4(),
+                }],
             },
         ],
         cull: Some(Default::default()),
@@ -169,7 +185,6 @@ fn vertex_buffer_mixed_interleaved() {
 #[test]
 fn vertex_attribute_matrix_locations() {
     let out = record_render_pipeline(|mut feat: RenderFeatures| {
-
         #[derive(Fields)]
         struct Vertex {
             a: float4x4,
@@ -178,9 +193,12 @@ fn vertex_attribute_matrix_locations() {
 
         let _: Vertex = feat.io.vertex_buffer();
 
-        feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
+        feat.raster
+            .rasterize_indexless(float4::default(), Default::default(), Default::default());
     });
-    assert_eq_code!(&out.shaders_glsl.0, "
+    assert_eq_code!(
+        &out.shaders_glsl.0,
+        "
         #version 450
 
         layout(location=0) in mat4 a;
@@ -189,21 +207,24 @@ fn vertex_attribute_matrix_locations() {
         void main() {
             gl_Position = vec4(0.);
         }
-    "    
-    
-);
+    "
+    );
     assert_eq_code!(&out.shaders_glsl.1, EMPTY_FSH);
 
     let info = RenderPipelineInfo {
-        vertex_buffers: vec![
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Vertex, 
-                attributes: vec![
-                    AttributeInfo { location: 0, type_: Tensor::mat4() },
-                    AttributeInfo { location: 4, type_: Tensor::vec4() },
-                ]
-            }
-        ],
+        vertex_buffers: vec![VertexBufferInfo {
+            step_mode: VertexStepMode::Vertex,
+            attributes: vec![
+                AttributeInfo {
+                    location: 0,
+                    type_: Tensor::mat4(),
+                },
+                AttributeInfo {
+                    location: 4,
+                    type_: Tensor::vec4(),
+                },
+            ],
+        }],
         cull: Some(Default::default()),
         primitive_topology: Some(Default::default()),
         ..Default::default()
@@ -215,7 +236,8 @@ fn vertex_attribute_matrix_locations() {
 fn index_buffer_added() {
     let out = record_render_pipeline(|mut feat: RenderFeatures| {
         let ib: TriangleList<u32> = feat.io.index_buffer();
-        feat.raster.rasterize(float4::default(), Default::default(), ib);
+        feat.raster
+            .rasterize(float4::default(), Default::default(), ib);
     });
     assert_eq_code!(&out.shaders_glsl.0, EMPTY_VSH);
     assert_eq_code!(&out.shaders_glsl.1, EMPTY_FSH);
@@ -233,15 +255,17 @@ fn index_buffer_added() {
 fn empty_bind_group_added() {
     let out = record_render_pipeline(|mut feat: RenderFeatures| {
         feat.io.group();
-        feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
+        feat.raster
+            .rasterize_indexless(float4::default(), Default::default(), Default::default());
     });
     assert_eq_code!(&out.shaders_glsl.0, EMPTY_VSH);
     assert_eq_code!(&out.shaders_glsl.1, EMPTY_FSH);
 
     let info = RenderPipelineInfo {
-        bind_groups: vec![
-            BindGroupInfo { index: 0, bindings: vec![] }
-        ],
+        bind_groups: vec![BindGroupInfo {
+            index: 0,
+            bindings: vec![],
+        }],
         cull: Some(Default::default()),
         primitive_topology: Some(Default::default()),
         ..Default::default()
@@ -254,7 +278,8 @@ fn uniform_buffer_added() {
     let out = record_render_pipeline(|mut feat: RenderFeatures| {
         let mut group0 = feat.io.group();
         let _: float4 = group0.uniform_block();
-        feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
+        feat.raster
+            .rasterize_indexless(float4::default(), Default::default(), Default::default());
     });
 
     let vsh = "
@@ -283,15 +308,14 @@ fn uniform_buffer_added() {
     assert_eq_code!(&out.shaders_glsl.1, fsh);
 
     let info = RenderPipelineInfo {
-        bind_groups: vec![
-            BindGroupInfo { index: 0, bindings: vec![
-                BindingInfo { 
-                    binding: 0, 
-                    binding_type: BindingType::UniformBuffer, 
-                    visibility: StageFlags::vertex_fragment(), //no fine grained stage tracking implemented yet 
-                }
-            ] }
-        ],
+        bind_groups: vec![BindGroupInfo {
+            index: 0,
+            bindings: vec![BindingInfo {
+                binding: 0,
+                binding_type: BindingType::UniformBuffer,
+                visibility: StageFlags::vertex_fragment(), //no fine grained stage tracking implemented yet
+            }],
+        }],
         cull: Some(Default::default()),
         primitive_topology: Some(Default::default()),
         ..Default::default()

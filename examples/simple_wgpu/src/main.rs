@@ -1,12 +1,12 @@
-use wgpu::util::DeviceExt;
+use render_pipeline::*;
 use std::time::{Duration, Instant};
+use wgpu::util::DeviceExt;
+use wgpu::util::*;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
-use wgpu::util::*;
-use render_pipeline::*;
 
 pub type Index = u32;
 
@@ -14,7 +14,6 @@ mod glue;
 mod render_pipeline;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
-    
     let recording = shame::record_render_pipeline(render_pipeline::pipeline);
     println!("{}", recording.to_string_colored());
 
@@ -42,7 +41,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
                 limits: {
                     let mut limits = wgpu::Limits::downlevel_webgl2_defaults()
-                    .using_resolution(adapter.limits());
+                        .using_resolution(adapter.limits());
                     limits.max_push_constant_size = 4;
                     limits
                 },
@@ -54,11 +53,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let swapchain_format = surface.get_preferred_format(&adapter).unwrap();
 
-    let render_pipeline = glue::make_render_pipeline(
-        &recording, 
-        &device,
-        Some(swapchain_format)
-    );
+    let render_pipeline = glue::make_render_pipeline(&recording, &device, Some(swapchain_format));
 
     let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
         label: None,
@@ -79,9 +74,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         usage: wgpu::BufferUsages::VERTEX,
     });
 
-    let index_buffer_source = [
-        0, 1, 2 as Index
-    ];
+    let index_buffer_source = [0, 1, 2 as Index];
     let index_buffer_len = index_buffer_source.len() as u32;
 
     let index_buffer = device.create_buffer_init(&BufferInitDescriptor {
@@ -92,27 +85,22 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: None,
-        entries: &vec![
-            wgpu::BindGroupLayoutEntry { 
-                binding: 0, 
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, 
-                ty: wgpu::BindingType::Buffer { 
-                    ty: wgpu::BufferBindingType::Uniform, 
-                    has_dynamic_offset: false, 
-                    min_binding_size: None, 
-                }, 
-                count: None, 
+        entries: &vec![wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
             },
-        ],
+            count: None,
+        }],
     });
 
     let xform_buffer = device.create_buffer_init(&BufferInitDescriptor {
         label: None,
         contents: bytemuck::bytes_of(&[
-            0.6, 0.0, 0.0, 0.0, 
-            0.0, 0.6, 0.0, 0.0, 
-            0.0, 0.0, 0.6, 0.0, 
-            0.0, 0.0, 0.0, 1.0_f32, 
+            0.6, 0.0, 0.0, 0.0, 0.0, 0.6, 0.0, 0.0, 0.0, 0.0, 0.6, 0.0, 0.0, 0.0, 0.0, 1.0_f32,
         ]),
         usage: wgpu::BufferUsages::UNIFORM,
     });
@@ -120,12 +108,10 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
         layout: &bind_group_layout,
-        entries: &vec![
-            wgpu::BindGroupEntry { 
-                binding: 0,
-                resource: xform_buffer.as_entire_binding(),
-            },
-        ],
+        entries: &vec![wgpu::BindGroupEntry {
+            binding: 0,
+            resource: xform_buffer.as_entire_binding(),
+        }],
     });
 
     let mut config = wgpu::SurfaceConfiguration {
@@ -138,12 +124,8 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 
     surface.configure(&device, &config);
 
-    let (
-        mut last_update_inst,
-        mut last_frame_inst,
-        mut frame_count,
-        mut accum_time,
-    ) = (Instant::now(), Instant::now(), 0, 0.0);
+    let (mut last_update_inst, mut last_frame_inst, mut frame_count, mut accum_time) =
+        (Instant::now(), Instant::now(), 0, 0.0);
 
     event_loop.run(move |event, _, control_flow| {
         // Have the closure take ownership of the resources.
@@ -165,16 +147,12 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                 window.request_redraw();
             }
             Event::RedrawRequested(_) => {
-
                 accum_time += last_frame_inst.elapsed().as_secs_f32();
                 last_frame_inst = Instant::now();
                 frame_count += 1;
                 let step = 120;
                 if (frame_count % step) == 0 {
-                    println!(
-                        "Avg frame time {}ms",
-                        accum_time * 1000.0 / step as f32
-                    );
+                    println!("Avg frame time {}ms", accum_time * 1000.0 / step as f32);
                     accum_time = 0.0;
                 }
 
@@ -209,10 +187,13 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     rpass.set_pipeline(&render_pipeline);
                     rpass.set_bind_group(0, &bind_group, &[]);
                     rpass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                    rpass.set_push_constants(wgpu::ShaderStages::VERTEX_FRAGMENT, 0, bytemuck::bytes_of(
-                        &(frame_count as f32 / 60.0)
-                    ));
-                    rpass.set_index_buffer(index_buffer.slice(..), glue::index_format_of::<Index>());
+                    rpass.set_push_constants(
+                        wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        0,
+                        bytemuck::bytes_of(&(frame_count as f32 / 60.0)),
+                    );
+                    rpass
+                        .set_index_buffer(index_buffer.slice(..), glue::index_format_of::<Index>());
                     rpass.draw_indexed(0..index_buffer_len, 0, 0..1);
                 }
 
@@ -234,8 +215,9 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
                     last_update_inst = Instant::now();
                 } else {
                     *control_flow = ControlFlow::WaitUntil(
-                        Instant::now() + target_frametime - time_since_last_frame
-                        - wake_up_dur_estimate,
+                        Instant::now() + target_frametime
+                            - time_since_last_frame
+                            - wake_up_dur_estimate,
                     );
                 }
             }
@@ -251,12 +233,12 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
 fn main() {
     let event_loop = EventLoop::new();
     let window = winit::window::WindowBuilder::new()
-    .with_inner_size(winit::dpi::LogicalSize {
-        width:  512,
-        height: 512,
-    })
-    .build(&event_loop)
-    .unwrap();
+        .with_inner_size(winit::dpi::LogicalSize {
+            width: 512,
+            height: 512,
+        })
+        .build(&event_loop)
+        .unwrap();
 
     env_logger::init();
     // Temporarily avoid srgb formats for the swapchain on the web

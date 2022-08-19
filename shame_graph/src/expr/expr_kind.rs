@@ -1,4 +1,3 @@
-
 use std::fmt::Display;
 
 use super::*;
@@ -55,9 +54,9 @@ pub enum Constructor {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Swizzle {
-    GetVec4  ([u8; 4]), // GetVec4([3, 0, 2, 2]) means vector.wxzz
-    GetVec3  ([u8; 3]),
-    GetVec2  ([u8; 2]),
+    GetVec4([u8; 4]), // GetVec4([3, 0, 2, 2]) means vector.wxzz
+    GetVec3([u8; 3]),
+    GetVec2([u8; 2]),
     GetScalar([u8; 1]),
 }
 
@@ -65,9 +64,9 @@ impl Swizzle {
     pub fn inner_slice(&self) -> &[u8] {
         use Swizzle::*;
         match self {
-            GetVec4  (x) => x,
-            GetVec3  (x) => x,
-            GetVec2  (x) => x,
+            GetVec4(x) => x,
+            GetVec3(x) => x,
+            GetVec2(x) => x,
             GetScalar(x) => x,
         }
     }
@@ -84,13 +83,13 @@ pub struct OperatorProps {
 #[derive(PartialEq, Eq)]
 pub enum Associativity {
     LeftToRight,
-    RightToLeft
+    RightToLeft,
 }
 use Associativity::*;
 
 enum_properties! {
 
-    /// see https://www.khronos.org/registry/OpenGL/specs/gl/GLSLangSpec.4.60.pdf 
+    /// see https://www.khronos.org/registry/OpenGL/specs/gl/GLSLangSpec.4.60.pdf
     /// chapter 5.1 operators
     #[derive(Debug, Clone)]
     pub enum Operator: OperatorProps {
@@ -169,9 +168,9 @@ enum_properties! {
         Dfdx        {glsl_str: "dFdx"},
         Dfdy        {glsl_str: "dFdy"},
         DfdxCoarse  {glsl_str: "dFdxCoarse"},
-        DfdyCoarse  {glsl_str: "dFdyCoarse"},      
+        DfdyCoarse  {glsl_str: "dFdyCoarse"},
         DfdxFine    {glsl_str: "dFdxFine"},
-        DfdyFine    {glsl_str: "dFdyFine"},  
+        DfdyFine    {glsl_str: "dFdyFine"},
         Round       {glsl_str: "round"},
         Ceil        {glsl_str: "ceil"},
         Floor       {glsl_str: "floor"},
@@ -234,7 +233,9 @@ impl Display for Constructor {
             Constructor::Tensor(x) => f.write_fmt(format_args!("{x} constructor")),
             Constructor::Struct(x) => f.write_fmt(format_args!("struct {x} constructor")), //TODO: write more detailed info
             Constructor::Array(x) => f.write_fmt(format_args!("{x} constructor")),
-            Constructor::TextureCombinedSampler(x) => f.write_fmt(format_args!("sampler{x} constructor"))
+            Constructor::TextureCombinedSampler(x) => {
+                f.write_fmt(format_args!("sampler{x} constructor"))
+            }
         }
     }
 }
@@ -250,7 +251,9 @@ impl Display for Swizzle {
         f.write_str("member access/swizzle")?;
         f.write_str("[")?;
         for (i, &c) in self.inner_slice().iter().enumerate() {
-            if i > 0 {f.write_str(", ")?;}
+            if i > 0 {
+                f.write_str(", ")?;
+            }
             match c {
                 0 => f.write_str("x")?,
                 1 => f.write_str("y")?,
@@ -266,9 +269,9 @@ impl Display for Swizzle {
 impl Display for BuiltinVar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            BuiltinVar::VertexVar  (x) => x.glsl_str(),
+            BuiltinVar::VertexVar(x) => x.glsl_str(),
             BuiltinVar::FragmentVar(x) => x.glsl_str(),
-            BuiltinVar::ComputeVar (x) => x.glsl_str(),
+            BuiltinVar::ComputeVar(x) => x.glsl_str(),
         })
     }
 }

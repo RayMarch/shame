@@ -100,22 +100,34 @@ pub trait FromAnys {
 
 impl<AS: Shape, AD: DType, BS: Shape, BD: DType> FromAnys for (Ten<AS, AD>, Ten<BS, BD>) {
     type Input = [Any; 2];
-    #[track_caller] fn from_downcast([a, b]: &Self::Input, stage: Stage) -> Self {
+    #[track_caller]
+    fn from_downcast([a, b]: &Self::Input, stage: Stage) -> Self {
         (a.downcast(stage), b.downcast(stage))
     }
 }
 
-impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType> FromAnys for (Ten<AS, AD>, Ten<BS, BD>, Ten<CS, CD>) {
+impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType> FromAnys
+    for (Ten<AS, AD>, Ten<BS, BD>, Ten<CS, CD>)
+{
     type Input = [Any; 3];
-    #[track_caller] fn from_downcast([a, b, c]: &Self::Input, stage: Stage) -> Self {
+    #[track_caller]
+    fn from_downcast([a, b, c]: &Self::Input, stage: Stage) -> Self {
         (a.downcast(stage), b.downcast(stage), c.downcast(stage))
     }
 }
 
-impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType, DS: Shape, DD: DType> FromAnys for (Ten<AS, AD>, Ten<BS, BD>, Ten<CS, CD>, Ten<DS, DD>) {
+impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType, DS: Shape, DD: DType>
+    FromAnys for (Ten<AS, AD>, Ten<BS, BD>, Ten<CS, CD>, Ten<DS, DD>)
+{
     type Input = [Any; 4];
-    #[track_caller] fn from_downcast([a, b, c, d]: &Self::Input, stage: Stage) -> Self {
-        (a.downcast(stage), b.downcast(stage), c.downcast(stage), d.downcast(stage))
+    #[track_caller]
+    fn from_downcast([a, b, c, d]: &Self::Input, stage: Stage) -> Self {
+        (
+            a.downcast(stage),
+            b.downcast(stage),
+            c.downcast(stage),
+            d.downcast(stage),
+        )
     }
 }
 
@@ -124,7 +136,7 @@ impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType, DS: Shape
 pub trait MinMaxTuple {
     /// output tuple of `impl`[`Rec`] types
     type Output;
-    
+
     /// returns the minimum of all tuple members
     fn min(self) -> Self::Output;
     /// returns the maximum of all tuple members
@@ -135,7 +147,7 @@ macro_rules! impl_MinMaxTuple {
     ($A: ident $(, $Tail: ident)*) => {
         impl<$A: AsFloat, $($Tail: AsFloat),*> MinMaxTuple for ($A, $($Tail),*) {
             type Output = float;
-        
+
             fn min(self) -> Self::Output {
                 #[allow(non_snake_case)] let ($A, $($Tail),*) = self;
                 #[allow(non_snake_case)] let ($A, $($Tail),*) = ($A.as_ten(), $($Tail.as_ten()),*);
@@ -145,7 +157,7 @@ macro_rules! impl_MinMaxTuple {
                 )*
                 val
             }
-        
+
             fn max(self) -> Self::Output {
                 #[allow(non_snake_case)] let ($A, $($Tail),*) = self;
                 #[allow(non_snake_case)] let ($A, $($Tail),*) = ($A.as_ten(), $($Tail.as_ten()),*);
@@ -164,4 +176,3 @@ impl_MinMaxTuple!(A, B, C);
 impl_MinMaxTuple!(A, B, C, D);
 impl_MinMaxTuple!(A, B, C, D, E);
 impl_MinMaxTuple!(A, B, C, D, E, F);
-

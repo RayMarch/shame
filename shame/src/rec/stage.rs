@@ -2,33 +2,33 @@
 //! is available (per-vertex, per-fragment, uniform).
 
 use super::*;
-use shame_graph::Any;
-use shame_graph::Ty;
-use shame_graph::Error;
 use crate::assert;
+use shame_graph::Any;
+use shame_graph::Error;
+use shame_graph::Ty;
 
-/// runtime type annotation for [`Rec`] types, used to tag "per-vertex", 
+/// runtime type annotation for [`Rec`] types, used to tag "per-vertex",
 /// "per-fragment" or unrestricted "uniform" values.
-/// 
+///
 /// using "per-vertex" values in expressions with "per-fragment" values will
 /// cause an error.
-/// 
+///
 /// expressions that combine an argument of stage "uniform" and another argument
 /// result in a value of the stage of this other argument
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Stage {
     /// unrestricted stage, can be used with per-vertex, per-fragment and
     /// uniform values.
-    /// 
+    ///
     /// in compute shaders every value has [`Stage::Uniform`]
     Uniform,
-    /// per-vertex values. Can be turned into per-fragment values via 
+    /// per-vertex values. Can be turned into per-fragment values via
     /// [`Primitive`](crate::Primitive)'s interpolation functions
     Vertex,
     /// per-fragment values. These values cannot be converted to any other stage
     Fragment,
-    /// result stage when using incompatible stages 
-    /// 
+    /// result stage when using incompatible stages
+    ///
     /// (vertex + fragment) or (X + NotAvailable)
     NotAvailable,
 }
@@ -57,9 +57,9 @@ impl std::ops::BitAnd for Stage {
             (NotAvailable, _) => NotAvailable,
             (_, NotAvailable) => NotAvailable,
 
-            (Vertex,   Fragment) => NotAvailable,
-            (Fragment, Vertex  ) => NotAvailable,
-            (Vertex,   Vertex  ) => Vertex,
+            (Vertex, Fragment) => NotAvailable,
+            (Fragment, Vertex) => NotAvailable,
+            (Vertex, Vertex) => Vertex,
             (Fragment, Fragment) => Fragment,
         }
     }
@@ -70,14 +70,14 @@ impl std::ops::BitAnd for Stage {
 pub trait AnyDowncast {
     #[track_caller]
 
-    /// downcasts the type-erased `Any` type (which represent nodes in the 
-    /// expression graph) to statically typed Ten<Shape, DType> types to make 
+    /// downcasts the type-erased `Any` type (which represent nodes in the
+    /// expression graph) to statically typed Ten<Shape, DType> types to make
     /// rust's type system aware of them.
-    /// 
-    /// all downcast calls lead to `check_any_type_and_stage(...)` which checks 
+    ///
+    /// all downcast calls lead to `check_any_type_and_stage(...)` which checks
     /// whether the requested `Ten<S, D>` type actually matches the dynamic type
-    /// of the `Any` object. If it doesn't, an Error is emitted in the recording 
-    /// context which will be handled according to the user defined 
+    /// of the `Any` object. If it doesn't, an Error is emitted in the recording
+    /// context which will be handled according to the user defined
     /// [`ErrorBehavior`]
     fn downcast<S: Shape, D: DType>(&self, stage: Stage) -> Ten<S, D>;
 }
@@ -95,18 +95,17 @@ fn check_any_type_and_stage<S: Shape, D: DType>(mut any: Any, mut stage: Stage) 
     use shame_graph::ShaderKind as Shader;
     shame_graph::Context::with(|ctx| {
         if let Some(any_ty) = any.ty_via_ctx(ctx) {
-
             let static_type = Ty::tensor(S::SHAPE, D::DTYPE);
             if !static_type.eq_ignore_access(&any_ty) {
-                assert::rec_error(Error::TypeError(
-                    format!("cannot downcast a dynamic {any_ty} to a static {static_type}")
-                ));
+                assert::rec_error(Error::TypeError(format!(
+                    "cannot downcast a dynamic {any_ty} to a static {static_type}"
+                )));
                 stage = Stage::NotAvailable;
                 any = Any::not_available();
             }
 
             debug_assert!(any.is_available());
-            //since we got a type, it means any is not NotAvailable 
+            //since we got a type, it means any is not NotAvailable
             //so we must check if the stage is the current shader stage, or compatible with it
             match (ctx.shader_kind(), stage) {
                 (_              , Stage::Uniform     ) |
@@ -129,26 +128,29 @@ fn check_any_type_and_stage<S: Shape, D: DType>(mut any: Any, mut stage: Stage) 
     (any, stage)
 }
 
-/// obtain the dominant stage of multiple provided stages, or 
+/// obtain the dominant stage of multiple provided stages, or
 /// push an error to the [`Context`] and return [`Stage::NotAvailable`].
 #[track_caller]
-pub fn narrow_stages_or_push_error(stages: impl IntoIterator<Item=Stage>) -> Stage {
+pub fn narrow_stages_or_push_error(stages: impl IntoIterator<Item = Stage>) -> Stage {
     stages.into_iter().fold(Stage::Uniform, |acc, x| {
         let narrowed = acc & x;
         if let Stage::NotAvailable = narrowed {
-            assert::rec_error(Error::AssertionFailed(format!("trying to use a {:?} shader expression together with a {:?} shader expression", acc, x))); //TODO: improve error message (e.g. by adding arg types)
+            assert::rec_error(Error::AssertionFailed(format!(
+                "trying to use a {:?} shader expression together with a {:?} shader expression",
+                acc, x
+            ))); //TODO: improve error message (e.g. by adding arg types)
         }
         narrowed
     })
 }
 
-/// obtain the most narrow stage of multiple provided stages, or 
+/// obtain the most narrow stage of multiple provided stages, or
 /// [`Stage::NotAvailable`].
 pub trait HasCommonStage {
     #[track_caller]
-    /// obtain the dominant stage of multiple provided stages, or 
+    /// obtain the dominant stage of multiple provided stages, or
     /// push an error to the [`Context`] and return [`Stage::NotAvailable`].
-    fn narrow_or_push_error(&self) -> Stage; 
+    fn narrow_or_push_error(&self) -> Stage;
 }
 
 impl HasCommonStage for [Stage] {

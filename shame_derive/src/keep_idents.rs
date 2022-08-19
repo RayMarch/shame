@@ -1,7 +1,6 @@
-
 use quote::ToTokens;
 use syn::fold::{self, Fold};
-use syn::{parse_quote, Expr, Local, Pat, Stmt, PatIdent};
+use syn::{parse_quote, Expr, Local, Pat, PatIdent, Stmt};
 
 //quick and dirty thrown together modification of syn example code
 //TODO: clean up more
@@ -13,8 +12,8 @@ fn extract_ident_from_pat(p: &Pat) -> Option<&PatIdent> {
     let inner = match p {
         Pat::Ident(ident) => return Some(ident),
         Pat::Slice(_) => return None,
-        Pat::Struct(_) =>  return None,
-        Pat::Tuple(_) =>  return None,
+        Pat::Struct(_) => return None,
+        Pat::Tuple(_) => return None,
         Pat::TupleStruct(_) => return None,
         Pat::Type(pat_type) => &*pat_type.pat,
         _ => return None,
@@ -23,13 +22,16 @@ fn extract_ident_from_pat(p: &Pat) -> Option<&PatIdent> {
 }
 
 impl State {
-
     fn should_print_expr(&self, expr: &Expr) -> bool {
         match expr {
-            Expr::Path(p) => match (p.path.leading_colon, p.path.segments.len(), p.path.segments.first()) {
+            Expr::Path(p) => match (
+                p.path.leading_colon,
+                p.path.segments.len(),
+                p.path.segments.first(),
+            ) {
                 (None, 1, Some(first)) if first.arguments.is_empty() => true,
                 _ => false,
-            }
+            },
             _ => false,
         }
     }

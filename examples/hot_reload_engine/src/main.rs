@@ -1,13 +1,12 @@
-use shame::{RenderPipelineRecording};
-use wgpu::util::DeviceExt;
+use shame::RenderPipelineRecording;
 use std::time::{Duration, Instant};
+use wgpu::util::DeviceExt;
+use wgpu::util::*;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
-use wgpu::util::*;
-
 
 pub type Index = u32;
 
@@ -16,14 +15,15 @@ use simple_wgpu_lib::glue;
 mod listen_for_shader;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
-
-    println!("this example demonstrates how to update the shaders at runtime, \
+    println!(
+        "this example demonstrates how to update the shaders at runtime, \
 while still using their types in the engine crate. The shaders for this example are \
 located in the `hot_reload_shaders` crate.\n
 Try modifying the pipeline function in `hot_reload_shaders/src/render_pipeline.rs` and\
 then execute `cargo run --bin hot_reload_shaders` in another terminal. \
 It will re-record the pipeline and send it back here!\n
-I recommend binding the cargo command to a hotkey or setting up a watch process.");
+I recommend binding the cargo command to a hotkey or setting up a watch process."
+    );
 
     let size = window.inner_size();
     let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -47,7 +47,7 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
                 // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swapchain.
                 limits: {
                     let mut limits = wgpu::Limits::downlevel_webgl2_defaults()
-                    .using_resolution(adapter.limits());
+                        .using_resolution(adapter.limits());
                     limits.max_push_constant_size = 4;
                     limits
                 },
@@ -63,11 +63,8 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
 
     let recording = shame::record_render_pipeline(pipeline);
 
-    let mut render_pipeline = glue::make_render_pipeline(
-        &recording, 
-        &device,
-        Some(swapchain_format)
-    );
+    let mut render_pipeline =
+        glue::make_render_pipeline(&recording, &device, Some(swapchain_format));
 
     let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
         label: None,
@@ -88,9 +85,7 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
         usage: wgpu::BufferUsages::VERTEX,
     });
 
-    let index_buffer_source = [
-        0, 1, 2 as Index
-    ];
+    let index_buffer_source = [0, 1, 2 as Index];
     let index_buffer_len = index_buffer_source.len() as u32;
 
     let index_buffer = device.create_buffer_init(&BufferInitDescriptor {
@@ -101,27 +96,22 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: None,
-        entries: &vec![
-            wgpu::BindGroupLayoutEntry { 
-                binding: 0, 
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, 
-                ty: wgpu::BindingType::Buffer { 
-                    ty: wgpu::BufferBindingType::Uniform, 
-                    has_dynamic_offset: false, 
-                    min_binding_size: None, 
-                }, 
-                count: None, 
+        entries: &vec![wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
             },
-        ],
+            count: None,
+        }],
     });
 
     let xform_buffer = device.create_buffer_init(&BufferInitDescriptor {
         label: None,
         contents: bytemuck::bytes_of(&[
-            0.6, 0.0, 0.0, 0.0, 
-            0.0, 0.6, 0.0, 0.0, 
-            0.0, 0.0, 0.6, 0.0, 
-            0.0, 0.0, 0.0, 1.0_f32, 
+            0.6, 0.0, 0.0, 0.0, 0.0, 0.6, 0.0, 0.0, 0.0, 0.0, 0.6, 0.0, 0.0, 0.0, 0.0, 1.0_f32,
         ]),
         usage: wgpu::BufferUsages::UNIFORM,
     });
@@ -129,12 +119,10 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
         layout: &bind_group_layout,
-        entries: &vec![
-            wgpu::BindGroupEntry { 
-                binding: 0,
-                resource: xform_buffer.as_entire_binding(),
-            },
-        ],
+        entries: &vec![wgpu::BindGroupEntry {
+            binding: 0,
+            resource: xform_buffer.as_entire_binding(),
+        }],
     });
 
     let mut config = wgpu::SurfaceConfiguration {
@@ -147,12 +135,8 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
 
     surface.configure(&device, &config);
 
-    let (
-        mut last_update_inst,
-        mut last_frame_inst,
-        mut frame_count,
-        mut _accum_time,
-    ) = (Instant::now(), Instant::now(), 0, 0.0);
+    let (mut last_update_inst, mut last_frame_inst, mut frame_count, mut _accum_time) =
+        (Instant::now(), Instant::now(), 0, 0.0);
 
     let mut num_shader_updates = 0;
 
@@ -176,7 +160,6 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
                 window.request_redraw();
             }
             Event::RedrawRequested(_) => {
-
                 _accum_time += last_frame_inst.elapsed().as_secs_f32();
                 last_frame_inst = Instant::now();
                 frame_count += 1;
@@ -220,10 +203,13 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
                     rpass.set_pipeline(&render_pipeline);
                     rpass.set_bind_group(0, &bind_group, &[]);
                     rpass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                    rpass.set_push_constants(wgpu::ShaderStages::VERTEX_FRAGMENT, 0, bytemuck::bytes_of(
-                        &(frame_count as f32 / 60.0)
-                    ));
-                    rpass.set_index_buffer(index_buffer.slice(..), glue::index_format_of::<Index>());
+                    rpass.set_push_constants(
+                        wgpu::ShaderStages::VERTEX_FRAGMENT,
+                        0,
+                        bytemuck::bytes_of(&(frame_count as f32 / 60.0)),
+                    );
+                    rpass
+                        .set_index_buffer(index_buffer.slice(..), glue::index_format_of::<Index>());
                     rpass.draw_indexed(0..index_buffer_len, 0, 0..1);
                 }
 
@@ -245,8 +231,9 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
                     last_update_inst = Instant::now();
                 } else {
                     *control_flow = ControlFlow::WaitUntil(
-                        Instant::now() + target_frametime - time_since_last_frame
-                        - wake_up_dur_estimate,
+                        Instant::now() + target_frametime
+                            - time_since_last_frame
+                            - wake_up_dur_estimate,
                     );
                 }
 
@@ -261,9 +248,9 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
                                 info: recording.info.clone(),
                             };
                             render_pipeline = glue::make_render_pipeline(
-                                &new_recording, 
+                                &new_recording,
                                 &device,
-                                Some(swapchain_format)
+                                Some(swapchain_format),
                             );
                             num_shader_updates += 1;
                             println!("updated shader! (#{num_shader_updates})");
@@ -283,12 +270,12 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
 fn main() {
     let event_loop = EventLoop::new();
     let window = winit::window::WindowBuilder::new()
-    .with_inner_size(winit::dpi::LogicalSize {
-        width:  512,
-        height: 512,
-    })
-    .build(&event_loop)
-    .unwrap();
+        .with_inner_size(winit::dpi::LogicalSize {
+            width: 512,
+            height: 512,
+        })
+        .build(&event_loop)
+        .unwrap();
 
     env_logger::init();
     // Temporarily avoid srgb formats for the swapchain on the web

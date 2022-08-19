@@ -1,6 +1,6 @@
 //! Extends the [`Primitive`] type from the shader api
-use crate::shader::Primitive;
 use super::target::DepthWrite;
+use crate::shader::Primitive;
 
 impl Primitive<'_> {
     /// the primitive's DepthWrite value based on the clip space position

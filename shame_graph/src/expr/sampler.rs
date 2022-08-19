@@ -1,4 +1,3 @@
-
 /// <https://www.khronos.org/opengl/wiki/Sampler_(GLSL)#Sampler_types>
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TexDimensionality {

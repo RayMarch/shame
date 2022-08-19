@@ -1,12 +1,27 @@
-use crate::pool::Key;
 use super::*;
+use crate::pool::Key;
 
 #[derive(Clone)]
 pub enum Flow {
-    IfThen      {cond: Key<Expr>, then: Key<Block>},
-    IfThenElse  {cond: Key<Expr>, then: Key<Block>, els: Key<Block>},
-    For         {init: Key<Expr>, cond: Key<Expr> , inc: Key<Expr>, body: Key<Block>},
-    While       {cond: Key<Expr>, body: Key<Block>},
+    IfThen {
+        cond: Key<Expr>,
+        then: Key<Block>,
+    },
+    IfThenElse {
+        cond: Key<Expr>,
+        then: Key<Block>,
+        els: Key<Block>,
+    },
+    For {
+        init: Key<Expr>,
+        cond: Key<Expr>,
+        inc: Key<Expr>,
+        body: Key<Block>,
+    },
+    While {
+        cond: Key<Expr>,
+        body: Key<Block>,
+    },
 }
 
 #[derive(Clone)]
@@ -27,9 +42,6 @@ pub struct Stmt {
 
 impl Stmt {
     pub fn new(time: RecordTime, kind: StmtKind) -> Self {
-        Self {
-            time, 
-            kind,
-        }
+        Self { time, kind }
     }
 }

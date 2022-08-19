@@ -8,7 +8,7 @@ pub fn simplify_code(s: &str) -> String {
     s.trim().chars().fold('\n', |prev, c| {
         match (prev, c) {
             ('\n', '\n') | ('\n', ' ') | (' ', ' ') => (), //skip
-            _ => out.push(c)
+            _ => out.push(c),
         }
         c
     });
@@ -19,6 +19,9 @@ pub fn simplify_code(s: &str) -> String {
 #[macro_export]
 macro_rules! assert_eq_code {
     ($a: expr, $b: expr) => {
-        assert_eq!($crate::common::simplify_code($a), $crate::common::simplify_code($b))
+        assert_eq!(
+            $crate::common::simplify_code($a),
+            $crate::common::simplify_code($b)
+        )
     };
 }

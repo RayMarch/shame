@@ -11,7 +11,7 @@ macro_rules! impl_rec_aliases {
     )*};
 }
 
-impl_rec_aliases!{
+impl_rec_aliases! {
     scal  : (float   , double   , int   , uint   , boolean);
     vec2  : (float2  , double2  , int2  , uint2  , bool2  );
     vec3  : (float3  , double3  , int3  , uint3  , bool3  );

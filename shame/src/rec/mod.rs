@@ -1,5 +1,5 @@
 //! recording types
-//! 
+//!
 //! types and functions that record the actions performed on them into the
 //! shame_graph, so that a shader can be generated later.
 

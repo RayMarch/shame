@@ -1,16 +1,20 @@
-
 use std::ops::Deref;
 
-use crate::{context::Context, pool::{Key, PoolRefMut}};
+use crate::{
+    context::Context,
+    pool::{Key, PoolRefMut},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IdentSlot(pub(crate) Key<Option<String>>);
 
 impl IdentSlot {
-
     // don't make this function public to prevent users from
     // allocating lots of ident slots. Only offer IdentSlot reusing functions (e.g. in Any)
-    pub(crate) fn new_in(maybe_named: Option<String>, pool_mut: &mut PoolRefMut<Option<String>>) -> Self {
+    pub(crate) fn new_in(
+        maybe_named: Option<String>,
+        pool_mut: &mut PoolRefMut<Option<String>>,
+    ) -> Self {
         Self(pool_mut.push(maybe_named))
     }
 

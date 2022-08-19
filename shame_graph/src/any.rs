@@ -1,12 +1,11 @@
-
-use crate::BranchState;
-use crate::common::IteratorExt;
-use crate::common::new_array_enumerate;
-use crate::Context;
-use crate::context::ShaderKind;
-use crate::error::Error;
 use super::expr::*;
 use super::pool::*;
+use crate::common::new_array_enumerate;
+use crate::common::IteratorExt;
+use crate::context::ShaderKind;
+use crate::error::Error;
+use crate::BranchState;
+use crate::Context;
 
 ///TODO: document that this has reference semantics, e.g. = operator behavior, which may be unintuitive
 #[derive(Debug, Clone, Copy)]
@@ -15,32 +14,28 @@ pub struct Any {
 }
 
 impl Any {
-    
     fn by_recording_expr(kind: ExprKind, args: &[Any]) -> Self {
-
         let all_is_some = args.iter().all(|any| any.expr_key.is_some());
 
-        let expr_key = all_is_some.then(|| {
+        let expr_key = all_is_some
+            .then(|| {
+                let unwrapped_args = args.iter().map(|arg| arg.expr_key.unwrap()).collect(); //allocates a Vec
 
-            let unwrapped_args = args.iter().map(|arg| arg.expr_key.unwrap()).collect(); //allocates a Vec
+                let current_block = Context::with(|ctx| ctx.current_block_key_unwrap());
 
-            let current_block = Context::with(|ctx| ctx.current_block_key_unwrap());
+                let maybe_expr = Expr::new(None, kind, unwrapped_args, current_block);
 
-            let maybe_expr = Expr::new(
-                None, 
-                kind, 
-                unwrapped_args,
-                current_block
-            );
-
-            let expr = match maybe_expr {
-                Ok(expr) => expr,
-                Err(e) => {Context::with(|ctx| ctx.push_error(e)); return None},
-            };
-            let expr_key = Context::with(|ctx| ctx.exprs_mut().push(expr));
-            Some(expr_key)
-
-        }).flatten();
+                let expr = match maybe_expr {
+                    Ok(expr) => expr,
+                    Err(e) => {
+                        Context::with(|ctx| ctx.push_error(e));
+                        return None;
+                    }
+                };
+                let expr_key = Context::with(|ctx| ctx.exprs_mut().push(expr));
+                Some(expr_key)
+            })
+            .flatten();
 
         // // this commented out block below behaves wrong when recording an if(uniformval)
         // if !all_is_some { //attempt to record an expression with some expr_keys unavailable in this shader recording (stage)
@@ -56,9 +51,8 @@ impl Any {
         //     }
         // }
 
-        Self {expr_key}
+        Self { expr_key }
     }
-
 
     pub(crate) fn ty(&self, pool: &PoolRef<Expr>) -> Option<Ty> {
         self.expr_key.map(|key| pool[key].ty.clone())
@@ -71,7 +65,7 @@ impl Any {
     pub fn ty_via_thread_ctx(&self) -> Option<Ty> {
         Context::with(|ctx| self.ty_via_ctx(ctx))
     }
-    
+
     /// assign a name that will be used when the recorded expression is converted into a variable in the resulting shader code.
     /// the provided name may get changed slightly in order to not collide with keywords/other variables in the target language.
     pub fn aka(self, name: &str) -> Self {
@@ -88,15 +82,13 @@ impl Any {
         });
         self
     }
-    
+
     //
     // ctors
     //
 
     pub fn not_available() -> Self {
-        Any {
-            expr_key: None,
-        }
+        Any { expr_key: None }
     }
 
     pub fn is_available(&self) -> bool {
@@ -123,14 +115,13 @@ impl Any {
                 let maybe_ident = {
                     let exprs = ctx.exprs_mut();
                     let idents = ctx.idents_mut();
-                    exprs[key].ident
+                    exprs[key]
+                        .ident
                         .and_then(|slot| idents[*slot].as_ref())
                         .map(|name| format!("{name}_copy"))
                 };
 
-                maybe_ident.map(|ident| {
-                    copied.aka(&*ident)
-                })
+                maybe_ident.map(|ident| copied.aka(&*ident))
             })
         });
 
@@ -141,9 +132,16 @@ impl Any {
     pub fn global_interface(ty: Ty, ident: Option<String>) -> Self {
         Any::by_recording_expr(ExprKind::GlobalInterface(ty), &[]).aka_maybe(ident)
     }
-    
-    pub fn texture_combined_sampler(kind: TexDtypeDimensionality, texture: Any, sampler: Any) -> Any {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::TextureCombinedSampler(kind)), &[texture, sampler])
+
+    pub fn texture_combined_sampler(
+        kind: TexDtypeDimensionality,
+        texture: Any,
+        sampler: Any,
+    ) -> Any {
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::TextureCombinedSampler(kind)),
+            &[texture, sampler],
+        )
     }
 
     pub fn bool(value: bool) -> Self {
@@ -153,20 +151,22 @@ impl Any {
     pub fn float(value: f32) -> Self {
         use std::num::FpCategory::*;
         match value.classify() {
-            Normal | Zero => 
-                Any::by_recording_expr(ExprKind::Literal(Literal::F32(value)), &[]),
+            Normal | Zero => Any::by_recording_expr(ExprKind::Literal(Literal::F32(value)), &[]),
             cat => Context::with(|ctx| {
                 ctx.push_error(Error::UnsupportedFloadingPointCategory(cat));
                 Any::not_available()
-            })
+            }),
         }
     }
 
     pub fn double(value: f64) -> Self {
         use std::num::FpCategory::*;
         match value.classify() {
-            Normal | Zero => {},
-            cat => panic!("cannot convert f64 point number of category '{:?}' to glsl", cat)
+            Normal | Zero => {}
+            cat => panic!(
+                "cannot convert f64 point number of category '{:?}' to glsl",
+                cat
+            ),
         };
         Any::by_recording_expr(ExprKind::Literal(Literal::F64(value)), &[])
     }
@@ -180,47 +180,80 @@ impl Any {
     }
 
     pub fn cast_bool(arg: Any) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::bool())), &[arg])
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::bool())),
+            &[arg],
+        )
     }
 
     pub fn cast_float(arg: Any) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::float())), &[arg])
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::float())),
+            &[arg],
+        )
     }
 
     pub fn cast_double(arg: Any) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::double())), &[arg])
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::double())),
+            &[arg],
+        )
     }
 
     pub fn cast_int(arg: Any) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::int())), &[arg])
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::int())),
+            &[arg],
+        )
     }
 
     pub fn cast_uint(arg: Any) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::uint())), &[arg])
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::uint())),
+            &[arg],
+        )
     }
 
     pub fn vec2(args: &[Any]) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::vec2())), args)
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::vec2())),
+            args,
+        )
     }
 
     pub fn vec3(args: &[Any]) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::vec3())), args)
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::vec3())),
+            args,
+        )
     }
 
     pub fn vec4(args: &[Any]) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::vec4())), args)
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::vec4())),
+            args,
+        )
     }
 
     pub fn ivec2(args: &[Any]) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::ivec2())), args)
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::ivec2())),
+            args,
+        )
     }
 
     pub fn ivec3(args: &[Any]) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::ivec3())), args)
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::ivec3())),
+            args,
+        )
     }
 
     pub fn ivec4(args: &[Any]) -> Self {
-        Any::by_recording_expr(ExprKind::Constructor(Constructor::Tensor(Tensor::ivec4())), args)
+        Any::by_recording_expr(
+            ExprKind::Constructor(Constructor::Tensor(Tensor::ivec4())),
+            args,
+        )
     }
 
     pub fn new_tensor(tensor: Tensor, args: &[Any]) -> Self {
@@ -233,23 +266,25 @@ impl Any {
 
     pub fn new_matrix_from_rows(tensor: Tensor, args: &[Any]) -> Self {
         let (c, r) = tensor.shape.dims_u8();
-        
+
         match args.len() == tensor.shape.row_count() {
             false => {
-                Context::with(|ctx| ctx.push_error(Error::ArgumentError(
-                    format!("cannot create a matrix ({}) with {} rows", tensor.to_string(), args.len())
-                )));
+                Context::with(|ctx| {
+                    ctx.push_error(Error::ArgumentError(format!(
+                        "cannot create a matrix ({}) with {} rows",
+                        tensor.to_string(),
+                        args.len()
+                    )))
+                });
                 Any::not_available()
             }
             true => {
                 // this calls
                 // matMxN(row0.x, row1.x..., row0.y, row1.y... ,...)
-                let comps = 
-                (0..c).map(|col_i| 
-                    (0..r).map(move |row_i|
-                        args[row_i as usize].swizzle(&[col_i])
-                    )
-                ).flatten().collect::<Vec<_>>();
+                let comps = (0..c)
+                    .map(|col_i| (0..r).map(move |row_i| args[row_i as usize].swizzle(&[col_i])))
+                    .flatten()
+                    .collect::<Vec<_>>();
                 Self::new_tensor(tensor, &comps)
             }
         }
@@ -275,64 +310,59 @@ impl Any {
 
     /// used to select all the fields in Struct related derive code
     pub fn select_first_n_fields<const N: usize>(&self) -> [Any; N] {
-
         Context::with(|ctx| {
-            self.ty_via_ctx(ctx).map(|ty| {
+            self.ty_via_ctx(ctx)
+                .map(|ty| {
+                    let not_available_error = || {
+                        ctx.push_error(Error::FieldSelectError(format!(
+                            "cannot select {N} fields from {ty}"
+                        )));
+                        [Any::not_available(); N]
+                    };
 
-                let not_available_error = || {
-                    ctx.push_error(Error::FieldSelectError(format!("cannot select {N} fields from {ty}")));
-                    [Any::not_available(); N]
-                };
+                    let struct_ty = match &ty.kind {
+                        TyKind::Struct(s) => s,
+                        _ => return not_available_error(),
+                    };
+                    let Struct(Named(fields, _)) = struct_ty;
+                    if fields.len() != N {
+                        return not_available_error();
+                    }
 
-                let struct_ty = match &ty.kind {
-                    TyKind::Struct(s) => s,
-                    _ => return not_available_error(),
-                };
-                let Struct(Named(fields, _)) = struct_ty;
-                if fields.len() != N {
-                    return not_available_error();
-                }
-
-                new_array_enumerate(|i| {
-                    let Named(_, ident) = fields[i];
-                    Any::by_recording_expr(ExprKind::FieldSelect(ident), &[*self])
+                    new_array_enumerate(|i| {
+                        let Named(_, ident) = fields[i];
+                        Any::by_recording_expr(ExprKind::FieldSelect(ident), &[*self])
+                    })
                 })
-            }).unwrap_or_else(|| {
-                [Any::not_available(); N]
-            })
+                .unwrap_or_else(|| [Any::not_available(); N])
         })
     }
 
     ///returns `None` if `self` is not available in the current shader stage
     pub fn subscript_len(&self) -> Option<SubscriptLen> {
         use SubscriptLen::*;
-        self.ty_via_thread_ctx().map(|ty| {
-            match &ty.kind {
-                TyKind::Tensor(tensor) => match tensor.len_wrt_subscript_operator() {
-                    Some(len) => Sized(len),
-                    None => InvalidTy(ty)
-                },
-                TyKind::Array(Array(_, len)) => match *len {
-                    Some(len) => Sized(len),
-                    None => Unsized,
-                },
-                TyKind::ArrayOfOpaque(_) => todo!(),
-                TyKind::Opaque(_) => todo!(),
-                TyKind::Void |
-                TyKind::Struct(_) |
-                TyKind::Callable(_) |
-                TyKind::InterfaceBlock(_) => InvalidTy(ty), 
+        self.ty_via_thread_ctx().map(|ty| match &ty.kind {
+            TyKind::Tensor(tensor) => match tensor.len_wrt_subscript_operator() {
+                Some(len) => Sized(len),
+                None => InvalidTy(ty),
+            },
+            TyKind::Array(Array(_, len)) => match *len {
+                Some(len) => Sized(len),
+                None => Unsized,
+            },
+            TyKind::ArrayOfOpaque(_) => todo!(),
+            TyKind::Opaque(_) => todo!(),
+            TyKind::Void | TyKind::Struct(_) | TyKind::Callable(_) | TyKind::InterfaceBlock(_) => {
+                InvalidTy(ty)
             }
         })
     }
 
     pub fn subscript(&self, index: Any) -> Self {
-
-        let index_literal = index.expr_key
-        .and_then(|key| {
-            Context::with(|ctx| { 
+        let index_literal = index.expr_key.and_then(|key| {
+            Context::with(|ctx| {
                 let expr = &ctx.exprs()[key];
-                
+
                 match expr.kind {
                     ExprKind::Literal(lit) => match lit {
                         Literal::U32(i) => Some(i as i64),
@@ -350,16 +380,17 @@ impl Any {
             SubscriptLen::InvalidTy(_) => {
                 //this will result in an error at type deduction anyways, no need to push an error here
                 None
-            },
+            }
         });
 
-        if let (Some(ty), Some(len), Some(i)) = (self.ty_via_thread_ctx(), maybe_len, index_literal) {
+        if let (Some(ty), Some(len), Some(i)) = (self.ty_via_thread_ctx(), maybe_len, index_literal)
+        {
             let in_bounds = 0 <= i && i < len as i64;
             if !in_bounds {
-                Context::with(|ctx| { 
-                    ctx.push_error(
-                        Error::OutOfBounds(format!("access into {ty} out of bounds 0..{len} at index {i}"))
-                    )
+                Context::with(|ctx| {
+                    ctx.push_error(Error::OutOfBounds(format!(
+                        "access into {ty} out of bounds 0..{len} at index {i}"
+                    )))
                 });
             }
         }
@@ -368,13 +399,21 @@ impl Any {
     }
 
     /// returns an lvalue
-    pub fn x(&self) -> Self {self.vector_index(0)}
+    pub fn x(&self) -> Self {
+        self.vector_index(0)
+    }
     /// returns an lvalue
-    pub fn y(&self) -> Self {self.vector_index(1)}
+    pub fn y(&self) -> Self {
+        self.vector_index(1)
+    }
     /// returns an lvalue
-    pub fn z(&self) -> Self {self.vector_index(2)}
+    pub fn z(&self) -> Self {
+        self.vector_index(2)
+    }
     /// returns an lvalue
-    pub fn w(&self) -> Self {self.vector_index(3)}
+    pub fn w(&self) -> Self {
+        self.vector_index(3)
+    }
 
     pub fn vector_index(&self, index: u8) -> Self {
         Any::by_recording_expr(ExprKind::Swizzle(Swizzle::GetScalar([index])), &[*self])
@@ -387,10 +426,10 @@ impl Any {
     fn swizzle_internal(&self, indices: &[u8]) -> Self {
         use Swizzle::*;
         let sw = match indices {
-            [x, y, z, w] => Some(GetVec4  ([*x, *y, *z, *w])),
-            [x, y, z]    => Some(GetVec3  ([*x, *y, *z])),
-            [x, y]       => Some(GetVec2  ([*x, *y])),
-            [x]          => Some(GetScalar([*x])),
+            [x, y, z, w] => Some(GetVec4([*x, *y, *z, *w])),
+            [x, y, z] => Some(GetVec3([*x, *y, *z])),
+            [x, y] => Some(GetVec2([*x, *y])),
+            [x] => Some(GetScalar([*x])),
             _ => Context::with(|ctx| {
                 ctx.push_error(Error::ArgumentError(
                     format!("swizzle cannot be used to create a {}-component vector (component indices={:?})", indices.len(), indices)
@@ -398,9 +437,8 @@ impl Any {
                 None
             }),
         };
-        sw.map(|sw| {
-            Any::by_recording_expr(ExprKind::Swizzle(sw), &[*self])
-        }).unwrap_or_else(|| Any::not_available())
+        sw.map(|sw| Any::by_recording_expr(ExprKind::Swizzle(sw), &[*self]))
+            .unwrap_or_else(|| Any::not_available())
     }
 
     /// use this swizzle function if there are no repeated components in the swizzle.
@@ -415,9 +453,14 @@ impl Any {
             }),
             false => {
                 let out = self.swizzle_internal(indices);
-                debug_assert!(out.ty_via_thread_ctx().map(|x| x.access == Access::LValue).unwrap_or(true), "a swizzle type is expected to be an Lvalue");
+                debug_assert!(
+                    out.ty_via_thread_ctx()
+                        .map(|x| x.access == Access::LValue)
+                        .unwrap_or(true),
+                    "a swizzle type is expected to be an Lvalue"
+                );
                 out
-            },
+            }
         }
     }
 
@@ -433,25 +476,35 @@ impl Any {
             }),
             false => {
                 let out = self.swizzle_internal(indices);
-                debug_assert!(out.ty_via_thread_ctx().map(|x| x.access != Access::LValue).unwrap_or(true), "a swizzle_repeated type is expected to not be an Lvalue");
+                debug_assert!(
+                    out.ty_via_thread_ctx()
+                        .map(|x| x.access != Access::LValue)
+                        .unwrap_or(true),
+                    "a swizzle_repeated type is expected to not be an Lvalue"
+                );
                 out
-            },
+            }
         }
     }
 
     pub fn swizzle_copy(&self, indices: &[u8]) -> Self {
         let out = self.swizzle_internal(indices).copy();
-        debug_assert!(out.ty_via_thread_ctx().map(|x| x.access != Access::LValue).unwrap_or(true), "a swizzle_copy type is expected to not be an Lvalue");
+        debug_assert!(
+            out.ty_via_thread_ctx()
+                .map(|x| x.access != Access::LValue)
+                .unwrap_or(true),
+            "a swizzle_copy type is expected to not be an Lvalue"
+        );
         out
     }
 
     pub fn swizzle_maybe_lvalue(&self, indices: &[u8]) -> Self {
         use Swizzle::*;
         let sw = match indices {
-            [x, y, z, w] => Some(GetVec4  ([*x, *y, *z, *w])),
-            [x, y, z]    => Some(GetVec3  ([*x, *y, *z])),
-            [x, y]       => Some(GetVec2  ([*x, *y])),
-            [x]          => Some(GetScalar([*x])),
+            [x, y, z, w] => Some(GetVec4([*x, *y, *z, *w])),
+            [x, y, z] => Some(GetVec3([*x, *y, *z])),
+            [x, y] => Some(GetVec2([*x, *y])),
+            [x] => Some(GetScalar([*x])),
             _ => Context::with(|ctx| {
                 ctx.push_error(Error::ArgumentError(
                     format!("swizzle cannot be used to create a {}-component vector (component indices={:?})", indices.len(), indices)
@@ -459,9 +512,8 @@ impl Any {
                 None
             }),
         };
-        sw.map(|sw| {
-            Any::by_recording_expr(ExprKind::Swizzle(sw), &[*self])
-        }).unwrap_or_else(|| Any::not_available())
+        sw.map(|sw| Any::by_recording_expr(ExprKind::Swizzle(sw), &[*self]))
+            .unwrap_or_else(|| Any::not_available())
     }
 
     //
@@ -492,8 +544,12 @@ impl Any {
     }
 
     ///alternate name for Any::set, lets see which name sticks
-    pub fn assign(&mut self, src: Any) {self.set(src)}
-    pub fn write (&mut self, src: Any) {self.set(src)}
+    pub fn assign(&mut self, src: Any) {
+        self.set(src)
+    }
+    pub fn write(&mut self, src: Any) {
+        self.set(src)
+    }
 
     //
     // methods
@@ -579,7 +635,8 @@ impl Any {
     pub fn smoothstep(&self, step_interval: std::ops::Range<Any>) -> Any {
         #[allow(unused_mut)]
         let (mut edge0, mut edge1) = (step_interval.start, step_interval.end);
-        #[cfg(feature = "workarounds")] {
+        #[cfg(feature = "workarounds")]
+        {
             //naga 0.8 does not support the overloads
             //genFType smoothstep(float edge0, float edge1, genFType x)
             //genDType smoothstep(double edge0, double edge1, genDType x)
@@ -591,7 +648,10 @@ impl Any {
                 }
             }
         }
-        Any::by_recording_expr(ExprKind::BuiltinFn(BuiltinFn::Smoothstep), &[edge0, edge1, *self])
+        Any::by_recording_expr(
+            ExprKind::BuiltinFn(BuiltinFn::Smoothstep),
+            &[edge0, edge1, *self],
+        )
     }
 
     pub fn mix(&self, interpolate_between: std::ops::Range<Any>) -> Any {
@@ -634,16 +694,19 @@ impl Any {
     }
 
     pub fn partial_derivative(&self, component: u8, precision: DerivativePrecision) -> Any {
-        use DerivativePrecision::*;
         use BuiltinFn::*;
+        use DerivativePrecision::*;
         let builtin = match (component, precision) {
             (0, DontCare) => Dfdx,
             (1, DontCare) => Dfdy,
-            (0, Coarse)   => DfdxCoarse,
-            (1, Coarse)   => DfdyCoarse,
-            (0, Fine)     => DfdxFine,
-            (1, Fine)     => DfdyFine,
-            _ => panic!("invalid fragment partial derivative component: {}", component)
+            (0, Coarse) => DfdxCoarse,
+            (1, Coarse) => DfdyCoarse,
+            (0, Fine) => DfdxFine,
+            (1, Fine) => DfdyFine,
+            _ => panic!(
+                "invalid fragment partial derivative component: {}",
+                component
+            ),
         };
 
         if Context::with(|ctx| ctx.shader_kind == ShaderKind::Fragment) {
@@ -651,7 +714,6 @@ impl Any {
         } else {
             super::Any::not_available()
         }
-        
     }
 
     /// records the pow function for integer values by repeated multiplication
@@ -659,13 +721,13 @@ impl Any {
     pub fn pow_unrolled(self, n: u32) -> Any {
         let sanity_limit = 512;
         match n > sanity_limit {
-            true => Context::with(|ctx| {
-                ctx.push_error(Error::AssertionFailed(format!("pow unroll sanity check failed. trying to multiply a variable {} (> {}) times", n, sanity_limit)));
-                Any::not_available()
-            }),
-            false => {
-                (1..n).fold(self, |acc, _| acc * self)
+            true => {
+                Context::with(|ctx| {
+                    ctx.push_error(Error::AssertionFailed(format!("pow unroll sanity check failed. trying to multiply a variable {} (> {}) times", n, sanity_limit)));
+                    Any::not_available()
+                })
             }
+            false => (1..n).fold(self, |acc, _| acc * self),
         }
     }
 
@@ -678,8 +740,14 @@ impl Any {
     /// see <https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/texture.xhtml>
     pub fn sample(&self, tex_coords: Any, bias_or_compare: Option<Any>) -> Any {
         match bias_or_compare {
-            Some(val) => Any::by_recording_expr(ExprKind::BuiltinFn(BuiltinFn::Texture), &[*self, tex_coords, val]),
-            None => Any::by_recording_expr(ExprKind::BuiltinFn(BuiltinFn::Texture), &[*self, tex_coords]),
+            Some(val) => Any::by_recording_expr(
+                ExprKind::BuiltinFn(BuiltinFn::Texture),
+                &[*self, tex_coords, val],
+            ),
+            None => Any::by_recording_expr(
+                ExprKind::BuiltinFn(BuiltinFn::Texture),
+                &[*self, tex_coords],
+            ),
         }
     }
 
@@ -706,11 +774,11 @@ impl Any {
     /// glsl `> < == != >= <=` operators, only valid for scalars
     pub fn scalar_comparison(&self, kind: CompareKind, rhs: Any) -> Any {
         (match kind {
-            CompareKind::Equal        => Any::eq,
-            CompareKind::NotEqual     => Any::ne,
-            CompareKind::Less         => Any::lt,
-            CompareKind::LessEqual    => Any::le,
-            CompareKind::Greater      => Any::gt,
+            CompareKind::Equal => Any::eq,
+            CompareKind::NotEqual => Any::ne,
+            CompareKind::Less => Any::lt,
+            CompareKind::LessEqual => Any::le,
+            CompareKind::Greater => Any::gt,
             CompareKind::GreaterEqual => Any::ge,
         })(self, rhs)
     }
@@ -718,11 +786,11 @@ impl Any {
     /// glsl lessThan, greaterThan, equal, notEqual etc...
     pub fn vector_comparison(&self, kind: CompareKind, rhs: Any) -> Any {
         (match kind {
-            CompareKind::Equal        => Any::equal,
-            CompareKind::NotEqual     => Any::not_equal,
-            CompareKind::Less         => Any::less_than,
-            CompareKind::LessEqual    => Any::less_than_equal,
-            CompareKind::Greater      => Any::greater_than,
+            CompareKind::Equal => Any::equal,
+            CompareKind::NotEqual => Any::not_equal,
+            CompareKind::Less => Any::less_than,
+            CompareKind::LessEqual => Any::less_than_equal,
+            CompareKind::Greater => Any::greater_than,
             CompareKind::GreaterEqual => Any::greater_than_equal,
         })(self, rhs)
     }
@@ -764,11 +832,17 @@ impl Any {
 
     /// for vectors only
     pub fn greater_than_equal(&self, rhs: Any) -> Any {
-        Any::by_recording_expr(ExprKind::BuiltinFn(BuiltinFn::GreaterThanEqual), &[*self, rhs])
+        Any::by_recording_expr(
+            ExprKind::BuiltinFn(BuiltinFn::GreaterThanEqual),
+            &[*self, rhs],
+        )
     }
 
     pub fn ternary_if(&self, then_: Any, else_: Any) -> Any {
-        Any::by_recording_expr(ExprKind::Operator(Operator::TernaryIf), &[*self, then_, else_])
+        Any::by_recording_expr(
+            ExprKind::Operator(Operator::TernaryIf),
+            &[*self, then_, else_],
+        )
     }
 
     //alt naming for ternary_if
@@ -782,29 +856,31 @@ impl Any {
 
     fn to_branch_state(&self) -> BranchState {
         self.is_available()
-        .then(|| BranchState::Branch)
-        .unwrap_or(BranchState::BranchWithConditionNotAvailable)
+            .then(|| BranchState::Branch)
+            .unwrap_or(BranchState::BranchWithConditionNotAvailable)
     }
 
     pub fn record_then(&self, f: impl FnOnce()) {
-
         let branch_state = Some(self.to_branch_state());
-        
+
         match self.expr_key {
             Some(cond_key) => {
                 let now = RecordTime::next();
-                
+
                 Context::with(|ctx| {
                     let ((), block_key) = ctx.record_nested_block(branch_state, f);
 
-                    let stmt = Stmt::new(now, StmtKind::Flow(Flow::IfThen {
-                        cond: cond_key,
-                        then: block_key
-                    }));
+                    let stmt = Stmt::new(
+                        now,
+                        StmtKind::Flow(Flow::IfThen {
+                            cond: cond_key,
+                            then: block_key,
+                        }),
+                    );
 
                     ctx.blocks_mut()[ctx.current_block_key_unwrap()].record_stmt(stmt);
                 })
-            },
+            }
             None => Context::with(|ctx| {
                 //f still needs to be executed, due to its potential side effects
                 //the resulting block will not be recorded into a statement so that
@@ -812,30 +888,31 @@ impl Any {
                 let _unused = ctx.record_nested_block(branch_state, f);
             }),
         }
-
     }
 
     pub fn record_then_else(&self, f_then: impl FnOnce(), f_else: impl FnOnce()) {
-
         let branch_state = Some(self.to_branch_state());
 
         Context::with(|ctx| match self.expr_key {
             Some(cond_key) => {
                 let now = RecordTime::next();
-                
+
                 let ((), then_key) = ctx.record_nested_block(branch_state, f_then);
                 let ((), else_key) = ctx.record_nested_block(branch_state, f_else);
-                
-                let stmt = Stmt::new(now, StmtKind::Flow(Flow::IfThenElse {
-                    cond: cond_key, 
-                    then: then_key,
-                    els : else_key,
-                }));
-                
+
+                let stmt = Stmt::new(
+                    now,
+                    StmtKind::Flow(Flow::IfThenElse {
+                        cond: cond_key,
+                        then: then_key,
+                        els: else_key,
+                    }),
+                );
+
                 ctx.blocks_mut()[ctx.current_block_key_unwrap()].record_stmt(stmt);
-            },
+            }
             None => {
-                //functions still need to be executed, due to their potential side effects. 
+                //functions still need to be executed, due to their potential side effects.
                 //The resulting blocks will not be recorded into statements so that
                 //they don't actually end up in the shader code
                 let _unused = ctx.record_nested_block(branch_state, f_then);
@@ -844,21 +921,24 @@ impl Any {
         });
     }
 
-    pub fn record_while(&self, #[allow(unused)]body_fn: impl FnOnce()) {
+    pub fn record_while(&self, #[allow(unused)] body_fn: impl FnOnce()) {
         todo!()
     }
 
-    pub fn record_for(&self, #[allow(unused)]increment_fn: impl FnOnce(), #[allow(unused)]body_fn: impl FnOnce()) {
+    pub fn record_for(
+        &self,
+        #[allow(unused)] increment_fn: impl FnOnce(),
+        #[allow(unused)] body_fn: impl FnOnce(),
+    ) {
         todo!()
     }
-    
 }
 
 macro_rules! impl_binary_operators {
     ($($Op: ident, $OpFunc: ident, $OpEnum: expr;)*) => {
         $(impl $Op<Any> for Any {
             type Output = Any;
-        
+
             fn $OpFunc(self, rhs: Any) -> Self::Output {
                 Any::by_recording_expr(ExprKind::Operator($OpEnum), &[self, rhs])
             }
@@ -880,7 +960,7 @@ macro_rules! impl_unary_operators {
     ($($Op: ident, $OpFunc: ident, $OpEnum: expr;)*) => {
         $(impl $Op for Any {
             type Output = Any;
-        
+
             fn $OpFunc(self) -> Self::Output {
                 Any::by_recording_expr(ExprKind::Operator($OpEnum), &[self])
             }
@@ -900,12 +980,12 @@ pub enum CompareKind {
 
 use std::ops::*;
 
-impl_unary_operators!{
+impl_unary_operators! {
     Neg, neg, Operator::Negative;
     Not, not, Operator::Not;
 }
 
-impl_binary_operators!{
+impl_binary_operators! {
     Mul, mul, Operator::Mul;
     Div, div, Operator::Div;
     Add, add, Operator::Add;
@@ -920,7 +1000,7 @@ impl_binary_operators!{
     Shr, shr, Operator::ShiftR;
 }
 
-impl_assign_operators!{
+impl_assign_operators! {
     MulAssign, mul_assign, Operator::MulAssign;
     DivAssign, div_assign, Operator::DivAssign;
     AddAssign, add_assign, Operator::AddAssign;
@@ -936,7 +1016,7 @@ impl_assign_operators!{
 }
 
 macro_rules! impl_builtin_var_fns {
-    (   
+    (
         $builtin_var_ty: ident, $valid_shader_kind: expr, $exhaustive_check_fn: ident =>
         $(
             $fn_name: ident -> $builtin_var_enum: ident;
@@ -962,7 +1042,6 @@ macro_rules! impl_builtin_var_fns {
 }
 
 impl Any {
-
     impl_builtin_var_fns! {VertexVar, ShaderKind::Vertex, v_exhaustive_check =>
         v_vertex_id_nonvk -> gl_VertexID;
         v_instance_id_nonvk -> gl_InstanceID;
@@ -979,7 +1058,7 @@ impl Any {
         f_front_facing -> gl_FrontFacing;
         f_point_coord -> gl_PointCoord;
 
-        f_sample_id -> gl_SampleID; 
+        f_sample_id -> gl_SampleID;
         f_sample_position -> gl_SamplePosition; //any usage of this will force per-sample evaluation
         f_sample_mask_in -> gl_SampleMaskIn;  //any usage of this will force per-sample evaluation
 
@@ -1001,7 +1080,7 @@ impl Any {
         //     gl_LocalInvocationID.y * gl_WorkGroupSize.x +
         //     gl_LocalInvocationID.x;
         c_local_invocation_index -> gl_LocalInvocationIndex;
-        
+
         c_work_group_size -> gl_WorkGroupSize;
     }
 }

@@ -34,17 +34,17 @@ pub enum BlendOp {
     Max,
 }
 
-/// Describes how to blend a source pixel onto a destination pixel of a certain 
+/// Describes how to blend a source pixel onto a destination pixel of a certain
 /// color target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlendEquation {
-    /// Factor that the source color is multiplied with before [`BlendOp`] is 
+    /// Factor that the source color is multiplied with before [`BlendOp`] is
     /// applied
     pub src_factor: BlendFactor,
-    /// Factor that the destination color (the color of the pixel inside the 
+    /// Factor that the destination color (the color of the pixel inside the
     /// color target) is multiplied with before [`BlendOp`] is applied
     pub dst_factor: BlendFactor,
-    /// The operation 
+    /// The operation
     pub op: BlendOp,
 }
 
@@ -60,12 +60,11 @@ pub struct Blend {
 }
 
 impl Blend {
-
-    /// constructs a new [`Blend`] given two blend equations, 
+    /// constructs a new [`Blend`] given two blend equations,
     /// one for the rgb components and one for the alpha components of
     /// source fragment and destination pixel
     pub fn new(rgb: BlendEquation, a: BlendEquation) -> Self {
-        Self {rgb, a}
+        Self { rgb, a }
     }
 
     /// Convenience constructor for alpha blending
@@ -99,13 +98,15 @@ impl Blend {
             },
         }
     }
-    
 }
 
 impl Display for Blend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         //rgb: (1-dst.rgb + src.a), a: (dst.a + src.a)
-        f.write_fmt(format_args!("rgb={{ {} }}.rgb, a={{ {} }}.a", self.rgb, self.a))
+        f.write_fmt(format_args!(
+            "rgb={{ {} }}.rgb, a={{ {} }}.a",
+            self.rgb, self.a
+        ))
     }
 }
 
@@ -138,8 +139,8 @@ impl Display for BlendEquation {
 
         use BlendOp::*;
         match self.op {
-            Add             => f.write_fmt(format_args!("{src} + {dst}")),
-            Subtract        => f.write_fmt(format_args!("{src} - {dst}")),
+            Add => f.write_fmt(format_args!("{src} + {dst}")),
+            Subtract => f.write_fmt(format_args!("{src} - {dst}")),
             ReverseSubtract => f.write_fmt(format_args!("-{src} + {dst}")),
             Min => f.write_fmt(format_args!("{dst}.min({src})")),
             Max => f.write_fmt(format_args!("{dst}.max({src})")),

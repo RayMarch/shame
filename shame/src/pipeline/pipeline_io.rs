@@ -1,7 +1,7 @@
 //! pipeline io traits to wrap [render_pipeline::IO] and [compute_pipeline::IO]
-use std::ops::RangeFrom;
 use super::*;
 use crate::shader::Group;
+use std::ops::RangeFrom;
 
 /// a trait to wrap [render_pipeline::IO] and [compute_pipeline::IO]
 pub trait GenericPipelineIO {

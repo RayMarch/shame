@@ -1,9 +1,9 @@
-//! trait for datatype of a tensor's components such as `f32`, `bool`, `i32`..., 
+//! trait for datatype of a tensor's components such as `f32`, `bool`, `i32`...,
 use super::*;
 use shame_graph::Any;
 
 /// datatype of a tensor's components
-/// 
+///
 /// e.g.
 /// - `float, float2, float3, float4` are of [`DType`] `f32`
 /// - `double, double2, double3, double4` are of [`DType`] `f64`
@@ -26,7 +26,6 @@ pub trait DType: Copy + 'static {
     fn from_f32(val: f32) -> Self;
 }
 
-
 macro_rules! impl_dtypes {
     ($(($fXX: ident, $dtype_enum: expr) -> as literal: $literal: ident; from f32: $from_f32: expr;)*) => {$(
         impl DType for $fXX {
@@ -44,7 +43,7 @@ macro_rules! impl_dtypes {
     )*};
 }
 
-impl_dtypes!{
+impl_dtypes! {
     (f32 , shame_graph::DType::F32 ) -> as literal: float;  from f32: |x: f32| x as Self;
     (f64 , shame_graph::DType::F64 ) -> as literal: double; from f32: |x: f32| x as Self;
     (i32 , shame_graph::DType::I32 ) -> as literal: int;    from f32: |x: f32| x as Self;
@@ -58,7 +57,7 @@ macro_rules! rust_primitive_types_as_ten {
         impl AsTen for $fXX {
             type S = scal;
             type D = <$ten_ty as AsTen>::D;
-        
+
             fn as_ten(&self) -> Ten<Self::S, Self::D> {
                 Self::D::new_literal(&(*self as <$ten_ty as AsTen>::D))
             }
@@ -76,26 +75,26 @@ macro_rules! rust_primitive_types_as_ten {
     )*};
 }
 
-rust_primitive_types_as_ten!{
-    (f32)  as ten -> float; 
-    (i32)  as ten -> int; 
+rust_primitive_types_as_ten! {
+    (f32)  as ten -> float;
+    (i32)  as ten -> int;
     (bool) as ten -> boolean;
-    (u32)  as ten -> uint; 
+    (u32)  as ten -> uint;
 }
 
 /// implemented for `f64` and `f32`, ensures `IsDTypeNumber`
 pub trait IsDTypeFloatingPoint: IsDTypeNumber {}
-    impl IsDTypeFloatingPoint for f32 {}
-    impl IsDTypeFloatingPoint for f64 {}
+impl IsDTypeFloatingPoint for f32 {}
+impl IsDTypeFloatingPoint for f64 {}
 
 /// implemented for `i32` and `u32`, ensures `IsDTypeNumber`
 pub trait IsDTypeInteger: IsDTypeNumber {}
-    impl IsDTypeInteger for i32 {}
-    impl IsDTypeInteger for u32 {}
+impl IsDTypeInteger for i32 {}
+impl IsDTypeInteger for u32 {}
 
 /// implemented for `f32`, `f64`, `i32`, `u32`. ensures 'DType'
 pub trait IsDTypeNumber: DType {}
-    impl IsDTypeNumber for f32 {}
-    impl IsDTypeNumber for f64 {}
-    impl IsDTypeNumber for i32 {}
-    impl IsDTypeNumber for u32 {}
+impl IsDTypeNumber for f32 {}
+impl IsDTypeNumber for f64 {}
+impl IsDTypeNumber for i32 {}
+impl IsDTypeNumber for u32 {}

@@ -1,16 +1,16 @@
 //! functions for creation of structs in shaders, [`Struct<T: Fields>`]
+use super::{fields::Fields, narrow_stages_or_push_error, IntoRec, Rec, Stage};
+use shame_graph::{Any, Named, Ty, TyKind};
 use std::ops::{Deref, DerefMut};
-use shame_graph::{Any, Ty, TyKind, Named};
-use super::{Stage, Rec, IntoRec, fields::Fields, narrow_stages_or_push_error};
 
 #[derive(Clone, Copy)]
-// FIXME: the T within structs can be accessed mutably, which is fine for 
+// FIXME: the T within structs can be accessed mutably, which is fine for
 // operators like `+=` etc, but might result in unexpected behavior when using `=`
-// to overwrite the member recording-reference (instead of overwriting its value). 
-// This can be made less surprising if T is RefCell'd and recreated/validated on 
-// Deref::deref and Deref::deref_mut. That way a "wrong" later access after modification 
+// to overwrite the member recording-reference (instead of overwriting its value).
+// This can be made less surprising if T is RefCell'd and recreated/validated on
+// Deref::deref and Deref::deref_mut. That way a "wrong" later access after modification
 // of members can be detected and an error can be pushed
-/// A struct [`Rec`] recording type that uses `T`'s fields as the struct's 
+/// A struct [`Rec`] recording type that uses `T`'s fields as the struct's
 /// fields.
 pub struct Struct<T: Fields> {
     t: T,
@@ -19,39 +19,44 @@ pub struct Struct<T: Fields> {
 }
 
 impl<T: Fields> Rec for Struct<T> {
-    fn as_any(&self) -> Any {self.any}
-    fn ty() -> Ty {Ty::new(TyKind::Struct(Self::get_or_declare_struct()))} //the derived `T::struct_ty()` declares the struct if needed
+    fn as_any(&self) -> Any {
+        self.any
+    }
+    fn ty() -> Ty {
+        Ty::new(TyKind::Struct(Self::get_or_declare_struct()))
+    } //the derived `T::struct_ty()` declares the struct if needed
 
     fn from_downcast(any: Any, stage: Stage) -> Self {
         let struct_ = Self::get_or_declare_struct();
         let t = prepare_field_selects::<T>((any, stage), struct_);
-        Struct {t, any, stage}
+        Struct { t, any, stage }
     }
 }
 
 impl<T: Fields> IntoRec for Struct<T> {
     type Rec = Self;
 
-    fn rec(self) -> Self::Rec {self}
-    fn into_any(self) -> Any {self.any}
-    fn stage(&self) -> Stage {self.stage}
+    fn rec(self) -> Self::Rec {
+        self
+    }
+    fn into_any(self) -> Any {
+        self.any
+    }
+    fn stage(&self) -> Stage {
+        self.stage
+    }
 }
 
 impl<T: Fields> Struct<T> {
-
     /// create a new [`Struct<T>`] with the fields of `T` initialized to
     /// `initial_values`
     pub fn new(initial_values: T) -> Self {
-
         let fields: Vec<(Any, Stage)> = initial_values.collect_fields();
 
-        let anys   = fields.iter().map(|(any, _)| *any).collect::<Vec<_>>();
+        let anys = fields.iter().map(|(any, _)| *any).collect::<Vec<_>>();
         let stages = fields.iter().map(|(_, stage)| *stage);
 
-        let any = Any::struct_initializer(
-            Self::get_or_declare_struct(), 
-            &anys
-        );
+        let any = Any::struct_initializer(Self::get_or_declare_struct(), &anys);
 
         let stage = narrow_stages_or_push_error(stages);
         Struct::<T>::from_downcast(any, stage)
@@ -75,15 +80,19 @@ impl<T: Fields> Struct<T> {
         })
     }
 
-    /// records creation of a copy of this struct. 
-    /// 
+    /// records creation of a copy of this struct.
+    ///
     /// Not to be confused with the behavior of the `Clone` or `Copy` traits, which the
     /// user may define on their `T: Fields` (and thus derive on `Struct<T>` aka `Self`), which
     /// would merely clone the recording reference and have no effect on the resulting shader
     pub fn copy(&self) -> Self {
         let any = self.any.copy();
         let t = prepare_field_selects((any, self.stage), Self::get_or_declare_struct());
-        Self{t, any, stage: self.stage}
+        Self {
+            t,
+            any,
+            stage: self.stage,
+        }
     }
 }
 
@@ -92,7 +101,10 @@ impl<T: Fields> Fields for Struct<T> {
         None
     }
 
-    fn from_fields_downcast(name: Option<&'static str>, f: &mut impl FnMut(shame_graph::Ty, &'static str) -> (Any, Stage)) -> Self {
+    fn from_fields_downcast(
+        name: Option<&'static str>,
+        f: &mut impl FnMut(shame_graph::Ty, &'static str) -> (Any, Stage),
+    ) -> Self {
         let (any, stage) = f(Self::ty(), name.unwrap_or("struct"));
         Self::from_downcast(any, stage)
     }
@@ -104,7 +116,6 @@ impl<T: Fields> Fields for Struct<T> {
 
 /// fills all fields in `T` with a struct `field_select` expression so that the user can write `t.field` and it will contain the expected `Any`
 pub fn prepare_field_selects<T: Fields>(parent: (Any, Stage), s: shame_graph::Struct) -> T {
-
     let (p_any, p_stage) = parent;
 
     let shame_graph::Struct(Named(fields, _ident)) = &s;
@@ -119,7 +130,7 @@ pub fn prepare_field_selects<T: Fields>(parent: (Any, Stage), s: shame_graph::St
             Some(x) => p_any.field_select(x),
             None => Any::not_available(),
         };
-        
+
         (any, p_stage)
     });
 
@@ -130,21 +141,26 @@ pub fn prepare_field_selects<T: Fields>(parent: (Any, Stage), s: shame_graph::St
             ))
         })
     }
-    
+
     t
 }
 
 impl<T: Fields> Deref for Struct<T> {
     type Target = T;
-    fn deref(&self) -> &Self::Target {&self.t}
+    fn deref(&self) -> &Self::Target {
+        &self.t
+    }
 }
 
 impl<T: Fields> DerefMut for Struct<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {&mut self.t}
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.t
+    }
 }
 
-impl<T: Fields + Default> Default for Struct<T> 
-where T: IntoRec<Rec=Self> //always the case 
+impl<T: Fields + Default> Default for Struct<T>
+where
+    T: IntoRec<Rec = Self>, //always the case
 {
     fn default() -> Self {
         T::default().rec()

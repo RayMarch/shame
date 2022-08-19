@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 
-/// this is an example of the `mirror` feature. 
-/// 
+/// this is an example of the `mirror` feature.
+///
 /// Make sure to add "mirror" to the shame features in your Cargo.toml file (e.g.: `shame = { ..., features = ["mirror"] }`)
 /// if you want to use this feature
-/// 
+///
 /// also add `bytemuck` to your dependencies, //TODO: figure out how to make this work without the user having to add bytemuck
-/// 
+///
 /// You can use this feature in addition to your shame pipeline code to
 /// generate:
 ///  - a `shame::Fields` struct from a [Pod](https://docs.rs/bytemuck/latest/bytemuck/trait.Pod.html) struct that uses your preferred vector/matrix types
@@ -14,45 +14,50 @@ use std::marker::PhantomData;
 ///
 /// [Pod][https://docs.rs/bytemuck/latest/bytemuck/trait.Pod.html]
 pub fn main() {
-    
     // first we need to do some preparations:
-    
+
     // call the `define_mirror_module` macro with the desired name of the module at the desired place
     // this will expand to something like:
-    // 
+    //
     // ```
     // mod my_mirror_mod {
     //     pub trait Host   { type Device: ... }
     //     pub trait Device { type Host: ... }
     // }
     // ```
-    // 
+    //
     // note: This is done to circumvent the orphan rule
     shame::define_mirror_module!(my_mirror_mod);
-    
+
     // implement the Host or Device traits to establish relationships between types
     // - `Host` means non-shader representation of the type, such as `f32`
     // - `Device`means shader representation of the type, such as `shame::float`
-    
+
     // f32 => shame::float
     impl my_mirror_mod::Host for f32 {
         type Device = shame::float;
 
-        fn as_bytes(&self) ->  &[u8] {bytemuck::cast_slice(std::slice::from_ref(self))}
+        fn as_bytes(&self) -> &[u8] {
+            bytemuck::cast_slice(std::slice::from_ref(self))
+        }
     }
 
     // u32 => shame::uint
     impl my_mirror_mod::Host for u32 {
         type Device = shame::uint;
 
-        fn as_bytes(&self) ->  &[u8] {bytemuck::cast_slice(std::slice::from_ref(self))}
+        fn as_bytes(&self) -> &[u8] {
+            bytemuck::cast_slice(std::slice::from_ref(self))
+        }
     }
 
     // [f32; 4] => shame::float4
     impl my_mirror_mod::Host for [f32; 4] {
         type Device = shame::float4;
 
-        fn as_bytes(&self) ->  &[u8] {bytemuck::cast_slice(std::slice::from_ref(self))}
+        fn as_bytes(&self) -> &[u8] {
+            bytemuck::cast_slice(std::slice::from_ref(self))
+        }
     }
 
     // now that the preparations are done, we can use the mirror feature's "host" macro
@@ -66,7 +71,7 @@ pub fn main() {
         b: u32,
     }
 
-    // alternatively, the path to the mirror module can be omitted if it is visible 
+    // alternatively, the path to the mirror module can be omitted if it is visible
     // from within the current module.
     use my_mirror_mod::*;
     #[shame::host(BarGpu)]
@@ -76,7 +81,7 @@ pub fn main() {
     }
 
     //now we can use FooCpu and FooGpu
-    let foo_cpu = FooCpu {a: 0.0, b: 0,};
+    let foo_cpu = FooCpu { a: 0.0, b: 0 };
 
     let _ = shame::record_compute_pipeline(|mut f| {
         let foo_gpu: FooGpu = f.io.group().uniform_block();
@@ -90,7 +95,7 @@ pub fn main() {
         b: u32,
     }
 
-    let baz_cpu = Baz {a: 0.0, b: 0,};
+    let baz_cpu = Baz { a: 0.0, b: 0 };
 
     let _ = shame::record_compute_pipeline(|mut f| {
         let baz_gpu: BazGpu = f.io.group().uniform_block();
@@ -107,11 +112,13 @@ pub fn main() {
             io.next_group().storage() //just an example
         }
 
-        fn new() -> Self {Self(PhantomData)}
+        fn new() -> Self {
+            Self(PhantomData)
+        }
     }
 
     let thing = MyCrossCpuGpuAbstraction::<FooCpu>::new();
-    
+
     shame::record_compute_pipeline(|mut f| {
         let foo_gpu = thing.use_in_shader(&mut f.io);
     });
@@ -135,10 +142,9 @@ pub fn main() {
         b: shame::uint,
     }
 
-    let qux_cpu = QuxCpu {a: 0.0, b: 0,};
+    let qux_cpu = QuxCpu { a: 0.0, b: 0 };
 
     let _ = shame::record_compute_pipeline(|mut f| {
         let qux_gpu: QuxGpu = f.io.group().uniform_block();
     });
-
 }

@@ -1,7 +1,7 @@
 //! wrapper for write-only types
 
-use crate::assert;
 use super::*;
+use crate::assert;
 use shame_graph::{Access, Any};
 
 /// wrapper type for write-only tensors
@@ -9,15 +9,18 @@ use shame_graph::{Access, Any};
 pub struct WriteOnly<S: Shape, D: DType>(Ten<S, D>);
 
 impl<S: Shape, D: DType> WriteOnly<S, D> {
-
     /// downcasts `any` and `stage` to a write only wrapped [`Ten<S, D>`]
     pub fn new(any: Any, stage: Stage) -> Self {
-        let any = any.ty_via_thread_ctx().map(|ty| {
-            assert::assert_string(
-                ty.access == Access::WriteOnly, 
-                format!("cannot downcast {ty} to WriteOnly type")
-            ).unwrap_or(any)
-        }).unwrap_or(Any::not_available());
+        let any = any
+            .ty_via_thread_ctx()
+            .map(|ty| {
+                assert::assert_string(
+                    ty.access == Access::WriteOnly,
+                    format!("cannot downcast {ty} to WriteOnly type"),
+                )
+                .unwrap_or(any)
+            })
+            .unwrap_or(Any::not_available());
 
         WriteOnly(Ten::from_downcast(any, stage))
     }
@@ -38,18 +41,18 @@ impl<S: Shape, D: DType> WriteOnly<S, D> {
     }
 
     /// assign `val` to `self`
-    /// 
+    ///
     /// alternative naming to `write`
-    pub fn set(&mut self, val: impl AsTen<S=S, D=D>) {
+    pub fn set(&mut self, val: impl AsTen<S = S, D = D>) {
         let val = val.as_ten();
         (self.0, val).narrow_or_push_error(); //yields error if values cannot be narrowed
         self.any().write(val.into_any())
     }
 
     /// assign `val` to `self`
-    /// 
+    ///
     /// alternative naming to `set`
-    pub fn write(&mut self, val: impl AsTen<S=S, D=D>) {
+    pub fn write(&mut self, val: impl AsTen<S = S, D = D>) {
         self.set(val)
     }
 }
