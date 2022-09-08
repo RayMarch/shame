@@ -1,7 +1,6 @@
 //! control flow functions for recording `if` `while` `for` etc.
-use std::ops::Range;
-
-use shame_graph::{Context};
+use std::ops::Bound;
+use shame_graph::Context;
 
 use super::*;
 
@@ -49,44 +48,76 @@ impl Ten<scal, bool> {
 
 }
 
-pub fn for_range<D, I>(range: Range<I>, body_fn: impl FnOnce(I::Rec)) 
+fn get_bound<R, T>(bound: &Bound<T>, f: impl FnOnce(&T) -> R) -> Option<R> {
+    use Bound::*;
+    match bound {
+        Included(x) | Excluded(x) => Some(f(x)),
+        Unbounded => None,
+    }
+}
+
+fn map_bound<R, T>(bound: Bound<T>, f: impl FnOnce(T) -> R) -> Bound<R> {
+    use Bound::*;
+    match bound {
+        Included(x) => Included(f(x)),
+        Excluded(x) => Excluded(f(x)),
+        Unbounded => Unbounded,
+    }
+}
+
+pub fn for_range<D, Scalar>(
+    range: impl std::ops::RangeBounds<Scalar>, 
+    body_fn: impl FnOnce(Scalar::Rec)
+) 
 where 
-    I: AsTen<S=scal, D=D>,
+    Scalar: AsTen<S=scal, D=D>,
     D: IsDtypeNonFloatingPoint // reject situations where it matters whether a float is equal to range.end
 {
     for_range_step(range, || one(), body_fn)
 }
 
-pub fn for_range_step<D: DType, I: AsTen<S=scal, D=D>, Step: AsTen<S=scal, D=D>>(
-    range: Range<I>, 
+pub fn for_range_step<D, Scalar, Step>(
+    range: impl std::ops::RangeBounds<Scalar>, 
     step_fn: impl FnOnce() -> Step,
-    body_fn: impl FnOnce(I::Rec)
-) {
-    let stage = narrow_stages_or_push_error([
-        range.start.stage(), 
-        range.end.stage()
-    ]);
+    body_fn: impl FnOnce(Scalar::Rec)
+) 
+where
+    D: DType,
+    Scalar: AsTen<S=scal, D=D>,
+    Step: AsTen<S=scal, D=D> 
+{   
+    use Bound::*;
+    let [start, end] = [range.start_bound(), range.end_bound()];
+    let [start_stage, end_stage] = [start, end].map(
+        |b| get_bound(&b, |t| t.stage()).unwrap_or(Stage::Uniform)
+    );
+    let _ = narrow_stages_or_push_error(
+        [start_stage, end_stage]
+    );
 
     let shader_kind = Context::with(|ctx| ctx.shader_kind());
     let available = Stage::from_shader_kind(shader_kind) != Stage::NotAvailable;
     
-    use shame_graph::{Any, DType::*};
-    let dtype = I::D::DTYPE;
+    use shame_graph::{Any, Error};
     let i = std::cell::Cell::new(None);
 
     if available {
         Any::record_for_loop(
             || { // init
-                let start = range.start.into_any();
-                i.set(Some(start.aka("i")))
+                let start = map_bound(start, |x| x.into_any().aka("i"));
+                match Any::lower_bound_value(start) {
+                    Ok(start) => i.set(Some(start)),
+                    Err(e) => Context::with(|ctx| ctx.push_error(match e {
+                        Unbounded => Error::ArgumentError("for range: cannot use unbounded lower bound".to_string()),
+                        Included(d) => Error::TypeError(format!("for range: cannot use {d} lower bound in inclusive range")),
+                        Excluded(d) => Error::TypeError(format!("for range: cannot use {d} lower bound in inclusive range")),
+                    })),
+                }
             }, 
             || { // condition evaluation
-                let end = range.end.into_any();
-                let i = i.get().unwrap();
-                match dtype {
-                    Bool => (!i).logical_and(end), //DNF of "<" for booleans
-                    I32 | U32 | F32 | F64 => i.lt(end),
-                }
+                let mut i = i.get().unwrap();
+                let end = map_bound(end, |x| x.into_any());
+                i.is_below_upper_bound(end)
             }, 
             || { // increment
                 let mut i = i.get().unwrap();
@@ -95,9 +126,25 @@ pub fn for_range_step<D: DType, I: AsTen<S=scal, D=D>, Step: AsTen<S=scal, D=D>>
             }, 
             || { // body
                 let i = i.get().unwrap();
-                let i = i.downcast(stage);
+                let i = i.downcast(start_stage);
                 body_fn(i)
             }
         );
     }
+}
+
+pub fn break_if(cond: boolean) {cond.then(|| break_())}
+pub fn continue_if(cond: boolean) {cond.then(|| continue_())}
+pub fn discard_if(cond: boolean) {cond.then(|| discard_fragment())}
+
+pub fn break_() {
+    shame_graph::Stmt::record_break()
+}
+
+pub fn continue_() {
+    shame_graph::Stmt::record_continue();
+}
+
+pub fn discard_fragment() {
+    shame_graph::Stmt::record_discard();
 }

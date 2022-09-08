@@ -373,6 +373,8 @@ fn stmt_to_glsl(ex: &State, stmt: &Stmt) -> String {
             None => "return;".to_string(),
         },
         StmtKind::Discard => "discard;".to_string(),
+        StmtKind::Continue => "continue;".to_string(),
+        StmtKind::Break => "break;".to_string(),
     }
 }
 

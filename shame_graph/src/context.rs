@@ -218,6 +218,17 @@ impl Context {
         })
     }
 
+    /// check if continue or break statements are 
+    pub fn is_inside_loop_body(&self) -> bool {
+        let blocks = self.blocks();
+        let mut stack = self.stack_blocks(&blocks);
+
+        // we are inside a branch if any of the blocks in the stack are part of a branch
+        stack.find(|block_key| {
+            matches!(blocks[*block_key].kind, BlockKind::LoopBody)
+        }).is_some()
+    }
+
     pub(crate) fn stack_blocks<'a>(&'a self, blocks: &'a PoolRef<Block>) -> impl Iterator<Item=Key<Block>> + Clone + 'a {
         start_iter_from(Some(self.current_block_key_unwrap()), move |key| blocks[key].parent)
     }

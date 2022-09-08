@@ -10,7 +10,8 @@ pub enum BlockKind {
     ///     - else body
     Body,
     /// same as Body, but in for/while loops.
-    /// this is a separate variant to allow the 
+    /// this is a separate variant to allow the loop init rules to be simpler
+    /// also this allows simple implementation of `break` and `continue` validity checks
     LoopBody,
     /// Block representing `cond` in loops such as
     /// `for(a; cond; b)` or `while(cond)`
@@ -116,7 +117,7 @@ impl Block {
         }
     }
 
-    pub fn record_stmt(&mut self, stmt: Stmt) {
+    pub fn add_stmt(&mut self, stmt: Stmt) {
         self.stmts.push(stmt)
     }
 

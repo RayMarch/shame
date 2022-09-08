@@ -167,7 +167,7 @@ impl Any {
             Normal | Zero => 
                 Any::by_recording_expr(ExprKind::Literal(Literal::F32(value)), &[]),
             cat => Context::with(|ctx| {
-                ctx.push_error(Error::UnsupportedFloadingPointCategory(cat));
+                ctx.push_error(Error::UnsupportedFloatingPointCategory(cat));
                 Any::not_available()
             })
         }
@@ -666,6 +666,53 @@ impl Any {
         Any::by_recording_expr(ExprKind::BuiltinFn(BuiltinFn::Any), &[*self])
     }
 
+    fn get_dtype(&self) -> Option<DType> {
+        match self.ty_via_thread_ctx() {
+            Some(ty) => match ty.kind {
+                TyKind::Tensor(Tensor { dtype, .. }) => Some(dtype),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// if `inclusive` is
+    ///     `true` returns whether `self <= upper_limit`
+    ///     `false` returns whether `self <  upper_limit`
+    /// 
+    /// this function also accepts bool bounds
+    pub fn is_below_upper_bound(&mut self, bound: Bound<Any>) -> Any {
+        use {DType::*, Bound::*};
+        let dtype = self.get_dtype()
+        .unwrap_or(I32); // pretend it's `i32` if the type is not a tensor, that 
+        // will trigger a nice error later for `self < limit` or `self <= limit`
+
+        match (bound, dtype) {
+            (Included(limit), Bool) => (!*self).logical_or(limit),
+            (Excluded(limit), Bool) => (!*self).logical_and(limit),
+            (Included(limit), _) => self.le(limit),
+            (Excluded(limit), _) => self.lt(limit),
+            (Unbounded, _) => Any::bool(true)
+        }
+    }
+
+    /// returns Ok(()) if succeeded, Err(bound) if the bound cannot be used for the given DType, or is unbounded
+    pub fn lower_bound_value(bound: Bound<Any>) -> Result<Any, Bound<DType>> {
+        use {DType::*, Bound::*};
+        match bound {
+            Included(limit) => Ok(limit),
+            // pretend it's `i32` if the type is not a tensor, that 
+            // will trigger a nice error later for `self + 1`
+            Excluded(limit) => match limit.get_dtype().unwrap_or(I32) {
+                Bool => Ok(!limit),
+                U32 => Ok(limit + Any::uint(1)),
+                I32 => Ok(limit + Any::int(1)),
+                dtype @ (F32 | F64) => Err(Excluded(dtype)),
+            },
+            Unbounded => Err(Bound::Unbounded)
+        }
+    }
+
     /// implements increment by `step` in a prettified way.
     /// For example, incrementing self with a literal `1` will record a `++i` 
     /// operation.
@@ -932,7 +979,7 @@ impl Any {
                         then: block_key
                     }));
 
-                    ctx.blocks_mut()[ctx.current_block_key_unwrap()].record_stmt(stmt);
+                    ctx.blocks_mut()[ctx.current_block_key_unwrap()].add_stmt(stmt);
                 })
             },
             None => Context::with(|ctx| {
@@ -963,7 +1010,7 @@ impl Any {
                     els : else_key,
                 }));
                 
-                ctx.blocks_mut()[ctx.current_block_key_unwrap()].record_stmt(stmt);
+                ctx.blocks_mut()[ctx.current_block_key_unwrap()].add_stmt(stmt);
             },
             None => {
                 //functions still need to be executed, due to their potential side effects. 
@@ -1009,7 +1056,7 @@ impl Any {
             let (for_stmt, _init_key) = ctx.record_nested_block(LoopInit, None, || {
 
                 init_fn();
-                let init_block_has_na_exprs = block_has_na_exprs(ctx.current_block_key_unwrap());
+                let _init_block_has_na_exprs = block_has_na_exprs(ctx.current_block_key_unwrap());
 
                 let (
                     cond_expr_key, 
@@ -1032,22 +1079,28 @@ impl Any {
                 let ((), body_block_key) = ctx.record_nested_block(LoopBody, None, body_fn);
 
                 // whether the condition expr is not available in this stage
-                let cond_is_na = cond_expr_key.is_none();
+                let _cond_is_na = cond_expr_key.is_none();
                 
                 // if the loop condition expr was     available, the blocks must not contain any other unavailable exprs
                 // if the loop condition expr was not available, the blocks are allowed to contain unavailable exprs
-                for (block_name, block_has_na_exprs) in [
-                    ("initialization block", init_block_has_na_exprs),
-                    ("condition block", block_has_na_exprs(cond_block_key)),
-                    ("increment block", block_has_na_exprs( inc_block_key)),
-                    ("body"           , block_has_na_exprs(body_block_key)),
-                ] {
-                    if !cond_is_na && block_has_na_exprs {
-                        ctx.push_error(Error::TypeError(
-                            format!("loop {block_name} contains other expressions that are not from the same stage as the loop condition expression itself")
-                        ))
-                    }
-                }
+                
+                //TODO: the intended error in the commented out section below is not detectable
+                //in the current setup. Stage information needs to be made available at shame_graph
+                //before this error case can detected.
+
+                // for (block_name, block_has_na_exprs) in [
+                //     ("initialization block", init_block_has_na_exprs),
+                //     ("condition block", block_has_na_exprs(cond_block_key)),
+                //     ("increment block", block_has_na_exprs( inc_block_key)),
+                //     ("body"           , block_has_na_exprs(body_block_key)),
+                // ] {
+
+                //     if cond_is_na && block_has_na_exprs {
+                //         ctx.push_error(Error::TypeError(
+                //             format!("loop {block_name} contains other expressions that are not from the same stage as the loop condition expression itself")
+                //         ))
+                //     }
+                // }
 
                 cond_expr_key.map(|_| {
                     Stmt::new(RecordTime::next(), 
@@ -1062,11 +1115,10 @@ impl Any {
             });
 
             if let Some(for_stmt) = for_stmt {
-                ctx.blocks_mut()[ctx.current_block_key_unwrap()].record_stmt(for_stmt);
+                ctx.blocks_mut()[ctx.current_block_key_unwrap()].add_stmt(for_stmt);
             }
         });
     }
-    
 }
 
 macro_rules! impl_binary_operators {
