@@ -35,7 +35,11 @@ impl Any {
 
             let maybe_expr = Context::with(|ctx|
                 match expr_result {
-                    Ok(expr) => Some(ctx.exprs_mut().push(expr)),
+                    Ok(expr) => {
+                        let current_block = &mut ctx.blocks_mut()[current_block];
+                        current_block.amount_of_exprs_recorded += 1;
+                        Some(ctx.exprs_mut().push(expr))
+                    },
                     Err(err) => {ctx.push_error(err); None},
                 }
             );
@@ -477,13 +481,23 @@ impl Any {
     // assignment
     //
 
-    pub fn set(&mut self, src: Any) {
+    /// calls a binary assign operation `op_assign`. 
+    /// This is where `=`, `+=`, `-=` etc calls end up
+    pub fn binary_assign_op(&mut self, rhs: Any, op_assign: Operator) -> Any {
         self.ty_via_thread_ctx().map(|ty| {
             if ty.access == Access::Const {
+                //TODO: change this panic to an error
                 panic!("you are trying to assign to a value that is internally a {} value, which can be supported in the future. Until then, you can call .copy() to create a writeable copy of that value", ty);
             }
         });
-        Any::by_recording_expr(ExprKind::Operator(Operator::Assign), &[*self, src]);
+
+        //no need to assert!(op.argc == 2), the type deduction will provide a nicer error
+        debug_assert!(op_assign.lhs_lvalue, "calling binary_assign_op with non-assign op");
+        Any::by_recording_expr(ExprKind::Operator(op_assign), &[*self, rhs])
+    }
+
+    pub fn set(&mut self, src: Any) {
+        self.binary_assign_op(src, Operator::Assign);
 
         //// this implementation where copy() gets called leads to unintuitive semantics in the rust code. TODO: delete this comment block
         //needs to check if the assignee (self) is const, in that case we need to copy() first to make a writeable value.
@@ -780,7 +794,7 @@ impl Any {
         Any::by_recording_expr(ExprKind::Operator(Operator::TernaryIf), &[*self, then_, else_])
     }
 
-    //alt naming for ternary_if
+    ///alt naming for ternary_if
     pub fn select(&self, then_: Any, else_: Any) -> Any {
         self.ternary_if(then_, else_)
     }
@@ -804,7 +818,7 @@ impl Any {
                 let now = RecordTime::next();
                 
                 Context::with(|ctx| {
-                    let ((), block_key) = ctx.record_nested_block(branch_state, f);
+                    let ((), block_key) = ctx.record_nested_block(BlockKind::Body, branch_state, f);
 
                     let stmt = Stmt::new(now, StmtKind::Flow(Flow::IfThen {
                         cond: cond_key,
@@ -818,7 +832,7 @@ impl Any {
                 //f still needs to be executed, due to its potential side effects
                 //the resulting block will not be recorded into a statement so that
                 //it doesn't actually end up in the shader code
-                let _unused = ctx.record_nested_block(branch_state, f);
+                let _unused = ctx.record_nested_block(BlockKind::Body, branch_state, f);
             }),
         }
 
@@ -827,13 +841,14 @@ impl Any {
     pub fn record_then_else(&self, f_then: impl FnOnce(), f_else: impl FnOnce()) {
 
         let branch_state = Some(self.to_branch_state());
+        let kind = BlockKind::Body;
 
         Context::with(|ctx| match self.expr_key {
             Some(cond_key) => {
                 let now = RecordTime::next();
                 
-                let ((), then_key) = ctx.record_nested_block(branch_state, f_then);
-                let ((), else_key) = ctx.record_nested_block(branch_state, f_else);
+                let ((), then_key) = ctx.record_nested_block(kind, branch_state, f_then);
+                let ((), else_key) = ctx.record_nested_block(kind, branch_state, f_else);
                 
                 let stmt = Stmt::new(now, StmtKind::Flow(Flow::IfThenElse {
                     cond: cond_key, 
@@ -847,18 +862,184 @@ impl Any {
                 //functions still need to be executed, due to their potential side effects. 
                 //The resulting blocks will not be recorded into statements so that
                 //they don't actually end up in the shader code
-                let _unused = ctx.record_nested_block(branch_state, f_then);
-                let _unused = ctx.record_nested_block(branch_state, f_else);
+                let _unused = ctx.record_nested_block(kind, branch_state, f_then);
+                let _unused = ctx.record_nested_block(kind, branch_state, f_else);
             }
         });
     }
 
-    pub fn record_while(&self, #[allow(unused)]body_fn: impl FnOnce()) {
+    pub fn record_while(
+        _condition_fn : impl FnOnce(),
+        _body_fn      : impl FnOnce() + 'static,
+    ) {
         todo!()
     }
 
-    pub fn record_for(&self, #[allow(unused)]increment_fn: impl FnOnce(), #[allow(unused)]body_fn: impl FnOnce()) {
-        todo!()
+    pub fn record_for_loop(
+        init_fn      : impl FnOnce(),
+
+        /*
+            let mut x = 4.0.rec();
+            cond: || {
+                (x += 1) < 10.0
+            }
+            body: || {
+                frag_expr
+            }
+
+            gl_Position = x;
+        */
+
+        condition_fn : impl FnOnce() -> Any, 
+        increment_fn : impl FnOnce(),
+        body_fn      : impl FnOnce() + 'static,
+    ) {
+        use BlockKind::*;
+
+        let check_condition_is_bool_or_na = |any: &Any, ctx: &Context| {
+            any.ty_via_ctx(ctx).map(|ty| {
+                if !ty.eq_ignore_access(&Ty::bool()) {
+                    ctx.push_error(Error::TypeError(
+                        format!("loop condition must be of type boolean, found type {}", ty)
+                    ))
+                }
+            });
+        };
+
+        let mut condition_contains_foreign_stage_exprs = None;
+        let mut is_branch = None;
+
+        Context::with(|ctx| {
+            
+            let ((), _init_key) = ctx.record_nested_block(LoopInit, None, || {
+                init_fn();
+
+                let (
+                    cond_expr_key, 
+                    cond_block_key
+                ) = ctx.record_nested_block(LoopCondition(None), None, || {
+                    let condition_expr = condition_fn();
+                    check_condition_is_bool_or_na(&condition_expr, ctx);
+                    condition_expr.expr_key
+                });
+                
+                {
+                    let mut blocks_mut = ctx.blocks_mut();
+                    let block = &mut blocks_mut[cond_block_key];
+
+                    match &mut block.kind {
+                        LoopCondition(cond) => *cond = cond_expr_key,
+                        _ => unreachable!()
+                    }
+
+                    let contains_foreign_stage_exprs = block.amount_of_attempts_recording_not_available_exprs > 0;
+                    condition_contains_foreign_stage_exprs = Some(contains_foreign_stage_exprs);
+                    is_branch = Some(match contains_foreign_stage_exprs {
+                        true => BranchState::BranchWithConditionNotAvailable,
+                        false => BranchState::Branch,
+                    });
+                }
+
+                // match &mut ctx.blocks_mut()[cond_block_key] {
+                //     block => {
+                //         match &mut block.kind {
+                //             LoopCondition(cond) => *cond = cond_expr_key,
+                //             _ => unreachable!()
+                //         }
+
+                //         condition_contains_foreign_stage_exprs = block.amount_of_attempts_recording_not_available_exprs > 0;
+                //         is_branch = match condition_contains_foreign_stage_exprs {
+                //             true => BranchState::BranchWithConditionNotAvailable,
+                //             false => BranchState::Branch,
+                //         };
+                //     }
+                // }
+
+                let ((), _inc_key) = ctx.record_nested_block(LoopIncrement, None, || {
+                    increment_fn();
+                });
+
+                let ((), _body_key) = ctx.record_nested_block(LoopBody, None, || {
+                    body_fn();
+                });
+
+            });
+
+        });
+
+        // let (_, body) = ctx.record_nested_block(Some(common_branch_state), body);
+
+        /*
+        
+        //this is what will be recorded in this function:
+
+        <loop_init_block> {
+            // unlimited decls but only if they all have the same type.
+            // exprs are put into one of the decls via "," operator
+            int i = 0;
+
+            if {
+
+            }
+
+
+            <condition_block> {
+                // no declarations, exprs concated via "," operator. last expr is value
+                i <= 
+            }
+
+            <increment_block> {
+                // no decls, exprs concated via "," operator.
+            }
+            <body_block> {
+                // regular block
+            }
+        }
+        
+        */
+
+
+        // let (
+        //     condition_expr, 
+        //     continuing_expr
+        // ) = Context::with(|ctx| (
+        //     ctx.record_loop_head_expr(condition),
+        //     ctx.record_loop_head_expr(continuing),
+        // ));
+        
+        // let now = RecordTime::next();
+        // let condit_branch_state = condition_expr.to_branch_state();
+        // let contin_branch_state = continuing_expr.to_branch_state();
+
+        // use BranchState::*;
+        // use BranchState::BranchWithConditionNotAvailable as ConditionNA;
+        // let common_branch_state = match (condit_branch_state, contin_branch_state) {
+        //     (Branch     , Branch     ) => Branch,
+        //     (Branch     , ConditionNA) |
+        //     (ConditionNA, Branch     ) |
+        //     (ConditionNA, ConditionNA) => ConditionNA,
+        // };
+        // // FIXME: this means the error message for a not available increment statement says "condition not available", which is misleading wording.
+
+        // Context::with(|ctx| {
+        //     let (_, body) = ctx.record_nested_block(Some(common_branch_state), body);
+
+        //     if let Branch = common_branch_state { //[*]
+        //         let (cond, inc) = match (condition_expr.expr_key, continuing_expr.expr_key) {
+        //             (Some(cond), Some(inc)) => (cond, Some(inc)),
+        //             _ => unreachable!(), //due to [*]
+        //         };
+
+        //         let stmt = Stmt::new(now, StmtKind::Flow(Flow::For {
+        //             init: None,
+        //             cond,
+        //             inc,
+        //             body,
+        //         }));
+
+        //         ctx.blocks_mut()[ctx.current_block_key_unwrap()].record_stmt(stmt);
+        //     }
+        // });
     }
     
 }

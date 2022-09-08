@@ -255,28 +255,27 @@ impl Context {
         result
     }
     
-    pub(crate) fn record_nested_block<R>(&self, is_branch: Option<BranchState>, f: impl FnOnce() -> R) -> (R, Key<Block>) {
+    pub(crate) fn record_nested_block<R>(&self, kind: BlockKind, is_branch: Option<BranchState>, f: impl FnOnce() -> R) -> (R, Key<Block>) {
         assert!(self.current_block.get().is_some());
-        
+
         let mut blocks = self.blocks_mut();
 
         //establish item <-> block link
         let parent_block = &blocks[self.current_block_key_unwrap()];
-        if !parent_block.kind.may_contain_nested_blocks() {
+        if !parent_block.kind.may_contain_block_of_kind(kind) {
             self.push_error(Error::BlockRestrictionsViolated(
-                format!("cannot record nested block in {} recording", parent_block.kind)
+                format!("cannot record nested {kind} block inside a {} block recording", parent_block.kind)
             ))
         }
         let item = blocks[self.current_block_key_unwrap()].origin_item;
         
         let parent = self.current_block.take();
-        let child = blocks.push(Block::new(parent, item, is_branch, BlockKind::Body));
+        let child = blocks.push(Block::new(parent, item, is_branch, kind));
         drop(blocks);
 
         self.current_block.set(Some(child));
         let result = f();
         let child_ = self.current_block.replace(parent);
-
         assert!(child_ == Some(child));
         (result, child)
     }
