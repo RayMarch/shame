@@ -80,6 +80,17 @@ impl<T: Rec, const N: usize> Array<T, Size<N>> {
             false => panic!("shader recording: array index {i} out of bounds 0..{N}"),
         }
     }
+
+    /// indexing with a record-time constant, which means bounds checking is 
+    /// possible, therefore this function is not unsafe.
+    pub fn at_const_mut(&mut self, i: u32) -> &mut T {
+        let n = N as u32;
+
+        match (0..n).contains(&i) {
+            true => unsafe {self.at_mut(i)},
+            false => panic!("shader recording: array index {i} out of bounds 0..{N}"),
+        }
+    }
 }
 
 impl<T: Rec, Len: Sizing> Array<T, Len> {
@@ -95,7 +106,7 @@ impl<T: Rec, Len: Sizing> Array<T, Len> {
 
         let (index_any, index_stage) = scalar_to_index(i.as_ten());
         //TODO: copy on write access doesn't really act like copy on write here, if an index is being manipulated afterwards, it is not written into a new variable. `i += 1` recorded on a i that is copy on write does not yield `int _ = i + 1`. Maybe CopyOnWrite needs to be renamed
-        let index_any = index_any.copy(); //to prevent the user from changing the index after obtaining the &mut T from this function
+        let index_any = index_any.copy().aka("_i"); //to prevent the user from changing the index after obtaining the &mut T from this function
 
         //TODO: can the problem from the previous todo maybe be resolved by introducing the following rule:
         // a subscript on a mutable array is itself a mutable operation.
@@ -120,7 +131,7 @@ impl<T: Rec, Len: Sizing> Array<T, Len> {
     /// ```
     pub unsafe fn at<D: IsDTypeInteger>(&self, i: impl AsTen<S=scal, D=D>) -> T {
         let (any, stage) = scalar_to_index(i);
-        T::from_downcast(self.any.subscript(any).copy(), narrow_stages_or_push_error([self.stage, stage]))
+        T::from_downcast(self.any.subscript(any).copy().aka("_i"), narrow_stages_or_push_error([self.stage, stage]))
     }
 
     /// produces a subscript operation with assignment `array[i] = val` in the 

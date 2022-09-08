@@ -225,7 +225,7 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeNumber> Ten<SelfS, SelfD> {
     }
 
     /// performs `self.set(self.min(other))`
-    pub fn min_assign<T: AsTen<D=SelfD>>(&mut self, other: T) -> Self
+    pub fn min_assign<T: AsTen<D=SelfD>>(&mut self, other: T)
     where T::S: IsScalarOr<SelfS> {
         self.set(self.min(other))
     }
@@ -246,7 +246,7 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeNumber> Ten<SelfS, SelfD> {
     }
 
     /// performs `self.set(self.max(other))`
-    pub fn max_assign<T: AsTen<D=SelfD>>(&mut self, other: T) -> Self
+    pub fn max_assign<T: AsTen<D=SelfD>>(&mut self, other: T)
     where T::S: IsScalarOr<SelfS> {
         self.set(self.max(other))
     }

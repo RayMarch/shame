@@ -42,8 +42,7 @@ impl<S: Shape, D: DType> WriteOnly<S, D> {
     /// alternative naming to `write`
     pub fn set(&mut self, val: impl AsTen<S=S, D=D>) {
         let val = val.as_ten();
-        (self.0, val).narrow_or_push_error(); //yields error if values cannot be narrowed
-        self.any().write(val.into_any())
+        self.0.set(val);
     }
 
     /// assign `val` to `self`

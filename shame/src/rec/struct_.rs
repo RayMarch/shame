@@ -61,7 +61,7 @@ impl<T: Fields> Struct<T> {
     /// the underlying struct value in the shader
     pub fn set(&mut self, val: &Self) {
         //decided to take a ref as first argument because Self might not impl copy, and a clone() by the user is unnecessary
-        narrow_stages_or_push_error([self.stage, val.stage]);
+        self.stage = narrow_stages_or_push_error([self.stage, val.stage]);
         self.any.assign(val.any)
     }
 

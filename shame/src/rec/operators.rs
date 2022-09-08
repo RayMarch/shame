@@ -1,4 +1,6 @@
 //! operators on recording types (mostly tensors), e.g. `+` `-` `/` `*` `+=`...
+use shame_graph::Operator;
+
 use super::*;
 use std::ops::*;
 
@@ -23,8 +25,8 @@ macro_rules! impl_add_sub_div_operators {
             impl<S: $shape_restrict, T: AsTen> $AddAssign<T> for Ten<S, T::D> 
             where T::S: IsScalarOr<S> {
                 fn $add_assign(&mut self, rhs: T) {
-                    (*self, rhs).narrow_or_push_error();
-                    self.as_any().$add_assign(rhs.into_any()) //TODO: requires downcast to trigger stage-narrowing errors
+                    self.stage = (*self, rhs).narrow_or_push_error();
+                    self.as_any().$add_assign(rhs.into_any())
                 }
             }
 
@@ -77,6 +79,7 @@ impl<LhsS: Shape, Rhs: AsTen> MulAssign<Rhs> for Ten<LhsS, Rhs::D>
 where (LhsS, Rhs::S): CanBeMultiplied {
     
     fn mul_assign(&mut self, rhs: Rhs) {
+        self.stage = (*self, rhs).narrow_or_push_error();
         self.into_any().mul_assign(rhs.into_any());
     }
 }
@@ -111,20 +114,23 @@ impl_lhs_rust_primitive_type_mul!(
 
 impl<S: Shape, D: DType> Ten<S, D> {
 
+    pub(crate) fn binary_assign_op(&mut self, val: impl AsTen<S=S, D=D>, op_assign: Operator) {
+        self.stage = (*self, val).narrow_or_push_error(); // self gets narrowed stage assigned
+        self.into_any().binary_assign_op(val.into_any(), op_assign);
+    }
+
     /// records an assignment `=` operator in the shader. This is necessary
     /// because rust does not support overloading of the `=` operator itself. 
-    pub fn set(&mut self, val: impl AsTen<S=S, D=D>) -> Self {
-        (*self, val).narrow_or_push_error(); //yields error if values cannot be narrowed
-        self.into_any().set(val.into_any());
-        *self
+    pub fn set(&mut self, val: impl AsTen<S=S, D=D>) {
+        self.binary_assign_op(val, Operator::Assign);
     }
 
     /// records an assignment `=` operator in the shader. This is necessary
     /// because rust does not support overloading of the `=` operator itself. 
     /// 
     /// this function does the same as `set`, i couldn't settle on a naming yet
-    pub fn assign(&mut self, val: impl AsTen<S=S, D=D>) -> Self {
-        self.set(val)
+    pub fn assign(&mut self, val: impl AsTen<S=S, D=D>) {
+        self.set(val);
     }
 
     /// create a copy of `self` in the shader.
