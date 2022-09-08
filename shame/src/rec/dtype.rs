@@ -49,7 +49,7 @@ impl_dtypes!{
     (f64 , shame_graph::DType::F64 ) -> as literal: double; from f32: |x: f32| x as Self;
     (i32 , shame_graph::DType::I32 ) -> as literal: int;    from f32: |x: f32| x as Self;
     (u32 , shame_graph::DType::U32 ) -> as literal: uint;   from f32: |x: f32| x as Self;
-    (bool, shame_graph::DType::Bool) -> as literal: bool;   from f32: |x: f32| x == 0.0;
+    (bool, shame_graph::DType::Bool) -> as literal: bool;   from f32: |x: f32| x != 0.0;
 }
 
 macro_rules! rust_primitive_types_as_ten {
@@ -87,6 +87,12 @@ rust_primitive_types_as_ten!{
 pub trait IsDTypeFloatingPoint: IsDTypeNumber {}
     impl IsDTypeFloatingPoint for f32 {}
     impl IsDTypeFloatingPoint for f64 {}
+
+/// implemented for `i32`, `u32`, `bool`,
+pub trait IsDtypeNonFloatingPoint: DType {}
+impl IsDtypeNonFloatingPoint for i32 {}
+impl IsDtypeNonFloatingPoint for u32 {}
+impl IsDtypeNonFloatingPoint for bool {}
 
 /// implemented for `i32` and `u32`, ensures `IsDTypeNumber`
 pub trait IsDTypeInteger: IsDTypeNumber {}

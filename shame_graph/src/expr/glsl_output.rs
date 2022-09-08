@@ -425,7 +425,7 @@ fn block_to_glsl(ex: &State, block: &Block) -> String {
                     kind => panic!("invalid statement of kind {kind} in loop increment") //TODO: make error
                 };
                 let maybe_comma = match i {0 => "", _ => ", "};
-                s += &format!("{}{}\n", maybe_comma, stmt_string);
+                s += &format!("{}{}", maybe_comma, stmt_string);
             }
         },
         LoopInit => {
@@ -457,7 +457,7 @@ fn block_to_glsl(ex: &State, block: &Block) -> String {
                             
                             let ident = ex.valid_ident(ident.0);
                             decls.push(match expr_key {
-                                Some(expr_key) => format!("{} = {}", ident, expr_key_to_glsl(ex, *expr_key, false)),
+                                Some(expr_key) => format!("{} = {}", ident, expr_key_to_glsl(ex, *expr_key, true)),
                                 None => ident.to_string(),
                             });
                         }

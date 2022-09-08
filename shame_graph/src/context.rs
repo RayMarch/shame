@@ -180,6 +180,10 @@ impl Context {
     pub fn try_with<R>(f: impl FnOnce(&Context) -> R) -> Option<R> {
         CONTEXT.with(|ctx| ctx.borrow().as_ref().map(f))
     }
+
+    pub fn is_currently_recording_on_this_thread() -> bool {
+        CONTEXT.with(|ctx| ctx.borrow().is_some())
+    }
 }
 
 #[derive(Clone, Copy)]

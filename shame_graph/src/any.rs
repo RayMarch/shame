@@ -182,6 +182,18 @@ impl Any {
         Any::by_recording_expr(ExprKind::Literal(Literal::F64(value)), &[])
     }
 
+    pub fn try_get_literal(&self) -> Option<Literal> {
+        match self.expr_key {
+            None => None,
+            Some(key) => Context::with(|ctx| match &ctx.exprs()[key] {
+                expr => match expr.kind {
+                    ExprKind::Literal(lit) => Some(lit),
+                    _ => None
+                }
+            }),
+        }
+    }
+
     pub fn int(value: i32) -> Self {
         Any::by_recording_expr(ExprKind::Literal(Literal::I32(value)), &[])
     }
@@ -654,6 +666,85 @@ impl Any {
         Any::by_recording_expr(ExprKind::BuiltinFn(BuiltinFn::Any), &[*self])
     }
 
+    /// implements increment by `step` in a prettified way.
+    /// For example, incrementing self with a literal `1` will record a `++i` 
+    /// operation.
+    /// Bool values will record different operations that resemble increment
+    pub fn increment_by(&mut self, step: Any) {
+        use StepKind::*;
+
+        enum StepKind {
+            Increment, // ++i
+            Decrement, // --i
+            Negate,    // i=!i
+            BoolAdd(Any), //i^=val
+            BoolVectorAdd(Any), // i = not_equal(i, val)
+            Identity,  // noop
+            Add(Any), // i += val
+            Sub(Any), // i -= val
+        }
+
+        let step_kind = match step.try_get_literal() {
+            Some(lit) => {
+                match lit {
+                    Literal::Bool(x) => match x {
+                        true => StepKind::Negate,
+                        false => StepKind::Identity,
+                    },
+                    Literal::F32(x) => match x {
+                        x if x == 1.0 => Increment,
+                        x if x == -1.0 => Decrement,
+                        x if x.is_sign_negative() => Sub(Any::float(-x)),
+                        x => Add(Any::float(x)),
+                    },
+                    Literal::F64(x) => match x {
+                        x if x == 1.0 => Increment,
+                        x if x == -1.0 => Decrement,
+                        x if x.is_sign_negative() => Sub(Any::double(-x)),
+                        x => Add(Any::double(x)),
+                    },
+                    Literal::I32(x) => match x {
+                        1 => Increment,
+                        -1 => Decrement,
+                        x if x.is_negative() => Sub(Any::int(-x)),
+                        x => Add(Any::int(x)),
+                    },
+                    Literal::U32(x) => match x {
+                        1 => Increment,
+                        x => Add(Any::uint(x)),
+                    },
+                }
+            },
+            None => {
+                use DType::*;
+                match step.ty_via_thread_ctx() {
+                    Some(ty) => match ty.kind {
+                        TyKind::Tensor(Tensor { dtype, shape }) => match (dtype, shape) {
+                            (Bool, Shape::Scalar) => BoolAdd(step),
+                            (Bool, Shape::Vec(_)) => BoolVectorAdd(step),
+                            (F32 | F64 | I32 | U32, _) => Add(step),
+                            _ => Add(step),
+                        },
+                        _ => Add(step), //will cause a proper error later
+                    },
+                    None => Add(step),
+                }
+            },
+        };
+
+        match step_kind {
+            Increment => {self.prefix_increment();},
+            Decrement => {self.prefix_decrement();},
+            Negate => self.set(!*self),
+            Identity => (),
+            Add(val) => *self += val,
+            Sub(val) => *self -= val,
+            BoolAdd(val) => *self ^= val,
+            BoolVectorAdd(val) => self.set(self.not_equal_each(val)),
+        };
+
+    }
+
     pub fn partial_derivative(&self, component: u8, precision: DerivativePrecision) -> Any {
         use DerivativePrecision::*;
         use BuiltinFn::*;
@@ -704,7 +795,9 @@ impl Any {
         }
     }
 
-    /// operators that cannot be implemented through std::ops traits
+    // operators that cannot be implemented through std::ops traits
+    
+    /// equals operator
     pub fn eq(&self, rhs: Any) -> Any {
         Any::by_recording_expr(ExprKind::Operator(Operator::Equal), &[*self, rhs])
     }
@@ -797,6 +890,22 @@ impl Any {
         self.ternary_if(then_, else_)
     }
 
+    pub fn prefix_increment(&mut self) -> Any {
+        Any::by_recording_expr(ExprKind::Operator(Operator::PrefixInc), &[*self])
+    }
+
+    pub fn postfix_increment(&mut self) -> Any {
+        Any::by_recording_expr(ExprKind::Operator(Operator::PostfixInc), &[*self])
+    }
+
+    pub fn prefix_decrement(&mut self) -> Any {
+        Any::by_recording_expr(ExprKind::Operator(Operator::PrefixDec), &[*self])
+    }
+
+    pub fn postfix_decrement(&mut self) -> Any {
+        Any::by_recording_expr(ExprKind::Operator(Operator::PostfixDec), &[*self])
+    }
+
     //
     //  control flow
     //
@@ -877,7 +986,7 @@ impl Any {
         init_fn      : impl FnOnce(),
         condition_fn : impl FnOnce() -> Any, 
         increment_fn : impl FnOnce(),
-        body_fn      : impl FnOnce() + 'static,
+        body_fn      : impl FnOnce(),
     ) {
         use BlockKind::*;
 

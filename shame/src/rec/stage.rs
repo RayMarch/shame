@@ -43,6 +43,15 @@ impl Stage {
             Stage::NotAvailable => None,
         }
     }
+
+    pub fn from_shader_kind(shader_kind: shame_graph::ShaderKind) -> Stage {
+        use shame_graph::ShaderKind::*;
+        match shader_kind {
+            Vertex => Stage::Vertex,
+            Fragment => Stage::Fragment,
+            Compute => Stage::Uniform,
+        }
+    }
 }
 
 impl std::ops::BitAnd for Stage {
