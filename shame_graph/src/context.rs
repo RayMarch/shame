@@ -227,7 +227,7 @@ impl Context {
 
         //establish item <-> block link
         let item  = self.items_mut().push(Item::MainFuncDef {body: Default::default()});
-        let block = self.blocks_mut().push(Block::new(None, item, None));
+        let block = self.blocks_mut().push(Block::new(None, item, None, BlockKind::Body));
         unwrap_variant!(&self.items()[item], Item::MainFuncDef{body} => body.set(Some(block)));
 
         self.current_block.set(Some(block));
@@ -242,7 +242,7 @@ impl Context {
         let item  = self.items_mut().push(Item::FuncDef {ident, body: Default::default(), args: Default::default()});
         
         let parent = self.current_block.take();
-        let block = self.blocks_mut().push(Block::new(parent, item, None));
+        let block = self.blocks_mut().push(Block::new(parent, item, None, BlockKind::Body));
 
         unwrap_variant!(&self.items()[item], Item::FuncDef{body, ..} => body.set(Some(block)));
         
@@ -261,10 +261,16 @@ impl Context {
         let mut blocks = self.blocks_mut();
 
         //establish item <-> block link
+        let parent_block = &blocks[self.current_block_key_unwrap()];
+        if !parent_block.kind.may_contain_nested_blocks() {
+            self.push_error(Error::BlockRestrictionsViolated(
+                format!("cannot record nested block in {} recording", parent_block.kind)
+            ))
+        }
         let item = blocks[self.current_block_key_unwrap()].origin_item;
         
         let parent = self.current_block.take();
-        let child = blocks.push(Block::new(parent, item, is_branch));
+        let child = blocks.push(Block::new(parent, item, is_branch, BlockKind::Body));
         drop(blocks);
 
         self.current_block.set(Some(child));

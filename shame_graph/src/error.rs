@@ -22,6 +22,8 @@ pub enum Error {
     OutOfBounds(String),
     #[error("value used outside of its valid scope: \n{}", .0)]
     ScopeError(String),
+    #[error("block restrictions violated: \n{}", .0)]
+    BlockRestrictionsViolated(String),
     #[error("vertex attribute location range {:?} overlapping with {:?}", .0, .1)]
     OverlappingAttributeLocation(Range<Loc>, Range<Loc>),
     #[error("fragment color output location {} is used multiple times", .duplicate_location)]

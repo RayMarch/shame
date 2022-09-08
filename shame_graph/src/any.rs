@@ -18,29 +18,38 @@ impl Any {
     
     fn by_recording_expr(kind: ExprKind, args: &[Any]) -> Self {
 
-        let all_is_some = args.iter().all(|any| any.expr_key.is_some());
+        let all_args_available = args.iter().all(|any| any.expr_key.is_some());
 
-        let expr_key = all_is_some.then(|| {
+        let expr_key = if all_args_available {
 
             let unwrapped_args = args.iter().map(|arg| arg.expr_key.unwrap()).collect(); //allocates a Vec
 
             let current_block = Context::with(|ctx| ctx.current_block_key_unwrap());
 
-            let maybe_expr = Expr::new(
+            let expr_result = Expr::new(
                 None, 
                 kind, 
                 unwrapped_args,
                 current_block
             );
 
-            let expr = match maybe_expr {
-                Ok(expr) => expr,
-                Err(e) => {Context::with(|ctx| ctx.push_error(e)); return None},
-            };
-            let expr_key = Context::with(|ctx| ctx.exprs_mut().push(expr));
-            Some(expr_key)
-
-        }).flatten();
+            let maybe_expr = Context::with(|ctx|
+                match expr_result {
+                    Ok(expr) => Some(ctx.exprs_mut().push(expr)),
+                    Err(err) => {ctx.push_error(err); None},
+                }
+            );
+            maybe_expr
+        } else {
+            // attempting to record an expr but not all args are available 
+            // in this shader recording (i.e. they are values from a 
+            // different stage (vertex/fragment))
+            Context::with(|ctx| {
+                let current_block = &mut ctx.blocks_mut()[ctx.current_block_key_unwrap()];
+                current_block.amount_of_attempts_recording_not_available_exprs += 1;
+            });
+            None
+        };
 
         // // this commented out block below behaves wrong when recording an if(uniformval)
         // if !all_is_some { //attempt to record an expression with some expr_keys unavailable in this shader recording (stage)
