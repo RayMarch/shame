@@ -115,14 +115,19 @@ impl Stmt {
     }
 
     pub fn record_discard() {
-        use crate::BranchState::*;
         
         let shader_kind = Context::with(|ctx| {
             let blocks = ctx.blocks();
             let mut stack = ctx.stack_blocks(&blocks);
 
             let is_foreign_stage_conditional_block = stack.find(|key| 
-                matches!(blocks[*key].is_branch, Some(BranchWithConditionNotAvailable))
+                match blocks[*key].branch_info {
+                    Some((_branch, stage)) => match stage {
+                        Stage::Vertex => true,
+                        _ => false,
+                    }
+                    None => false,
+                }
             ).is_some();
 
             if is_foreign_stage_conditional_block {

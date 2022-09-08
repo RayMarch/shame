@@ -1,5 +1,5 @@
 
-use crate::{context::{Context, ShaderKind}, error::Error};
+use crate::{context::{Context}, ShaderKind, error::Error};
 use super::*;
 
 macro_rules! glsl_type_to_ty {

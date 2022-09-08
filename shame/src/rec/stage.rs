@@ -74,6 +74,28 @@ impl std::ops::BitAnd for Stage {
     }
 }
 
+impl From<shame_graph::Stage> for Stage {
+    fn from(stage: shame_graph::Stage) -> Self {
+        match stage {
+            shame_graph::Stage::Vertex => Stage::Vertex,
+            shame_graph::Stage::Fragment => Stage::Fragment,
+            shame_graph::Stage::Uniform => Stage::Uniform,
+            shame_graph::Stage::NotAvailable => Stage::NotAvailable,
+        }
+    }
+}
+
+impl From<Stage> for shame_graph::Stage {
+    fn from(stage: Stage) -> Self {
+        match stage {
+            Stage::Vertex => shame_graph::Stage::Vertex,
+            Stage::Fragment => shame_graph::Stage::Fragment,
+            Stage::Uniform => shame_graph::Stage::Uniform,
+            Stage::NotAvailable => shame_graph::Stage::NotAvailable,
+        }
+    }
+}
+
 /// adding [`Stage`] and rust compile-time type information to an `Any`, to
 /// downcast it to a [`Rec`] type
 pub trait AnyDowncast {

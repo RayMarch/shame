@@ -1,6 +1,6 @@
 
 use std::{cell::{Cell, RefCell}, rc::Rc};
-use crate::{context::ShaderKind, pool::Key};
+use crate::{ShaderKind, pool::Key};
 use super::*;
 
 pub enum Item {

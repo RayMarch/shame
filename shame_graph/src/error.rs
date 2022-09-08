@@ -1,4 +1,4 @@
-use crate::{context::ShaderKind, expr::Loc};
+use crate::{ShaderKind, expr::Loc};
 use std::{ops::Range, rc::Rc};
 use thiserror::*;
 

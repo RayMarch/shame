@@ -3,6 +3,9 @@
 mod expr;
 pub use expr::*;
 
+mod stage;
+pub use stage::*;
+
 mod expr_kind;
 pub use expr_kind::*;
 

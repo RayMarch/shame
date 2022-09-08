@@ -1,5 +1,5 @@
 
-use crate::{pool::Key, BranchState};
+use crate::{pool::Key, BranchState, Stage};
 use super::*;
 
 #[derive(Copy, Clone, Debug)]
@@ -79,7 +79,7 @@ impl Default for BlockKind {
 /// see [`BlockKind`] for what a block can be. 
 pub struct Block {
     pub(crate) kind: BlockKind,
-    pub(crate) is_branch: Option<BranchState>,
+    pub(crate) branch_info: Option<(BranchState, Stage)>,
     /// Amount of times expressions were attempted to be recorded that contained
     /// exclusively `Any` objects that had a non available expression
     /// e.g. "per-vertex" expressions during a fragment shader recording in this 
@@ -104,11 +104,11 @@ impl Block {
     pub(crate) fn new(
         parent: Option<Key<Block>>, 
         origin_item: Key<Item>, 
-        is_branch: Option<BranchState>,
+        branch_info: Option<(BranchState, Stage)>,
         kind: BlockKind) -> Block {
         Self {
             kind,
-            is_branch,
+            branch_info,
             amount_of_attempts_recording_not_available_exprs: 0,
             amount_of_exprs_recorded: 0,
             parent,

@@ -15,7 +15,7 @@ impl Ten<scal, bool> {
     /// not conditionally executed at all. It runs either way since
     /// self's value cannot be known when recording the shader.
     pub fn then(&self, then_fn: impl FnOnce() + 'static) { //TODO: +'static is experimental to prevent variable "smuggling" out of scope
-        self.into_any().record_then(then_fn)
+        self.as_any().record_then(self.stage().into(), then_fn)
     }
 
     /// record an `if (self) {then_fn} else {else_fn}` branch in the shader.
@@ -29,7 +29,7 @@ impl Ten<scal, bool> {
     /// not conditionally executed at all. It runs either way since
     /// self's value cannot be known when recording the shader
     pub fn then_else(&self, then_fn: impl FnOnce(), else_fn: impl FnOnce() + 'static) { //TODO: +'static is experimental to prevent variable "smuggling" out of scope
-        self.into_any().record_then_else(then_fn, else_fn)
+        self.as_any().record_then_else(self.stage().into(), then_fn, else_fn)
     }
 
     // pub fn for_loop(&self, increment_fn: impl FnOnce() + 'static, body_fn: impl FnOnce() + 'static) { //TODO: +'static is experimental to prevent variable "smuggling" out of scope
@@ -91,7 +91,7 @@ where
     let [start_stage, end_stage] = [start, end].map(
         |b| get_bound(&b, |t| t.stage()).unwrap_or(Stage::Uniform)
     );
-    let _ = narrow_stages_or_push_error(
+    let loop_stage = narrow_stages_or_push_error(
         [start_stage, end_stage]
     );
 
@@ -104,7 +104,7 @@ where
     if available {
         Any::record_for_loop(
             || { // init
-                let start = map_bound(start, |x| x.into_any().aka("i"));
+                let start = map_bound(start, |x| x.into_any().copy().aka("i"));
                 match Any::lower_bound_value(start) {
                     Ok(start) => i.set(Some(start)),
                     Err(e) => Context::with(|ctx| ctx.push_error(match e {
@@ -117,7 +117,7 @@ where
             || { // condition evaluation
                 let mut i = i.get().unwrap();
                 let end = map_bound(end, |x| x.into_any());
-                i.is_below_upper_bound(end)
+                (i.is_below_upper_bound(end), loop_stage.into())
             }, 
             || { // increment
                 let mut i = i.get().unwrap();

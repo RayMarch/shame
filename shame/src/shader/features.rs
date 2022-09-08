@@ -285,7 +285,7 @@ impl<It: Iterator<Item=u32>> VertexStreamBuilder<It> {
     /// returns an empty vector when called from a non-vertex stage
     pub fn attributes_detailed<T: Fields>(&mut self) -> (T, Vec<(shame_graph::Tensor, Range<u32>)>) {
         use shame_graph::*;
-        let stage = Stage::Vertex;
+        let stage = crate::Stage::Vertex;
         let mut loc_iter = &mut self.attribute_location_iterator;
         
         let mut attribute_for_tensor = |ctx: &Context, ten: Tensor, name: &str| -> Option<(Any, Tensor, Range<u32>)> {
@@ -311,7 +311,7 @@ impl<It: Iterator<Item=u32>> VertexStreamBuilder<It> {
         let mut ranges = Vec::new();
         
         let t = Context::with(|ctx| {
-            T::from_fields_downcast(None, &mut |ty, name| -> (Any, Stage) {
+            T::from_fields_downcast(None, &mut |ty, name| -> (Any, crate::Stage) {
                 let any = match ty.kind {
                     TyKind::Tensor(ten) => match attribute_for_tensor(ctx, ten, name) {
                         Some((any, ten, range)) => { //we're in a vertex stage recording

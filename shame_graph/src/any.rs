@@ -3,7 +3,7 @@ use crate::BranchState;
 use crate::common::IteratorExt;
 use crate::common::new_array_enumerate;
 use crate::Context;
-use crate::context::ShaderKind;
+use crate::ShaderKind;
 use crate::error::Error;
 use super::expr::*;
 use super::pool::*;
@@ -963,9 +963,10 @@ impl Any {
         .unwrap_or(BranchState::BranchWithConditionNotAvailable)
     }
 
-    pub fn record_then(&self, f: impl FnOnce()) {
+    pub fn record_then(&self, self_stage: Stage, f: impl FnOnce()) {
 
-        let branch_state = Some(self.to_branch_state());
+        let branch_state = Some((self.to_branch_state(), self_stage));
+        
         
         match self.expr_key {
             Some(cond_key) => {
@@ -992,9 +993,9 @@ impl Any {
 
     }
 
-    pub fn record_then_else(&self, f_then: impl FnOnce(), f_else: impl FnOnce()) {
+    pub fn record_then_else(&self, self_stage: Stage, f_then: impl FnOnce(), f_else: impl FnOnce()) {
 
-        let branch_state = Some(self.to_branch_state());
+        let branch_state = Some((self.to_branch_state(), self_stage));
         let kind = BlockKind::Body;
 
         Context::with(|ctx| match self.expr_key {
@@ -1031,7 +1032,7 @@ impl Any {
 
     pub fn record_for_loop(
         init_fn      : impl FnOnce(),
-        condition_fn : impl FnOnce() -> Any, 
+        condition_fn : impl FnOnce() -> (Any, Stage), 
         increment_fn : impl FnOnce(),
         body_fn      : impl FnOnce(),
     ) {
@@ -1046,7 +1047,7 @@ impl Any {
                 }
             })
         };
-
+        
         Context::with(|ctx| {
 
             let block_has_na_exprs = |key| match &mut ctx.blocks_mut()[key] {
@@ -1056,53 +1057,50 @@ impl Any {
             let (for_stmt, _init_key) = ctx.record_nested_block(LoopInit, None, || {
 
                 init_fn();
-                let _init_block_has_na_exprs = block_has_na_exprs(ctx.current_block_key_unwrap());
+                let init_block_has_na_exprs = block_has_na_exprs(ctx.current_block_key_unwrap());
 
                 let (
-                    cond_expr_key, 
+                    (cond_any, cond_stage),
                     cond_block_key
                 ) = ctx.record_nested_block(LoopCondition(None), None, || {
-                    let condition_expr = condition_fn();
-                    check_condition_is_bool_or_na(&condition_expr, ctx);
-                    condition_expr.expr_key
+                    let (any, stage) = condition_fn();
+                    check_condition_is_bool_or_na(&any, ctx);
+                    (any, stage)
                 });
 
                 // now that the cond block is recorded, plug in the condition expr key
                 match &mut ctx.blocks_mut()[cond_block_key] {
                     block => match &mut block.kind {
-                        LoopCondition(cond) => *cond = cond_expr_key,
+                        LoopCondition(cond) => *cond = cond_any.expr_key,
                         _ => unreachable!()
                     }
                 }
 
+                let body_branch_info = Some((cond_any.to_branch_state(), cond_stage));
+
                 let ((),  inc_block_key) = ctx.record_nested_block(LoopIncrement, None, increment_fn);
-                let ((), body_block_key) = ctx.record_nested_block(LoopBody, None, body_fn);
+                let ((), body_block_key) = ctx.record_nested_block(LoopBody, body_branch_info, body_fn);
 
                 // whether the condition expr is not available in this stage
-                let _cond_is_na = cond_expr_key.is_none();
+                let _cond_is_na = !cond_any.is_available();
                 
-                // if the loop condition expr was     available, the blocks must not contain any other unavailable exprs
-                // if the loop condition expr was not available, the blocks are allowed to contain unavailable exprs
-                
-                //TODO: the intended error in the commented out section below is not detectable
-                //in the current setup. Stage information needs to be made available at shame_graph
-                //before this error case can detected.
+                if cond_stage == ctx.shader_kind().into() {
+                    for (block_name, block_has_na_exprs) in [
+                        ("initialization block", init_block_has_na_exprs),
+                        ("condition block", block_has_na_exprs(cond_block_key)),
+                        ("increment block", block_has_na_exprs( inc_block_key)),
+                        ("body"           , block_has_na_exprs(body_block_key)),
+                    ] {
+                        if block_has_na_exprs {
+                            ctx.push_error(Error::BlockRestrictionsViolated(
+                                format!("loop has a {cond_stage:?} condition, but its {block_name} contains expressions from a foreign stage")
+                            ))
+                        }
+                    }
+                }
 
-                // for (block_name, block_has_na_exprs) in [
-                //     ("initialization block", init_block_has_na_exprs),
-                //     ("condition block", block_has_na_exprs(cond_block_key)),
-                //     ("increment block", block_has_na_exprs( inc_block_key)),
-                //     ("body"           , block_has_na_exprs(body_block_key)),
-                // ] {
 
-                //     if cond_is_na && block_has_na_exprs {
-                //         ctx.push_error(Error::TypeError(
-                //             format!("loop {block_name} contains other expressions that are not from the same stage as the loop condition expression itself")
-                //         ))
-                //     }
-                // }
-
-                cond_expr_key.map(|_| {
+                cond_any.is_available().then(|| {
                     Stmt::new(RecordTime::next(), 
                         StmtKind::Flow(Flow::For { 
                             init: ctx.current_block_key_unwrap(), 

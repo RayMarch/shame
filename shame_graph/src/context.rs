@@ -31,13 +31,6 @@ pub struct Context {
     error_behavior: ErrorBehavior,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShaderKind {
-    Vertex,
-    Fragment,
-    Compute,
-}
-
 impl Display for ShaderKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
@@ -196,26 +189,34 @@ impl Context {
 
     /// whether the recording thread is currently in a closure of a branch recording
     /// such as if-then/if-then-else/for/while
-    pub fn inside_branch(&self) -> Option<BranchState> {
+    pub fn inside_branch(&self) -> Option<(BranchState, Stage)> {
         let blocks = self.blocks();
         let stack = self.stack_blocks(&blocks);
 
+        let mut result_stage = Stage::Uniform;
+
         // we are inside a branch if any of the blocks in the stack are part of a branch
-        stack.fold(None, |acc, block_key| {
+        let maybe_state: Option<BranchState> = stack.fold(None, |acc, block_key| {
             use BranchState::*;
-            let branch_state = blocks[block_key].is_branch;
-            match (acc, branch_state) {
+            let branch_info = blocks[block_key].branch_info;
+            if let Some((_, stage)) = branch_info {
+                result_stage = result_stage & stage;
+            }
+
+            match (acc, branch_info) {
                 (None, None) => None,
-                (None, Some(x)) => Some(x),
+                (None, Some((x, _))) => Some(x),
                 (Some(x), None) => Some(x),
-                (Some(x), Some(y)) => Some(match (x, y) {
+                (Some(x), Some((y ,_))) => Some(match (x, y) {
                     (Branch, Branch) => Branch,
                     (Branch, BranchWithConditionNotAvailable) => BranchWithConditionNotAvailable,
                     (BranchWithConditionNotAvailable, Branch) => BranchWithConditionNotAvailable,
                     (BranchWithConditionNotAvailable, BranchWithConditionNotAvailable) => BranchWithConditionNotAvailable,
                 }),
             }
-        })
+        });
+
+        maybe_state.map(|state| (state, result_stage))
     }
 
     /// check if continue or break statements are 
@@ -270,7 +271,7 @@ impl Context {
         result
     }
     
-    pub(crate) fn record_nested_block<R>(&self, kind: BlockKind, is_branch: Option<BranchState>, f: impl FnOnce() -> R) -> (R, Key<Block>) {
+    pub(crate) fn record_nested_block<R>(&self, kind: BlockKind, branch_info: Option<(BranchState, Stage)>, f: impl FnOnce() -> R) -> (R, Key<Block>) {
         assert!(self.current_block.get().is_some());
 
         let mut blocks = self.blocks_mut();
@@ -285,7 +286,7 @@ impl Context {
         let item = blocks[self.current_block_key_unwrap()].origin_item;
         
         let parent = self.current_block.take();
-        let child = blocks.push(Block::new(parent, item, is_branch, kind));
+        let child = blocks.push(Block::new(parent, item, branch_info, kind));
         drop(blocks);
 
         self.current_block.set(Some(child));

@@ -132,3 +132,4 @@ pub use pipeline::blending::{
 };
 
 pub use pipeline::pixel_format;
+pub use shame_reexports::shame_graph::ShaderKind;
