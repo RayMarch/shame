@@ -20,7 +20,7 @@ impl Any {
 
         let all_args_available = args.iter().all(|any| any.expr_key.is_some());
 
-        let expr_key = if all_args_available {
+        if all_args_available {
 
             let unwrapped_args = args.iter().map(|arg| arg.expr_key.unwrap()).collect(); //allocates a Vec
 
@@ -43,17 +43,13 @@ impl Any {
                     Err(err) => {ctx.push_error(err); None},
                 }
             );
-            maybe_expr
+            Self {expr_key: maybe_expr}
         } else {
             // attempting to record an expr but not all args are available 
             // in this shader recording (i.e. they are values from a 
             // different stage (vertex/fragment))
-            Context::with(|ctx| {
-                let current_block = &mut ctx.blocks_mut()[ctx.current_block_key_unwrap()];
-                current_block.amount_of_attempts_recording_not_available_exprs += 1;
-            });
-            None
-        };
+            Any::not_available()
+        }
 
         // // this commented out block below behaves wrong when recording an if(uniformval)
         // if !all_is_some { //attempt to record an expression with some expr_keys unavailable in this shader recording (stage)
@@ -68,8 +64,6 @@ impl Any {
         //         });
         //     }
         // }
-
-        Self {expr_key}
     }
 
 
@@ -107,6 +101,10 @@ impl Any {
     //
 
     pub fn not_available() -> Self {
+        Context::with(|ctx| {
+            let current_block = &mut ctx.blocks_mut()[ctx.current_block_key_unwrap()];
+            current_block.amount_of_attempts_recording_not_available_exprs += 1;
+        });
         Any {
             expr_key: None,
         }
@@ -877,42 +875,32 @@ impl Any {
 
     pub fn record_for_loop(
         init_fn      : impl FnOnce(),
-
-        /*
-            let mut x = 4.0.rec();
-            cond: || {
-                (x += 1) < 10.0
-            }
-            body: || {
-                frag_expr
-            }
-
-            gl_Position = x;
-        */
-
         condition_fn : impl FnOnce() -> Any, 
         increment_fn : impl FnOnce(),
         body_fn      : impl FnOnce() + 'static,
     ) {
         use BlockKind::*;
 
-        let check_condition_is_bool_or_na = |any: &Any, ctx: &Context| {
-            any.ty_via_ctx(ctx).map(|ty| {
+        let check_condition_is_bool_or_na = |cond: &Any, ctx: &Context| {
+            cond.ty_via_ctx(ctx).map(|ty| {
                 if !ty.eq_ignore_access(&Ty::bool()) {
                     ctx.push_error(Error::TypeError(
                         format!("loop condition must be of type boolean, found type {}", ty)
                     ))
                 }
-            });
+            })
         };
 
-        let mut condition_contains_foreign_stage_exprs = None;
-        let mut is_branch = None;
-
         Context::with(|ctx| {
-            
-            let ((), _init_key) = ctx.record_nested_block(LoopInit, None, || {
+
+            let block_has_na_exprs = |key| match &mut ctx.blocks_mut()[key] {
+                block => block.amount_of_attempts_recording_not_available_exprs > 0
+            };
+
+            let (for_stmt, _init_key) = ctx.record_nested_block(LoopInit, None, || {
+
                 init_fn();
+                let init_block_has_na_exprs = block_has_na_exprs(ctx.current_block_key_unwrap());
 
                 let (
                     cond_expr_key, 
@@ -922,49 +910,52 @@ impl Any {
                     check_condition_is_bool_or_na(&condition_expr, ctx);
                     condition_expr.expr_key
                 });
-                
-                {
-                    let mut blocks_mut = ctx.blocks_mut();
-                    let block = &mut blocks_mut[cond_block_key];
 
-                    match &mut block.kind {
+                // now that the cond block is recorded, plug in the condition expr key
+                match &mut ctx.blocks_mut()[cond_block_key] {
+                    block => match &mut block.kind {
                         LoopCondition(cond) => *cond = cond_expr_key,
                         _ => unreachable!()
                     }
-
-                    let contains_foreign_stage_exprs = block.amount_of_attempts_recording_not_available_exprs > 0;
-                    condition_contains_foreign_stage_exprs = Some(contains_foreign_stage_exprs);
-                    is_branch = Some(match contains_foreign_stage_exprs {
-                        true => BranchState::BranchWithConditionNotAvailable,
-                        false => BranchState::Branch,
-                    });
                 }
 
-                // match &mut ctx.blocks_mut()[cond_block_key] {
-                //     block => {
-                //         match &mut block.kind {
-                //             LoopCondition(cond) => *cond = cond_expr_key,
-                //             _ => unreachable!()
-                //         }
+                let ((),  inc_block_key) = ctx.record_nested_block(LoopIncrement, None, increment_fn);
+                let ((), body_block_key) = ctx.record_nested_block(LoopBody, None, body_fn);
 
-                //         condition_contains_foreign_stage_exprs = block.amount_of_attempts_recording_not_available_exprs > 0;
-                //         is_branch = match condition_contains_foreign_stage_exprs {
-                //             true => BranchState::BranchWithConditionNotAvailable,
-                //             false => BranchState::Branch,
-                //         };
-                //     }
-                // }
+                // whether the condition expr is not available in this stage
+                let cond_is_na = cond_expr_key.is_none();
+                
+                // if the loop condition expr was     available, the blocks must not contain any other unavailable exprs
+                // if the loop condition expr was not available, the blocks are allowed to contain unavailable exprs
+                for (block_name, block_has_na_exprs) in [
+                    ("initialization block", init_block_has_na_exprs),
+                    ("condition block", block_has_na_exprs(cond_block_key)),
+                    ("increment block", block_has_na_exprs( inc_block_key)),
+                    ("body"           , block_has_na_exprs(body_block_key)),
+                ] {
+                    if !cond_is_na && block_has_na_exprs {
+                        ctx.push_error(Error::TypeError(
+                            format!("loop {block_name} contains other expressions that are not from the same stage as the loop condition expression itself")
+                        ))
+                    }
+                }
 
-                let ((), _inc_key) = ctx.record_nested_block(LoopIncrement, None, || {
-                    increment_fn();
-                });
-
-                let ((), _body_key) = ctx.record_nested_block(LoopBody, None, || {
-                    body_fn();
-                });
-
+                match (cond_expr_key, body_block_key) {
+                    (Some(cond), body) => {
+                        Some(Stmt::new(RecordTime::next(), StmtKind::Flow(Flow::For { 
+                            init: todo!(), 
+                            cond, 
+                            inc: todo!(), 
+                            body, 
+                        })))
+                    },
+                    _ => None,
+                }
             });
 
+            if let Some(for_stmt) = for_stmt {
+                ctx.blocks_mut()[ctx.current_block_key_unwrap()].record_stmt(for_stmt);
+            }
         });
 
         // let (_, body) = ctx.record_nested_block(Some(common_branch_state), body);
