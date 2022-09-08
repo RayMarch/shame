@@ -155,38 +155,38 @@ fn make_vertex_format(shame: &shame::tensor_type::Tensor) -> wgpu::VertexFormat 
 
 fn make_vertex_buffer_layouts<'a>(infos: &[shame::VertexBufferInfo], scratch: &'a mut Vec<wgpu::VertexAttribute>) -> Vec<wgpu::VertexBufferLayout<'a>> {
     assert!(scratch.is_empty());
-    let mut ranges = vec![];
-    let mut array_stride: u64 = 0;
-    
+    let mut ranges_strides = vec![];
+
     for info in infos {
+        let mut stride: u64 = 0;
         let range_start = scratch.len();
 
         for shame::AttributeInfo {location, type_} in &info.attributes {
-            let offset = array_stride;
-            array_stride += type_.byte_size() as u64;
+            let offset = stride;
+            stride += type_.byte_size() as u64;
             scratch.push(wgpu::VertexAttribute {
                 format: make_vertex_format(type_),
                 offset,
                 shader_location: *location,
             });
         }
-        ranges.push(range_start..scratch.len())
+        ranges_strides.push((range_start..scratch.len(), stride));
     }
 
-    assert!(infos.len() == ranges.len());
+    assert!(infos.len() == ranges_strides.len());
 
-    infos.iter().zip(ranges).map(|(info, range)| {
+    infos.iter().zip(ranges_strides).map(|(info, (range, stride))| {
         let step_mode = match info.step_mode {
             shame::VertexStepMode::Vertex   => wgpu::VertexStepMode::Vertex,
             shame::VertexStepMode::Instance => wgpu::VertexStepMode::Instance,
         };
 
-        wgpu::VertexBufferLayout {
-            array_stride,
-            step_mode,
-            attributes: scratch.index(range),
-        }
-    }).collect()
+            wgpu::VertexBufferLayout {
+                array_stride: stride,
+                step_mode,
+                attributes: scratch.index(range),
+            }
+        }).collect()
 }
 
 fn make_vertex_state<'a, 'b>(shame: &shame::RenderPipelineInfo, module: &'a wgpu::ShaderModule, 
