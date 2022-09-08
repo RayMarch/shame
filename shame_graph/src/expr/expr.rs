@@ -1,6 +1,6 @@
 use std::{cell::Cell};
 
-use crate::{context::Context, error::Error, pool::{Key, PoolRef}};
+use crate::{context::Context, error::Error, pool::{Key, PoolRef, PoolRefMut}};
 use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -167,6 +167,13 @@ impl Expr {
 
     pub fn needs_expr_stmt(&self) -> bool {
         self.kind.is_mutating_any_arg() //if the expression mutates any state it needs to be put into a statement
+    }
+
+    pub fn needs_loop_condition_expr_stmt(key: Key<Expr>, expr: &Expr, blocks: &PoolRefMut<Block>) -> bool {
+        match blocks[expr.parent_block].kind {
+            BlockKind::LoopCondition(Some(cond_key)) => key == cond_key,
+            _ => false
+        }
     }
 
 }

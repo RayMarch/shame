@@ -940,97 +940,22 @@ impl Any {
                     }
                 }
 
-                match (cond_expr_key, body_block_key) {
-                    (Some(cond), body) => {
-                        Some(Stmt::new(RecordTime::next(), StmtKind::Flow(Flow::For { 
-                            init: todo!(), 
-                            cond, 
-                            inc: todo!(), 
-                            body, 
-                        })))
-                    },
-                    _ => None,
-                }
+                cond_expr_key.map(|_| {
+                    Stmt::new(RecordTime::next(), 
+                        StmtKind::Flow(Flow::For { 
+                            init: ctx.current_block_key_unwrap(), 
+                            cond: cond_block_key, 
+                            inc: inc_block_key, 
+                            body: body_block_key, 
+                        })
+                    )
+                })
             });
 
             if let Some(for_stmt) = for_stmt {
                 ctx.blocks_mut()[ctx.current_block_key_unwrap()].record_stmt(for_stmt);
             }
         });
-
-        // let (_, body) = ctx.record_nested_block(Some(common_branch_state), body);
-
-        /*
-        
-        //this is what will be recorded in this function:
-
-        <loop_init_block> {
-            // unlimited decls but only if they all have the same type.
-            // exprs are put into one of the decls via "," operator
-            int i = 0;
-
-            if {
-
-            }
-
-
-            <condition_block> {
-                // no declarations, exprs concated via "," operator. last expr is value
-                i <= 
-            }
-
-            <increment_block> {
-                // no decls, exprs concated via "," operator.
-            }
-            <body_block> {
-                // regular block
-            }
-        }
-        
-        */
-
-
-        // let (
-        //     condition_expr, 
-        //     continuing_expr
-        // ) = Context::with(|ctx| (
-        //     ctx.record_loop_head_expr(condition),
-        //     ctx.record_loop_head_expr(continuing),
-        // ));
-        
-        // let now = RecordTime::next();
-        // let condit_branch_state = condition_expr.to_branch_state();
-        // let contin_branch_state = continuing_expr.to_branch_state();
-
-        // use BranchState::*;
-        // use BranchState::BranchWithConditionNotAvailable as ConditionNA;
-        // let common_branch_state = match (condit_branch_state, contin_branch_state) {
-        //     (Branch     , Branch     ) => Branch,
-        //     (Branch     , ConditionNA) |
-        //     (ConditionNA, Branch     ) |
-        //     (ConditionNA, ConditionNA) => ConditionNA,
-        // };
-        // // FIXME: this means the error message for a not available increment statement says "condition not available", which is misleading wording.
-
-        // Context::with(|ctx| {
-        //     let (_, body) = ctx.record_nested_block(Some(common_branch_state), body);
-
-        //     if let Branch = common_branch_state { //[*]
-        //         let (cond, inc) = match (condition_expr.expr_key, continuing_expr.expr_key) {
-        //             (Some(cond), Some(inc)) => (cond, Some(inc)),
-        //             _ => unreachable!(), //due to [*]
-        //         };
-
-        //         let stmt = Stmt::new(now, StmtKind::Flow(Flow::For {
-        //             init: None,
-        //             cond,
-        //             inc,
-        //             body,
-        //         }));
-
-        //         ctx.blocks_mut()[ctx.current_block_key_unwrap()].record_stmt(stmt);
-        //     }
-        // });
     }
     
 }

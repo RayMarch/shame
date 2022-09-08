@@ -219,15 +219,30 @@ fn field_select_to_glsl(ex: &State, field: &IdentSlot, args: &[Key<Expr>]) -> St
 fn flow_to_glsl(ex: &State, flow: &Flow) -> String {
     let blk = |block_key: &Key<Block>| block_key_to_glsl(ex, *block_key);
     let exp = |expr_key : &Key<Expr >|  expr_key_to_glsl(ex, *expr_key, false);
+    let blocks = ex.ctx.blocks();
     match flow {
-        Flow::IfThen { cond, then } => 
-            format!("if ({}) {}", exp(cond), blk(then)),
-        Flow::IfThenElse { cond, then, els } => 
-            format!("if ({}) {} else {}", exp(cond), blk(then), blk(els)),
-        Flow::For { init, cond, inc, body } => 
-            format!("for ({}; {}; {}) {}", exp(init), exp(cond), exp(inc), blk(body)),
-        Flow::While { cond, body } => 
-            format!("if ({}) {}", exp(cond), blk(body)),
+        Flow::IfThen { cond, then } => {
+            assert!(matches!(blocks[*then].kind, BlockKind::Body));
+            format!("if ({}) {}", exp(cond), blk(then))
+        }
+        Flow::IfThenElse { cond, then, els } => {
+            assert!(matches!(blocks[*then].kind, BlockKind::Body));
+            assert!(matches!(blocks[* els].kind, BlockKind::Body));
+            format!("if ({}) {} else {}", exp(cond), blk(then), blk(els))
+        }
+        Flow::For { init, cond, inc, body } => {
+            //TODO: parse don't validate. the block kind should be enforced at `Flow` creation instead
+            assert!(matches!(blocks[*init].kind, BlockKind::LoopInit));
+            assert!(matches!(blocks[*cond].kind, BlockKind::LoopCondition(Some(_))));
+            assert!(matches!(blocks[* inc].kind, BlockKind::LoopIncrement));
+            assert!(matches!(blocks[*body].kind, BlockKind::LoopBody));
+            format!("for ({}; {}; {}) {}", blk(init), blk(cond), blk(inc), blk(body))
+        }
+        Flow::While { cond, body } => {
+            //TODO: parse don't validate. the block kind should be enforced at `Flow` creation instead
+            assert!(matches!(blocks[*body].kind, BlockKind::LoopBody));
+            format!("if ({}) {}", blk(cond), blk(body))
+        }
     }
 }
 
@@ -363,14 +378,105 @@ fn stmt_to_glsl(ex: &State, stmt: &Stmt) -> String {
 
 fn block_to_glsl(ex: &State, block: &Block) -> String {
     let mut s = String::with_capacity(64);
-    s += "{\n";
-    ex.with_deeper_indent(|| {
-        for stmt in block.stmts.iter() {
-            let stmt_string = stmt_to_glsl(ex, stmt);
-            s += &format!("{}{}\n", ex.indent_string(), stmt_string);
-        }
-    });
-    s += &(ex.indent_string() + "}");
+    use StmtKind::*;
+    use BlockKind::*;
+    match block.kind {
+        Body | LoopBody => {
+            s += "{\n";
+            ex.with_deeper_indent(|| {
+                for stmt in block.stmts.iter() {
+                    let stmt_string = stmt_to_glsl(ex, stmt);
+                    s += &format!("{}{}\n", ex.indent_string(), stmt_string);
+                }
+            });
+            s += &(ex.indent_string() + "}");
+        },
+        LoopCondition(loop_condition_expr) => {
+            let len = block.stmts.len();
+            for (i, stmt) in block.stmts.iter().enumerate() {
+                let is_last = i == len-1;
+                let stmt_string = match &stmt.kind {
+                    Expr(key) => {
+                        if let Some(loop_condition_expr) = loop_condition_expr {
+                            // if the stmt is the loop condition, it must be last
+                            // if the stmt is not loop condition, it can't be last
+                            assert!((loop_condition_expr == *key) == is_last); //TODO: make result
+                        }
+                        expr_key_to_glsl(ex, *key, false)
+                    }
+                    kind => panic!("invalid statement of kind {kind} in loop condition") //TODO: make error
+                };
+                let maybe_comma = match i {0 => "", _ => ", "};
+                s += &format!("{}{}", maybe_comma, stmt_string);
+            }
+            if loop_condition_expr.is_none() {
+                // no condition implies endless loop
+                // this means we need to add a true at the end
+                s += match len {
+                    0 => "true",
+                    _ => ", true",
+                }
+            }
+        },
+        LoopIncrement => {
+            for (i, stmt) in block.stmts.iter().enumerate() {
+                let stmt_string = match &stmt.kind {
+                    Expr(key) => expr_key_to_glsl(ex, *key, false),
+                    kind => panic!("invalid statement of kind {kind} in loop increment") //TODO: make error
+                };
+                let maybe_comma = match i {0 => "", _ => ", "};
+                s += &format!("{}{}\n", maybe_comma, stmt_string);
+            }
+        },
+        LoopInit => {
+
+            let iter = block.stmts.iter();
+            let first = iter.clone().next();
+
+            if let Some(first) = first {
+                match &first.kind {
+                    VariableDecl(_) | VariableDef(_) => {
+                        
+                        let decl_ty = match &first.kind {
+                            VariableDecl(Named(ty, _)) => ty.clone(),
+                            VariableDef(Named(key, _)) => ex.ctx.exprs()[*key].ty.clone(),
+                            _ => unreachable!()
+                        };
+
+                        s += &(ty_to_glsl(ex, &decl_ty) + " ");
+                        let mut decls = vec![];
+
+                        for stmt in iter {
+                            let (ident, ty, expr_key) = match &stmt.kind {
+                                VariableDecl(Named(ty, ident)) => (ident, ty.clone(), None),
+                                VariableDef(Named(key, ident)) => (ident, ex.ctx.exprs()[*key].ty.clone(), Some(key)),
+                                _ => unreachable!()
+                            };
+
+                            assert!(decl_ty.eq_ignore_access(&ty), "glsl only supports one declaration type per loop init statement. This loop init statement tries to declare at least a {decl_ty} and {ty} type");
+                            
+                            let ident = ex.valid_ident(ident.0);
+                            decls.push(match expr_key {
+                                Some(expr_key) => format!("{} = {}", ident, expr_key_to_glsl(ex, *expr_key, false)),
+                                None => ident.to_string(),
+                            });
+                        }
+                        s += &decls.join(", ");
+                    }
+                    Expr(_) => {
+                        s += &iter.map(|stmt| match &stmt.kind {
+                            Expr(x) => expr_key_to_glsl(ex, *x, false),
+                            _ => unreachable!()
+                        }).collect::<Vec<_>>().join(", ");
+                    }
+                    kind => {
+                        panic!("invalid statement of kind {kind} in loop increment") //TODO: make error
+                    }
+                }
+            }
+
+        },
+    }
     s
 }
 

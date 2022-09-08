@@ -146,12 +146,12 @@ impl Context {
                 let stmt = Stmt::new(expr.time, StmtKind::VariableDef(Named(key, *ident)));
                 blocks[expr.parent_block].stmts.push(stmt);
             }
-            else if expr.needs_expr_stmt() {
+            else if expr.needs_expr_stmt() || Expr::needs_loop_condition_expr_stmt(key, expr, &blocks) {
                 let stmt = Stmt::new(expr.time, StmtKind::Expr(key));
                 blocks[expr.parent_block].stmts.push(stmt);
             }
         }
-
+        
         //sort all statements within a block
         for block in blocks.iter_mut() {
             block.stmts.sort_by_key(|a| a.time);
