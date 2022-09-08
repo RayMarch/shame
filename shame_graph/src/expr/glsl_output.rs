@@ -117,7 +117,7 @@ fn floating_point_to_glsl<T: FloatingPoint>(t: &T) -> String {
     }
 }
 
-fn copy_expr_to_glsl(ex: &State, expr: &Expr) -> String {
+fn copy_expr_to_glsl(ex: &State, expr: &Expr, comment: &str) -> String {
     // the copy expression is just the identity here.
     // in `Expr::needs_variable_def_stmt` it is enforced that copy expressions will
     // result in a variable definition statement, which performs the copy implicitly.
@@ -126,7 +126,11 @@ fn copy_expr_to_glsl(ex: &State, expr: &Expr) -> String {
     // satisfy our needs for an identity operation that gets rid of lvalues, such a constructor
     // is not available for all glsl types that can be copied via defining a new variable.
     match expr.args.as_slice() {
-        [arg] => format!("{}/*copy*/", expr_key_to_glsl(ex, *arg, false)),
+        [arg] => if comment.is_empty() {
+            format!("{}", expr_key_to_glsl(ex, *arg, false))
+        } else {
+            format!("{}/*{comment}*/", expr_key_to_glsl(ex, *arg, false))
+        },
         _ => panic!("trying to generate glsl of a copy expression with {} arguments, only 1 argument allowed.", expr.args.len())
     }
 }
@@ -134,7 +138,7 @@ fn copy_expr_to_glsl(ex: &State, expr: &Expr) -> String {
 fn expr_kind_to_glsl(ex: &State, expr: &Expr) -> String {
     match &expr.kind {
         ExprKind::GlobalInterface(_) => panic!("global interface expr without identifier is invalid"),
-        ExprKind::Copy => copy_expr_to_glsl(ex, expr),
+        ExprKind::Copy {comment} => copy_expr_to_glsl(ex, expr, comment),
         ExprKind::Literal(x) => match x {
             Literal::Bool(x) => format!("{}", x),
             Literal::F32 (x) => floating_point_to_glsl(x),

@@ -45,7 +45,7 @@ impl Display for RenderPipelineInfo {
             Some(x) => f.write_fmt(format_args!("push constant: {x}\n"))?
         }
         match &self.bind_groups[..] {
-            [] => f.write_str("no bind groups")?,
+            [] => f.write_str("no bind groups\n")?,
             s => {
                 f.write_fmt(format_args!("bind groups:\n"))?;
                 for x in s {

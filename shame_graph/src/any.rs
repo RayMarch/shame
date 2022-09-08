@@ -125,7 +125,15 @@ impl Any {
     /// ```
     ///
     pub fn copy(&self) -> Self {
-        let copied = Any::by_recording_expr(ExprKind::Copy, &[*self]);
+        self.copy_commented("copy")
+    }
+
+    pub fn copy_silent(&self) -> Self {
+        self.copy_commented("")
+    }
+
+    pub fn copy_commented(&self, comment: &'static str) -> Self {
+        let copied = Any::by_recording_expr(ExprKind::Copy{comment}, &[*self]);
 
         //if self already has an identifier, create a new slot based on that identifier
         //that will result in a `foo` getting copied into `foo_copy` or similar

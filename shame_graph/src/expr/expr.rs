@@ -155,11 +155,11 @@ impl Expr {
                 ExprKind::GlobalInterface(_) => false,
                 ExprKind::BuiltinVar(_) => false,
                 // ExprKind::Literal(_) => false,
-                ExprKind::Copy => true,
+                ExprKind::Copy {..} => true,
                 _ => true
             }
             _ => match self.kind {
-                ExprKind::Copy => true,
+                ExprKind::Copy {..} => true,
                 _ => false
             }
         }

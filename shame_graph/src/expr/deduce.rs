@@ -72,7 +72,7 @@ pub fn validate_access(kind: &ExprKind, arg_types: &[Ty], args: &[Key<Expr>]) ->
 pub fn try_deduce_type(kind: &ExprKind, args: &[Ty]) -> Result<Ty, Error> {
     match kind {
         ExprKind::GlobalInterface(ty) => Ok(ty.clone()),
-        ExprKind::Copy => try_deduce_copy(kind, args),
+        ExprKind::Copy{..} => try_deduce_copy(kind, args),
         ExprKind::Literal    (x) => Ok(Ty::tensor(Shape::Scalar, x.dtype)),
         ExprKind::Constructor(x) => try_deduce_constructor (x, args),
         ExprKind::Operator   (x) => try_deduce_operator    (x, args),

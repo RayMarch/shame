@@ -9,6 +9,7 @@ use crate::rec::{TexCoordType, float4, uint3, uint};
 use crate::wrappers::UnsafeAccess;
 
 use super::*;
+use shame_graph::ShaderKind;
 
 /// panics if there is no recording happening
 pub fn current_shader() -> shame_graph::ShaderKind {
@@ -16,6 +17,13 @@ pub fn current_shader() -> shame_graph::ShaderKind {
         ctx.shader_kind()
     }).expect("cannot get current shader while no active recording is happening")
 }
+
+pub fn is_fragment_shader() -> bool {current_shader() == ShaderKind::Fragment}
+pub fn is_vertex_shader() -> bool {current_shader() == ShaderKind::Vertex}
+pub fn is_compute_shader() -> bool {current_shader() == ShaderKind::Compute}
+pub fn is_not_fragment_shader() -> bool {current_shader() != ShaderKind::Fragment}
+pub fn is_not_vertex_shader() -> bool {current_shader() != ShaderKind::Vertex}
+pub fn is_not_compute_shader() -> bool {current_shader() != ShaderKind::Compute}
 
 /// whether there is an active recording happening on the current thread
 pub fn is_recording() -> bool {

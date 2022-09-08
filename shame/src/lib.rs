@@ -133,3 +133,13 @@ pub use pipeline::blending::{
 
 pub use pipeline::pixel_format;
 pub use shame_reexports::shame_graph::ShaderKind;
+pub use control_flow::{
+    for_range,
+    for_range_step,
+    continue_,
+    continue_if,
+    break_,
+    break_if,
+    discard_fragment,
+    discard_fragment_if,
+};

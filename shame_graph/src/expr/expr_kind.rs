@@ -6,7 +6,7 @@ use enum_properties::*;
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-    Copy, //useful for getting rid of lvalues, behaves like a "copy constructor"
+    Copy{comment: &'static str}, //useful for getting rid of lvalues, behaves like a "copy constructor"
     GlobalInterface(Ty),
     Literal(Literal),
     Constructor(Constructor),
@@ -203,7 +203,7 @@ impl Display for ExprKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use ExprKind::*;
         match self {
-            Copy => f.write_str("copy"),
+            Copy{comment} => f.write_fmt(format_args!("copy ({})", comment)),
             GlobalInterface(x) => f.write_fmt(format_args!("global interface {}", x)),
             Literal(x) => x.fmt(f),
             Constructor(x) => x.fmt(f),

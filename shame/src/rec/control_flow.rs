@@ -14,7 +14,7 @@ impl Ten<scal, bool> {
     /// any regular rust code that runs in `then_fn` as it is
     /// not conditionally executed at all. It runs either way since
     /// self's value cannot be known when recording the shader.
-    pub fn then(&self, then_fn: impl FnOnce() + 'static) { //TODO: +'static is experimental to prevent variable "smuggling" out of scope
+    pub fn then(&self, then_fn: impl FnOnce()) {
         self.as_any().record_then(self.stage().into(), then_fn)
     }
 
@@ -28,11 +28,11 @@ impl Ten<scal, bool> {
     /// any regular rust code that runs in `then_fn`/`else_fn` as it is
     /// not conditionally executed at all. It runs either way since
     /// self's value cannot be known when recording the shader
-    pub fn then_else(&self, then_fn: impl FnOnce(), else_fn: impl FnOnce() + 'static) { //TODO: +'static is experimental to prevent variable "smuggling" out of scope
+    pub fn then_else(&self, then_fn: impl FnOnce(), else_fn: impl FnOnce()) {
         self.as_any().record_then_else(self.stage().into(), then_fn, else_fn)
     }
 
-    // pub fn for_loop(&self, increment_fn: impl FnOnce() + 'static, body_fn: impl FnOnce() + 'static) { //TODO: +'static is experimental to prevent variable "smuggling" out of scope
+    // pub fn for_loop(&self, increment_fn: impl FnOnce() + 'static, body_fn: impl FnOnce() + 'static) {
     //     self.into_any().record_for(increment_fn, body_fn)
     // }
 
@@ -100,11 +100,12 @@ where
     
     use shame_graph::{Any, Error};
     let i = std::cell::Cell::new(None);
+    let endval = std::cell::Cell::new(None);
 
     if available {
         Any::record_for_loop(
             || { // init
-                let start = map_bound(start, |x| x.into_any().copy().aka("i"));
+                let start = map_bound(start, |x| x.into_any().copy_silent().aka("i"));
                 match Any::lower_bound_value(start) {
                     Ok(start) => i.set(Some(start)),
                     Err(e) => Context::with(|ctx| ctx.push_error(match e {
@@ -113,10 +114,13 @@ where
                         Excluded(d) => Error::TypeError(format!("for range: cannot use {d} lower bound in inclusive range")),
                     })),
                 }
+
+                endval.set(Some(map_bound(end, |x| x.into_any().copy_silent().aka("end"))));
             }, 
             || { // condition evaluation
                 let mut i = i.get().unwrap();
-                let end = map_bound(end, |x| x.into_any());
+                //let end = map_bound(end, |x| x.into_any());
+                let end = endval.get().unwrap();
                 (i.is_below_upper_bound(end), loop_stage.into())
             }, 
             || { // increment
@@ -135,7 +139,7 @@ where
 
 pub fn break_if(cond: boolean) {cond.then(|| break_())}
 pub fn continue_if(cond: boolean) {cond.then(|| continue_())}
-pub fn discard_if(cond: boolean) {cond.then(|| discard_fragment())}
+pub fn discard_fragment_if(cond: boolean) {cond.then(|| discard_fragment())}
 
 pub fn break_() {
     shame_graph::Stmt::record_break()
