@@ -57,7 +57,7 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
         .await
         .expect("Failed to create device");
 
-    let swapchain_format = surface.get_preferred_format(&adapter).unwrap();
+    let swapchain_format = surface.get_supported_formats(&adapter)[0];
 
     let poll_shader = listen_for_shader::new_shader_poller();
 
@@ -142,7 +142,7 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
         format: swapchain_format,
         width: size.width,
         height: size.height,
-        present_mode: wgpu::PresentMode::Mailbox,
+        present_mode: wgpu::PresentMode::Fifo,
     };
 
     surface.configure(&device, &config);
@@ -206,14 +206,14 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
                 {
                     let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                         label: None,
-                        color_attachments: &[wgpu::RenderPassColorAttachment {
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                             view: &view,
                             resolve_target: None,
                             ops: wgpu::Operations {
                                 load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                                 store: true,
                             },
-                        }],
+                        })],
                         depth_stencil_attachment: None,
                     });
 

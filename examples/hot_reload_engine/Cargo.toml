@@ -8,12 +8,12 @@ edition = "2021"
 
 [dependencies]
 shame = { path = "../../shame/", features = ["mirror"] }
-bytemuck = { version = "1.9.1", features = ["derive"] }
+bytemuck = { version = "1.12", features = ["derive"] }
 hot_reload_shaders = { path = "../hot_reload_shaders/" }
 simple_wgpu = { path = "../simple_wgpu/" }
-wgpu = { version = "0.12.0", features = ["glsl"]}
-naga = "0.8"
-winit = "0.26.1"
-async-executor = "1.0"
+wgpu = { version = "0.13.1", features = ["glsl"]}
+naga = "0.9"
+winit = "0.27"
+async-executor = "1.4"
 pollster = "0.2"
 env_logger = "0.9"

@@ -361,14 +361,14 @@ fn make_blend_state(shame: &Option<shame::Blend>) -> Option<wgpu::BlendState> {
     })
 }
 
-fn make_fragment_state<'a>(shame: &shame::RenderPipelineInfo, module: &'a wgpu::ShaderModule, scratch: &'a mut Vec<wgpu::ColorTargetState>, known_surface_format: &Option<wgpu::TextureFormat>) -> wgpu::FragmentState<'a> {
+fn make_fragment_state<'a>(shame: &shame::RenderPipelineInfo, module: &'a wgpu::ShaderModule, scratch: &'a mut Vec<Option<wgpu::ColorTargetState>>, known_surface_format: &Option<wgpu::TextureFormat>) -> wgpu::FragmentState<'a> {
 
     for target in &shame.color_targets {
-        scratch.push(wgpu::ColorTargetState {
+        scratch.push(Some(wgpu::ColorTargetState {
             format: make_color_texture_format(&target.color_format, &known_surface_format),
             blend: make_blend_state(&target.blending),
             write_mask: wgpu::ColorWrites::default(), //TODO: add
-        })
+        }))
     }
 
     wgpu::FragmentState {
@@ -384,7 +384,7 @@ pub fn make_render_pipeline(shame: &shame::RenderPipelineRecording, device: &wgp
 
     let (vsh, fsh) = &shame.shaders_glsl;
 
-    let vsh_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+    let vsh_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("vertex shader"),
         source: wgpu::ShaderSource::Glsl {
             shader: vsh.into(),
@@ -393,7 +393,7 @@ pub fn make_render_pipeline(shame: &shame::RenderPipelineRecording, device: &wgp
         },
     });
 
-    let fsh_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+    let fsh_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("fragment shader"),
         source: wgpu::ShaderSource::Glsl {
             shader: fsh.into(),
@@ -425,7 +425,7 @@ pub fn make_render_pipeline(shame: &shame::RenderPipelineRecording, device: &wgp
 pub fn make_compute_pipeline(shame: &shame::ComputePipelineRecording, device: &wgpu::Device) -> wgpu::ComputePipeline {
     let layout = make_compute_pipeline_layout(&shame.info, device);
 
-    let shader_module = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+    let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("compute shader"),
         source: wgpu::ShaderSource::Glsl {
             shader: (&shame.shader_glsl).into(),

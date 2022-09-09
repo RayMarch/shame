@@ -8,4 +8,4 @@ edition = "2021"
 
 [dependencies]
 shame = { path = "../../shame/", features = ["mirror", "workarounds"] }
-bytemuck = { version = "1.9.1", features = ["derive"] }
+bytemuck = { version = "1.12", features = ["derive"] }
