@@ -252,21 +252,29 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
 
                 if let Some(string) = poll_shader() {
                     let split = string.split("$split_here$").collect::<Vec<_>>();
-                    if let [vert, frag, info] = &split[..] {
-                        if info != &recording.info.to_string() {
-                            println!("incoming shaders have incompatible pipeline layout");
-                        } else {
-                            let new_recording = RenderPipelineRecording {
-                                shaders_glsl: (vert.to_string(), frag.to_string()),
-                                info: recording.info.clone(),
-                            };
-                            render_pipeline = glue::make_render_pipeline(
-                                &new_recording, 
-                                &device,
-                                Some(swapchain_format)
-                            );
-                            num_shader_updates += 1;
-                            println!("updated shader! (#{num_shader_updates})");
+                    match &split[..] {
+                        [vert, frag, info] => {
+                            let existing_info = &recording.info.to_string();
+                            if info != existing_info {
+                                println!("EXPECTED LAYOUT:\n{existing_info}");
+                                println!("GOT LAYOUT\n{info}");
+                                println!("incoming shaders have incompatible pipeline layout");
+                            } else {
+                                let new_recording = RenderPipelineRecording {
+                                    shaders_glsl: (vert.to_string(), frag.to_string()),
+                                    info: recording.info.clone(),
+                                };
+                                render_pipeline = glue::make_render_pipeline(
+                                    &new_recording, 
+                                    &device,
+                                    Some(swapchain_format)
+                                );
+                                num_shader_updates += 1;
+                                println!("updated shader! (#{num_shader_updates})");
+                            }
+                        }
+                        slice => {
+                            println!("{}\nerror: received a shader update that has wrong amount of parts ({})", &string, slice.len());
                         }
                     }
                 }
