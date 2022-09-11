@@ -129,7 +129,12 @@ impl<SelfS: IsShapeScalarOrVec> Ten<SelfS, f32> {
     /// component wise `cos` function with its
     /// results remapped to the 0 to 1 range.
     pub fn cos01(&self) -> Self {
-        self.sin().remap(-1.0..1.0, 0.0..1.0)
+        self.cos().remap(-1.0..1.0, 0.0..1.0)
+    }
+
+    /// component wise `tan` function
+    pub fn tan(&self) -> Self {
+        self.into_any().tan().downcast(self.stage())
     }
 
     /// partial derivative of `self`'s `component`th component wrt neighboring

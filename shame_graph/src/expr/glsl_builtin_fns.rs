@@ -5,8 +5,20 @@ use glsl_generics::GlslGeneric::*;
 pub fn try_deduce_builtin_fn(kind: &super::BuiltinFn, args: &[Ty]) -> Result<Ty, Error> {
     use super::BuiltinFn::*;
 
+    println!("{kind:?}");
     let apply = |args: &[Ty], decls: &[GlslGenericFunctionDecl]| {
-        decls.iter().find_map(|decl| decl.deduce_return_type(args))
+        decls.iter().find_map(|decl| {
+            match decl.deduce_return_type(args) {
+                Some(x) => {
+                    println!("found! {x}");
+                    Some(x)
+                }
+                None => {
+                    println!("not found :(");
+                    None
+                }
+            }
+        })
     };
 
     let deduced_ty = match kind {
@@ -109,6 +121,9 @@ pub fn try_deduce_builtin_fn(kind: &super::BuiltinFn, args: &[Ty]) -> Result<Ty,
         Cos => apply(args, &glsl_generic_function_decls!{
             genType sin(genType angle);
         }),
+        Tan => apply(args, &glsl_generic_function_decls!{
+            genType tan(genType angle);
+        }),
         Dot => apply(args, &glsl_generic_function_decls!{
             float dot(genType x,  genType y);
             double dot(genDType x,  genDType y);
@@ -192,5 +207,6 @@ pub fn try_deduce_builtin_fn(kind: &super::BuiltinFn, args: &[Ty]) -> Result<Ty,
         }),
     };
 
+    println!("invalid args: {kind:?}, {args:?}");
     deduced_ty.ok_or_else(|| invalid_arguments(kind, args))
 }

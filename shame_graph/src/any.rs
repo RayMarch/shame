@@ -606,6 +606,10 @@ impl Any {
         Any::by_recording_expr(ExprKind::BuiltinFn(BuiltinFn::Cos), &[*self])
     }
 
+    pub fn tan(&self) -> Any {
+        Any::by_recording_expr(ExprKind::BuiltinFn(BuiltinFn::Tan), &[*self])
+    }
+
     pub fn fract(&self) -> Any {
         Any::by_recording_expr(ExprKind::BuiltinFn(BuiltinFn::Fract), &[*self])
     }

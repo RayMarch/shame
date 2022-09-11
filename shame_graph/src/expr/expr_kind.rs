@@ -186,6 +186,7 @@ enum_properties! {
         Length      {glsl_str: "length"},
         Sin         {glsl_str: "sin"},
         Cos         {glsl_str: "cos"},
+        Tan         {glsl_str: "tan"},
         Dot         {glsl_str: "dot"},
         Cross       {glsl_str: "cross"},
         Min         {glsl_str: "min"},
