@@ -75,8 +75,9 @@ impl GlslGenericFunctionDecl {
                     Specific(_) => None,
                     _ => Some((generic, ty)),
                 });
-            
-                let result_ty = generics.all_same(|(generic_arg, arg)| { //all have to resolve to the same instanciation
+
+                let result_ty = generics.all_same_or_empty(Some(specific),
+                    |(generic_arg, arg)| { //all have to resolve to the same instanciation
                     generic_arg.try_instantiate(arg)
                 })
                 .flatten()

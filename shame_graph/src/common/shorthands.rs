@@ -24,6 +24,17 @@ pub trait IteratorExt: Iterator where Self: Sized {
         iter.next().and_then(|first| iter.all(|i| i == first).then(|| first))
     }
 
+    ///applies f to all elements in the iterator, if f's return values 
+    ///all compare equal to the first one, returns Some(f(first)), otherwise None.
+    ///Returns `value_if_empty` for empty iterators.
+    fn all_same_or_empty<R: Eq>(self, value_if_empty: R, f: impl FnMut(Self::Item) -> R) -> Option<R> {
+        let mut iter = self.map(f);
+        match iter.next() {
+            Some(first) => iter.all(|i| i == first).then(|| first),
+            None => Some(value_if_empty),
+        }
+    }
+
     fn all_unique(self) -> bool 
     where Self: Clone, Self::Item: Eq {
         self.all_unique_by(|x, y| x == y)
