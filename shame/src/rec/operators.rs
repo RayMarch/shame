@@ -7,7 +7,7 @@ use std::ops::*;
 macro_rules! impl_add_sub_div_operators {
     (
         $(
-            ($($fXX: ty),*): ($Add: ident / $add: ident / $AddAssign: ident / $add_assign: ident) shape restriction: $shape_restrict: ident
+            ($($fXX: ty),*): ($Add: ident / $add: ident / $AddAssign: ident / $AddAssignOp: ident / $add_assign: ident) shape restriction: $shape_restrict: ident
         ;)*
     ) => {
         $(//ops unroll
@@ -25,8 +25,7 @@ macro_rules! impl_add_sub_div_operators {
             impl<S: $shape_restrict, T: AsTen> $AddAssign<T> for Ten<S, T::D> 
             where T::S: IsScalarOr<S> {
                 fn $add_assign(&mut self, rhs: T) {
-                    self.stage = (*self, rhs).narrow_or_push_error();
-                    self.as_any().$add_assign(rhs.into_any())
+                    self.binary_assign_op(rhs, Operator:: $AddAssignOp);
                 }
             }
 
@@ -44,12 +43,12 @@ macro_rules! impl_add_sub_div_operators {
 }
 
 impl_add_sub_div_operators!{
-    (f32, i32, bool): (Add/add/AddAssign/add_assign)       shape restriction: Shape;
-    (f32, i32, bool): (Sub/sub/SubAssign/sub_assign)       shape restriction: Shape;
-    (f32, i32, bool): (Div/div/DivAssign/div_assign)       shape restriction: Shape;
-         (i32): (Rem/rem/RemAssign/rem_assign)             shape restriction: IsShapeScalarOrVec;
-         (i32): (BitAnd/bitand/BitAndAssign/bitand_assign) shape restriction: Shape;
-         (i32): (BitOr /bitor /BitOrAssign /bitor_assign ) shape restriction: Shape;
+    (f32, i32, bool): (Add/add/AddAssign/AddAssign/add_assign)       shape restriction: Shape;
+    (f32, i32, bool): (Sub/sub/SubAssign/SubAssign/sub_assign)       shape restriction: Shape;
+    (f32, i32, bool): (Div/div/DivAssign/DivAssign/div_assign)       shape restriction: Shape;
+         (i32): (Rem/rem/RemAssign/RemAssign/rem_assign)             shape restriction: IsShapeScalarOrVec;
+         (i32): (BitAnd/bitand/BitAndAssign/AndAssign/bitand_assign) shape restriction: Shape;
+         (i32): (BitOr /bitor /BitOrAssign /OrAssign /bitor_assign ) shape restriction: Shape;
 }
 
 impl<S: Shape, D: DType> Neg for Ten<S, D> {
@@ -79,8 +78,7 @@ impl<LhsS: Shape, Rhs: AsTen> MulAssign<Rhs> for Ten<LhsS, Rhs::D>
 where (LhsS, Rhs::S): CanBeMultiplied {
     
     fn mul_assign(&mut self, rhs: Rhs) {
-        self.stage = (*self, rhs).narrow_or_push_error();
-        self.into_any().mul_assign(rhs.into_any());
+        self.binary_assign_op(rhs, Operator::MulAssign)
     }
 }
 
@@ -114,9 +112,12 @@ impl_lhs_rust_primitive_type_mul!(
 
 impl<S: Shape, D: DType> Ten<S, D> {
 
-    pub(crate) fn binary_assign_op(&mut self, val: impl AsTen<S=S, D=D>, op_assign: Operator) {
+    /// this signature accepts more `val` than necessary, caller should have
+    /// more restricted signature for `val`
+    pub(crate) fn binary_assign_op(&mut self, val: impl AsTen, op_assign: Operator) {
         self.stage = (*self, val).narrow_or_push_error(); // self gets narrowed stage assigned
-        self.into_any().binary_assign_op(val.into_any(), op_assign);
+        //the below call makes `self.any` NA if val is `NA`
+        self.any.binary_assign_op(val.into_any(), op_assign);
     }
 
     /// records an assignment `=` operator in the shader. This is necessary

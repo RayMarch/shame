@@ -60,9 +60,13 @@ impl<T: Fields> Struct<T> {
     /// assignment to `self`. Use this instead of the `=` operator for assigning to
     /// the underlying struct value in the shader
     pub fn set(&mut self, val: &Self) {
-        //decided to take a ref as first argument because Self might not impl copy, and a clone() by the user is unnecessary
-        self.stage = narrow_stages_or_push_error([self.stage, val.stage]);
-        self.any.assign(val.any)
+        // decided to take a ref as first argument because Self might not impl copy, and a clone() by the user is unnecessary
+        let stage = narrow_stages_or_push_error([self.stage, val.stage]);
+        let mut any = self.any; 
+        any.assign(val.any); 
+        // `assign` may overwrite `any` if `val` is NA,
+        // therefore we must downcast `any` to get the new `self` struct
+        *self = Self::from_downcast(any, stage);
     }
 
     /// called internally by the generated code in `derive(shame::Fields)`

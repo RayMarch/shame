@@ -167,7 +167,7 @@ impl Varyings {
                     TyKind::Tensor(Tensor { dtype, shape:_ }) => match dtype {
                         Bool => Err(Error::TypeError(format!("Interpolating `{ty}` is invalid. {name_in_errors} cannot be of any bool type"))),
                         F64 | I32 | U32 if terp != &Interpolation::Flat => {
-                            Err(Error::TypeError(format!("{name_in_errors} must use Flat interpolation, but uses: {:?}", terp)))
+                            Err(Error::TypeError(format!("{name_in_errors} {ty} must use Flat interpolation, but uses: {:?}", terp)))
                         }
                         _ => Ok(())
                     },

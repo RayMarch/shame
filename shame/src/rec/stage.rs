@@ -149,8 +149,8 @@ fn check_any_type_and_stage<S: Shape, D: DType>(mut any: Any, mut stage: Stage) 
                 (ex @ Shader::Fragment, fo @ Stage::Vertex  ) |
                 (ex @ Shader::Compute,  fo @ Stage::Vertex  ) |
                 (ex @ Shader::Compute,  fo @ Stage::Fragment) => {
-                    fo.to_shader_kind().expect("erroneous required stage has no shader kind"); //unreachable expect
-                    assert::rec_error(Error::NAInShaderKind {expected: ex, found: fo.to_shader_kind().unwrap()});
+                    let fo = fo.to_shader_kind().expect("erroneous required stage has no shader kind"); //unreachable expect
+                    assert::rec_error(Error::NAInShaderKind {expected: ex, found: fo});
                     stage = Stage::NotAvailable;
                     any = Any::not_available();
                 }

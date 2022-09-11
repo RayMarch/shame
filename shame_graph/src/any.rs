@@ -510,8 +510,13 @@ impl Any {
         });
 
         //no need to assert!(op.argc == 2), the type deduction will provide a nicer error
-        debug_assert!(op_assign.lhs_lvalue, "calling binary_assign_op with non-assign op");
-        Any::by_recording_expr(ExprKind::Operator(op_assign), &[*self, rhs])
+        assert!(op_assign.lhs_lvalue, "calling binary_assign_op with non-assign op");
+        let result = Any::by_recording_expr(ExprKind::Operator(op_assign), &[*self, rhs]);
+        if !rhs.is_available() { 
+            //TODO: proper implementation of this would be to add an Option<&mut Self> argument, to `by_recording_expr` so that `by_recording_expr` can query the expression and decide if `&mut self` needs to be NA'd.
+            *self = Any::not_available();
+        }
+        result
     }
 
     pub fn set(&mut self, src: Any) {
@@ -1143,7 +1148,7 @@ macro_rules! impl_assign_operators {
     ($($Op: ident, $OpFunc: ident, $OpEnum: expr;)*) => {
         $(impl $Op<Any> for Any {
             fn $OpFunc(&mut self, rhs: Any) {
-                Any::by_recording_expr(ExprKind::Operator($OpEnum), &[*self, rhs]);
+                self.binary_assign_op(rhs, $OpEnum);
             }
         })*
     };

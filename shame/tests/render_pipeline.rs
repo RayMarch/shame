@@ -304,3 +304,63 @@ fn uniform_buffer_added() {
 fn panics_on_unused_rasterizer() {
     shame::record_render_pipeline(|_| {});
 }
+
+#[test]
+fn mutating_expr_propagates_not_availableness() {
+
+    macro_rules! test_tensor_types {
+        (
+            $(
+                $dtype: ty, $shape: ty => ($($op_assign: ident,)+); 
+            )*
+        ) => {$(
+            shame::record_render_pipeline(|mut feat| {
+                type TenT = Ten<$shape, $dtype>;
+                
+                let i: TriangleList<u32> = feat.io.index_buffer();
+                let v = feat.io.vertex_buffer::<TenT>().copy();
+        
+                let poly = feat.raster.rasterize(float4::default(), Default::default(), i);
+        
+                let one = Ten::<$shape, f32>::one();
+                let f: TenT = poly.flat(one).cast();
+                
+                let u = TenT::one();
+                assert_eq!(u.stage(), Stage::Uniform);
+                assert!(u.as_any().is_available());
+                
+                $({
+                    let mut u = TenT::one();
+                    u.$op_assign(f);
+                    assert_eq!(u.stage(), Stage::Fragment);
+                    assert_eq!(shame::shader::is_fragment_shader(), u.as_any().is_available());
+            
+                    let mut u = TenT::one();
+                    u.$op_assign(v);
+                    assert_eq!(u.stage(), Stage::Vertex);
+                    assert_eq!(shame::shader::is_vertex_shader(), u.as_any().is_available());
+                })*
+            });
+        )*};
+    }
+
+    // invokes the macro above for certain `DType`s + `Shape`s
+    macro_rules! test_tensor_dtypes {
+        ($($dtype: ty => ($($op_assign: ident,)+); )*) => {
+            test_tensor_types!{$($dtype, scal => ($($op_assign,)+);)*}
+            test_tensor_types!{$($dtype, vec2 => ($($op_assign,)+);)*}
+            test_tensor_types!{$($dtype, vec3 => ($($op_assign,)+);)*}
+            test_tensor_types!{$($dtype, vec4 => ($($op_assign,)+);)*}
+        }
+    }
+
+    use std::ops::*;
+    // invokes the macro above for certain `DType`s
+    test_tensor_dtypes!{
+        f32  => (add_assign, sub_assign, mul_assign, div_assign,);
+        i32  => (add_assign, sub_assign, mul_assign, div_assign, rem_assign, bitor_assign, bitand_assign,);
+        bool => (add_assign, sub_assign, mul_assign, div_assign,);
+    }
+
+    
+}

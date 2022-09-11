@@ -49,7 +49,7 @@ pub trait Terpable {
 }
 
 //every per-vertex value can be interpolated to a per-fragment value
-impl<S: Shape, D: DType> Terpable for Ten<S, D> {
+impl<S: Shape, D: IsDTypeNumber> Terpable for Ten<S, D> {
     type Output = Ten<S, D>;
 
     fn terp(self, kind: TerpKind, p: &Primitive) -> Self::Output {
@@ -58,7 +58,7 @@ impl<S: Shape, D: DType> Terpable for Ten<S, D> {
 }
 
 //also for &Ten
-impl<S: Shape, D: DType> Terpable for &Ten<S, D> {
+impl<S: Shape, D: IsDTypeNumber> Terpable for &Ten<S, D> {
     type Output = Ten<S, D>;
 
     fn terp(self, kind: TerpKind, _p: &Primitive) -> Self::Output {
