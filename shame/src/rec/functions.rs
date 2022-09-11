@@ -178,7 +178,7 @@ impl<SelfD: IsDTypeFloatingPoint> Ten<vec3, SelfD> {
     /// fn cross(&self: floating3, val: floating3) -> floating
     /// ```
     /// the cross product of `self` and `val`
-    pub fn cross(&self, val: impl AsTen<S=vec3, D=SelfD>) -> Ten<scal, SelfD> {
+    pub fn cross(&self, val: impl AsTen<S=vec3, D=SelfD>) -> Ten<vec3, SelfD> {
         self.into_any().cross(val.into_any()).downcast((*self, val).narrow_or_push_error())
     }
 }
