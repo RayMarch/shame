@@ -14,8 +14,8 @@ fn minimal_compute_pipeline_glsl() {
         #version 450
 
         layout(
-            local_size_x = 1,
-            local_size_y = 1,
+            local_size_x = 1, 
+            local_size_y = 1, 
             local_size_z = 1
         ) in;
 
@@ -36,8 +36,8 @@ fn compute_pipeline_work_group() {
         #version 450
 
         layout(
-            local_size_x = 2,
-            local_size_y = 3,
+            local_size_x = 2, 
+            local_size_y = 3, 
             local_size_z = 4
         ) in;
 
