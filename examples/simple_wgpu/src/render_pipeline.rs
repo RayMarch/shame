@@ -29,7 +29,7 @@ pub fn pipeline(mut f: RenderFeatures) {
     let poly = f.raster.rasterize(transform * pos, Cull::CW, index);
 
     // in wgpu we only know the window's color target format at runtime.
-    // in shame, "RGBA_Surface" is a way of saying 
+    // in shame, "RGBA_Surface" is a way of saying
     // "whatever RGBA format the render surface ends up having".
     // When converting from a `shame::RenderPipelineRecording` to a `wgpu::RenderPipeline`
     // the specific `wgpu::TextureFormat` is provided.

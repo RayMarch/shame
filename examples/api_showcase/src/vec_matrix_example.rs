@@ -29,7 +29,7 @@ fn vec_matrix_example(mut feat: shame::RenderFeatures) {
     let d = c.yz();
     let d = c.xyz();
     let d = c.yzw();
-    
+
     let mut e = (1.0, 2.0, 3.0).rec();
     //shorthands for appending a zero or one component to a vector
     let d = e.xyz0(); //same as `(e, 0.0).rec()`
@@ -42,7 +42,7 @@ fn vec_matrix_example(mut feat: shame::RenderFeatures) {
     e = zero();
     e = one();
     e = id(); //identity wrt * operator (same as one() in the case of scalar/vector)
-    
+
     //specific zero()/one() function, for when you want to add more type information
     let f = float3::one();
     let f = float4::zero();

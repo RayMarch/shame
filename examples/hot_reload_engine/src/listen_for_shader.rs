@@ -6,7 +6,7 @@ fn start_listening() -> (std::sync::mpsc::Receiver<String>, std::thread::JoinHan
 
     let thread = std::thread::spawn(move || -> std::io::Result<()> {
         let listener = TcpListener::bind("127.0.0.1:32202")?;
-        
+
         println!("listening to incoming shaders...");
         for stream in listener.incoming() {
             let mut string = String::new();

@@ -19,13 +19,13 @@ pub enum IndexDType {
     U16,
 }
 
-/// How consecutive indices of the depth buffer are interpreted to form 
+/// How consecutive indices of the depth buffer are interpreted to form
 /// primitive shapes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimitiveTopology {
     /// Indices that form triangles: {1, 2, 3} {4, 5, 6} {7, 8, 9} ...
     TriangleList,
-    /// Indices that form triangles: {1, 2, 3} {3, 2, 4} {3, 4, 5} ... (default) 
+    /// Indices that form triangles: {1, 2, 3} {3, 2, 4} {3, 4, 5} ... (default)
     TriangleStrip,
 }
 
@@ -60,7 +60,7 @@ pub struct TriangleList<T: IndexFormat> {
 }
 
 impl<T: IndexFormat> PrimitiveIndex for TriangleList<T> {
-    type Format = T; 
+    type Format = T;
     const TOPOLOGY: PrimitiveTopology = PrimitiveTopology::TriangleList;
 
     fn new(_io: &mut RenderIO) -> Self {
@@ -68,7 +68,7 @@ impl<T: IndexFormat> PrimitiveIndex for TriangleList<T> {
     }
 }
 
-/// Indices that form triangles: {1, 2, 3} {3, 2, 4} {3, 4, 5} ... 
+/// Indices that form triangles: {1, 2, 3} {3, 2, 4} {3, 4, 5} ...
 pub struct TriangleStrip<T: IndexFormat> {
     t: PhantomData<T>,
 }

@@ -15,8 +15,8 @@ impl CellNonZeroU32Ext for Cell<NonZeroU32> {
 
 impl<I: Iterator> IteratorExt for I {}
 pub trait IteratorExt: Iterator where Self: Sized {
-    
-    ///applies f to all elements in the iterator, if f's return values 
+
+    ///applies f to all elements in the iterator, if f's return values
     ///all compare equal to the first one, returns Some(f(first)), otherwise None.
     ///Returns None also for empty iterators.
     fn all_same<R: Eq>(self, f: impl FnMut(Self::Item) -> R) -> Option<R> {
@@ -24,7 +24,7 @@ pub trait IteratorExt: Iterator where Self: Sized {
         iter.next().and_then(|first| iter.all(|i| i == first).then(|| first))
     }
 
-    ///applies f to all elements in the iterator, if f's return values 
+    ///applies f to all elements in the iterator, if f's return values
     ///all compare equal to the first one, returns Some(f(first)), otherwise None.
     ///Returns `value_if_empty` for empty iterators.
     fn all_same_or_empty<R: Eq>(self, value_if_empty: R, f: impl FnMut(Self::Item) -> R) -> Option<R> {
@@ -35,7 +35,7 @@ pub trait IteratorExt: Iterator where Self: Sized {
         }
     }
 
-    fn all_unique(self) -> bool 
+    fn all_unique(self) -> bool
     where Self: Clone, Self::Item: Eq {
         self.all_unique_by(|x, y| x == y)
     }
@@ -140,8 +140,8 @@ pub fn start_iter_from<T: Copy, F>(from: Option<T>, next_fn: F) -> StartIterFrom
 where F: FnMut(T) -> Option<T> {
     StartIterFrom {
         first: from,
-        current: from, 
-        next_fn 
+        current: from,
+        next_fn
     }
 }
 

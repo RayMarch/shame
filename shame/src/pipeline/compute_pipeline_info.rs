@@ -5,7 +5,7 @@ use super::render_pipeline_info::{BindGroupInfo, PushConstantInfo};
 
 /// Additional info to the recorded compute shader, which is necessary to create
 /// a compute pipeline.
-/// 
+///
 /// Members which are `None` or empty have not been recorded
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct ComputePipelineInfo {

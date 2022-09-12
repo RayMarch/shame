@@ -22,17 +22,17 @@ fn simple_render_pipeline(mut feat: shame::RenderFeatures) {
 
     // define binding 0 of bind group 0 to be a float4x4 uniform block.
     let transform: float4x4 = bind_group0.uniform_block();
-    // define binding 1 of bind group 0 to be a Sampler2D 
+    // define binding 1 of bind group 0 to be a Sampler2D
     let sampler: CombineSamplerRGBA = bind_group0.combine_sampler();
 
     // expand the position with a 1.0 value to make it `float4`.
     // this is the same as `(position, 1.0)`
     let raster_position = position.xyz1();
-    
+
     // calling rasterize gives us the `polygon` object, which allows us to interpolate
     // per-vertex values across the polygon's surface. This gives us per-fragment values.
     let polygon = feat.raster.rasterize_indexless(
-        raster_position, 
+        raster_position,
         Cull::default(), //defaults to culling Clockwise triangles
         PrimitiveTopology::TriangleList,
     );

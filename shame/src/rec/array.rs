@@ -5,7 +5,7 @@ use shame_graph::{Any, shorthands::new_array_enumerate, Access};
 
 use super::{IntoRec, DType, scal, narrow_stages_or_push_error, fields::Fields};
 
-/// types that describe array size information (or lack thereof) 
+/// types that describe array size information (or lack thereof)
 pub trait Sizing {
     /// contains the array length in case it is known at rust compile-time
     const CONST_LEN: Option<usize>;
@@ -13,13 +13,13 @@ pub trait Sizing {
 
 /// an Array<T, Unsized> is commonly used for buffer bindings etc.
 pub struct Unsized;
-/// an Array<T, Size<N>> has known size at rust compile time and can 
+/// an Array<T, Size<N>> has known size at rust compile time and can
 /// conveniently be created from rust types such as `[T; N]` by calling `.rec()`
 pub struct Size<const N: usize>;
-/// an Array<T, RecordedSize> is not `shame::Rec`! It has a size that is 
+/// an Array<T, RecordedSize> is not `shame::Rec`! It has a size that is
 /// known at shader compile time, but not at rust compile time.
-/// Use this if the array size depends on some calculation you do while 
-/// generating the shader. 
+/// Use this if the array size depends on some calculation you do while
+/// generating the shader.
 pub struct RecordedSize;
 
 impl              Sizing for Unsized      {const CONST_LEN: Option<usize> = None;   }
@@ -27,10 +27,10 @@ impl<const N: usize> Sizing for Size<N>      {const CONST_LEN: Option<usize> = S
 impl              Sizing for RecordedSize {const CONST_LEN: Option<usize> = None;   }
 
 /// recording type ([`Rec`]) that represents arrays in shaders. These arrays can
-/// be indexed at shader runtime with [`Rec`] indices. 
-/// 
-/// `Len` can be either 
-/// - [`Unsized`]: The length of the array is not known at shader runtime (this 
+/// be indexed at shader runtime with [`Rec`] indices.
+///
+/// `Len` can be either
+/// - [`Unsized`]: The length of the array is not known at shader runtime (this
 /// is commonly used for storage buffer bindings)
 /// - [`Size<N>`]: The length of the array is known at rust compile time
 /// - [`RecordedSize`]: The length of the array is decided when the shader is
@@ -46,31 +46,31 @@ pub struct Array<T: Rec, Len: Sizing = Unsized> {
 impl<T: Rec, const N: usize> Array<T, Size<N>> {
 
     /// initialize a new sized [`Array`] array with `elements`
-    /// 
+    ///
     /// alternatively call `elements.rec()`
     pub fn new<X: IntoRec<Rec=T>>(elements: [X; N]) -> Self {
         let args: [T; N] = elements.map(|x|x.rec());
         let arg_anys: [Any; N] = new_array_enumerate(|i| args[i].as_any());
 
         let stage = narrow_stages_or_push_error(args.iter().map(|x|x.stage()));
-        
+
         let array_ty = shame_graph::Array::new_sized(T::ty(), N);
         let any = Any::array_initializer(array_ty, &arg_anys);
 
-        Array { 
+        Array {
             any,
             stage,
             last_mut_access: None,
             phantom: PhantomData,
         }
     }
-    
+
     /// the amount of elements in the array
     pub fn len(&self) -> usize {
         N
     }
 
-    /// indexing with a record-time constant, which means bounds checking is 
+    /// indexing with a record-time constant, which means bounds checking is
     /// possible, therefore this function is not unsafe.
     pub fn at_const(&self, i: u32) -> T {
         let n = N as u32;
@@ -81,7 +81,7 @@ impl<T: Rec, const N: usize> Array<T, Size<N>> {
         }
     }
 
-    /// indexing with a record-time constant, which means bounds checking is 
+    /// indexing with a record-time constant, which means bounds checking is
     /// possible, therefore this function is not unsafe.
     pub fn at_const_mut(&mut self, i: u32) -> &mut T {
         let n = N as u32;
@@ -123,7 +123,7 @@ impl<T: Rec, Len: Sizing> Array<T, Len> {
 
     /// *copies* the value of `array[i]` in the shader.
     /// The array access is not bounds checked, therefore this function is unsafe.
-    /// 
+    ///
     /// **note: this does *NOT* produce an lvalue, which means that**
     /// ```ignore
     /// array.at(i).set(value) //does NOT work as expected since glsl does not support lvalue references, and rust does not allow `=` operator overloading.
@@ -134,7 +134,7 @@ impl<T: Rec, Len: Sizing> Array<T, Len> {
         T::from_downcast(self.any.subscript(any).copy().aka("_i"), narrow_stages_or_push_error([self.stage, stage]))
     }
 
-    /// produces a subscript operation with assignment `array[i] = val` in the 
+    /// produces a subscript operation with assignment `array[i] = val` in the
     /// shader
     /// The array access is not bounds checked, therefore this function is unsafe.
     pub unsafe fn set_at<D: IsDTypeInteger>(&mut self, i: impl AsTen<S=scal, D=D>, val: T) {
@@ -145,9 +145,9 @@ impl<T: Rec, Len: Sizing> Array<T, Len> {
 
 }
 
-/// only `int` and `uint` can be used for indexing in shaders. this function 
-/// casts other scalar types to `int` or `uint` and returns the type erased 
-/// `Any` and `Stage` of it. When provided with a value that is already `int` 
+/// only `int` and `uint` can be used for indexing in shaders. this function
+/// casts other scalar types to `int` or `uint` and returns the type erased
+/// `Any` and `Stage` of it. When provided with a value that is already `int`
 /// or `uint`, no cast operation is recorded.
 fn scalar_to_index<D: DType>(scalar: impl AsTen<S=scal, D=D>) -> (Any, Stage) {
     use shame_graph::DType::*;
@@ -169,7 +169,7 @@ impl<T: Rec, const N: usize> Rec for Array<T, Size<N>> {
         let array_kind = shame_graph::Array(Rc::new(T::ty()),  Some(N));
         shame_graph::Ty::new(shame_graph::TyKind::Array(array_kind))
     }
-    
+
     fn from_downcast(any: Any, stage: Stage) -> Self {
         Self { any, stage, last_mut_access: None, phantom: PhantomData }
     }
@@ -185,7 +185,7 @@ impl<T: Rec> Rec for Array<T, Unsized> {
         let array_kind = shame_graph::Array(Rc::new(T::ty()),  None);
         shame_graph::Ty::new(shame_graph::TyKind::Array(array_kind))
     }
-    
+
     fn from_downcast(any: Any, stage: Stage) -> Self {
         Self { any, stage, last_mut_access: None, phantom: PhantomData }
     }
@@ -208,7 +208,7 @@ impl<T: Rec> IntoRec for Array<T, Unsized> {
 }
 
 impl<T: Rec, Len: Sizing> Fields for Array<T, Len> where Self: Rec {
-    
+
     fn parent_type_name() -> Option<&'static str> {None}
 
     fn from_fields_downcast(name: Option<&'static str>, f: &mut impl FnMut(shame_graph::Ty, &'static str) -> (Any, Stage)) -> Self {
@@ -250,7 +250,7 @@ impl<T: Rec> Array<T, RecordedSize> {
         let array_ty = shame_graph::Array::new_sized(T::ty(), len);
         let any = Any::array_initializer(array_ty, &arg_anys);
 
-        Array { 
+        Array {
             any,
             stage,
             last_mut_access: None,
@@ -263,18 +263,18 @@ impl<T: Rec> Array<T, RecordedSize> {
 impl<T: Rec, const N: usize> Array<T, Size<N>> {
 
     /// initialize a new [`Array<T, Size<N>>`] array with `elements`.
-    /// 
+    ///
     /// returns `None` if `elements.len() != N`
     pub fn try_new<X: IntoRec<Rec=T> + Clone>(elements: &[X]) -> Option<Self> {
         (elements.len() == N).then(|| {
             let args = elements.iter().map(|x| x.clone().rec());
             let stage = narrow_stages_or_push_error(args.clone().map(|x| x.stage()));
             let arg_anys = args.map(|a| a.as_any()).collect::<Vec<_>>();
-    
+
             let array_ty = shame_graph::Array::new_sized(T::ty(), N);
             let any = Any::array_initializer(array_ty, &arg_anys);
-            
-            Array { 
+
+            Array {
                 any,
                 stage,
                 last_mut_access: None,

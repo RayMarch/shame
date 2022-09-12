@@ -32,7 +32,7 @@ impl Display for StmtKind {
             VariableDef(Named(ex, _)) => {
                 match is_recording {
                     true => Context::with(|ctx| {
-                        match &ctx.exprs()[*ex] {e => 
+                        match &ctx.exprs()[*ex] {e =>
                             f.write_fmt(format_args!("definition of {} variable via {} expression", e.ty, e.kind))
                         }
                     }),
@@ -42,7 +42,7 @@ impl Display for StmtKind {
             Expr(ex) => {
                 match is_recording {
                     true => Context::with(|ctx| {
-                        match &ctx.exprs()[*ex] {e => 
+                        match &ctx.exprs()[*ex] {e =>
                             f.write_fmt(format_args!("expression ({}) of type {}", e.kind, e.ty))
                         }
                     }),
@@ -61,7 +61,7 @@ impl Display for StmtKind {
             Return(Some(ex)) => {
                 match is_recording {
                     true => Context::with(|ctx| {
-                        match &ctx.exprs()[*ex] {e => 
+                        match &ctx.exprs()[*ex] {e =>
                             f.write_fmt(format_args!("return {} expression of type {}", e.kind, e.ty))
                         }
                     }),
@@ -85,7 +85,7 @@ pub struct Stmt {
 impl Stmt {
     pub fn new(time: RecordTime, kind: StmtKind) -> Self {
         Self {
-            time, 
+            time,
             kind,
         }
     }
@@ -115,12 +115,12 @@ impl Stmt {
     }
 
     pub fn record_discard() {
-        
+
         let shader_kind = Context::with(|ctx| {
             let blocks = ctx.blocks();
             let mut stack = ctx.stack_blocks(&blocks);
 
-            let is_foreign_stage_conditional_block = stack.find(|key| 
+            let is_foreign_stage_conditional_block = stack.find(|key|
                 match blocks[*key].branch_info {
                     Some((_branch, stage)) => match stage {
                         Stage::Vertex => true,
@@ -137,7 +137,7 @@ impl Stmt {
             }
 
             ctx.shader_kind()
-            
+
         });
 
         if shader_kind == crate::ShaderKind::Fragment {

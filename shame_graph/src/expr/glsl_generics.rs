@@ -133,7 +133,7 @@ impl HighLevelGlslGeneric {
 
     pub fn try_instantiate(&self, ty: &Ty) -> Option<GlslGenericInstantiation> {
         match (self, &ty.kind) {
-            
+
             (Specific(x), _) => (ty.eq_ignore_access(x))
                 .then(|| GlslGenericInstantiation::specific),
 
@@ -150,13 +150,13 @@ impl HighLevelGlslGeneric {
                 Shape::Vec(n) if &ten.dtype == x => Some(GlslGenericInstantiation::vecN(n)),
                 _ => None,
             }
-                
+
             (VecNF32F64, TyKind::Tensor(ten)) => match ten.shape {
                 Shape::Vec(n) if [F32, F64].contains(&ten.dtype) => Some(GlslGenericInstantiation::vecN(n)),
                 _ => None,
             }
 
-            (GVec4F32I32U32, TyKind::Tensor(ten)) => 
+            (GVec4F32I32U32, TyKind::Tensor(ten)) =>
                 ([F32, I32, U32].contains(&ten.dtype) && matches!(ten.shape, Shape::Vec(4)))
                 .then(|| GlslGenericInstantiation::g(ten.dtype)),
 

@@ -64,7 +64,7 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
     let recording = shame::record_render_pipeline(pipeline);
 
     let mut render_pipeline = glue::make_render_pipeline(
-        &recording, 
+        &recording,
         &device,
         Some(swapchain_format)
     );
@@ -102,15 +102,15 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: None,
         entries: &vec![
-            wgpu::BindGroupLayoutEntry { 
-                binding: 0, 
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, 
-                ty: wgpu::BindingType::Buffer { 
-                    ty: wgpu::BufferBindingType::Uniform, 
-                    has_dynamic_offset: false, 
-                    min_binding_size: None, 
-                }, 
-                count: None, 
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
             },
         ],
     });
@@ -118,10 +118,10 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
     let xform_buffer = device.create_buffer_init(&BufferInitDescriptor {
         label: None,
         contents: bytemuck::bytes_of(&[
-            0.6, 0.0, 0.0, 0.0, 
-            0.0, 0.6, 0.0, 0.0, 
-            0.0, 0.0, 0.6, 0.0, 
-            0.0, 0.0, 0.0, 1.0_f32, 
+            0.6, 0.0, 0.0, 0.0,
+            0.0, 0.6, 0.0, 0.0,
+            0.0, 0.0, 0.6, 0.0,
+            0.0, 0.0, 0.0, 1.0_f32,
         ]),
         usage: wgpu::BufferUsages::UNIFORM,
     });
@@ -130,7 +130,7 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
         label: None,
         layout: &bind_group_layout,
         entries: &vec![
-            wgpu::BindGroupEntry { 
+            wgpu::BindGroupEntry {
                 binding: 0,
                 resource: xform_buffer.as_entire_binding(),
             },
@@ -265,7 +265,7 @@ I recommend binding the cargo command to a hotkey or setting up a watch process.
                                     info: recording.info.clone(),
                                 };
                                 render_pipeline = glue::make_render_pipeline(
-                                    &new_recording, 
+                                    &new_recording,
                                     &device,
                                     Some(swapchain_format)
                                 );

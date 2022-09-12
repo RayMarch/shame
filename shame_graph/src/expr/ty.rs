@@ -64,7 +64,7 @@ impl Default for Access {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ty {
-    pub kind: TyKind, 
+    pub kind: TyKind,
     pub access: Access,
 }
 
@@ -76,8 +76,8 @@ macro_rules! define_ty_tensor_init {
 
 impl Ty {
     pub fn new(kind: TyKind) -> Self {Self {
-        kind, 
-        access: Access::default(), 
+        kind,
+        access: Access::default(),
     }}
 
     pub fn new_access(kind: TyKind, access: Access) -> Self {Self {
@@ -87,7 +87,7 @@ impl Ty {
 
     pub fn tensor(shape: Shape, dtype: DType) -> Self {
         Self {
-            access: Access::default(), 
+            access: Access::default(),
             kind: TyKind::Tensor(Tensor::new(shape, dtype)),
         }
     }
@@ -127,7 +127,7 @@ impl Ty {
     }
 
     pub fn texture_combined_sampler(dtype: DType, dims: TexDimensionality) -> Self {Self {
-        kind: TyKind::Opaque(OpaqueTy::TextureCombinedSampler(TexDtypeDimensionality::new(dtype, dims))), 
+        kind: TyKind::Opaque(OpaqueTy::TextureCombinedSampler(TexDtypeDimensionality::new(dtype, dims))),
         access: Access::Const, //opaque types need to be const
     }}
 
@@ -155,9 +155,9 @@ impl Ty {
 
     //calls the Tensor constructors with default mutability
     define_ty_tensor_init!(
-        float, double, 
-        int, uint, 
-        bool, 
+        float, double,
+        int, uint,
+        bool,
         vec2, vec3, vec4,
         bvec2, bvec3, bvec4,
         dvec2, dvec3, dvec4,
@@ -170,7 +170,7 @@ impl Ty {
         dmat3x2, dmat3  , dmat3x4,
         dmat4x2, dmat4x3, dmat4
     );
-    
+
 }
 
 impl From<Tensor> for Ty {
@@ -295,18 +295,18 @@ impl Struct {
     /// test whether a struct corresponds to given name and field description without creating Pool `Key`s for them
     pub fn eq_name_fields(&self, name: &str, fields: &[(&str, Ty)]) -> bool {
         let &Struct(Named(fields_, name_)) = &self;
-        
+
         name_.eq_str(name) &&
         fields.iter().zip(fields_.iter()).all(|((name, ty), Named(ty_, name_))| {
-            name_.eq_str(name) && 
+            name_.eq_str(name) &&
             ty_.eq_ignore_access(ty)
         })
     }
 
     pub fn find_field_ident(&self, field_name: &str) -> Option<IdentSlot> {
         let &Struct(Named(fields, _)) = &self;
-        
-        fields.iter().find_map(|Named(_, ident)| 
+
+        fields.iter().find_map(|Named(_, ident)|
             ident.eq_str(field_name).then(|| ident.clone())
         )
     }

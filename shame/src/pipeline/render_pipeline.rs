@@ -1,4 +1,4 @@
-//! render pipeline features for recording vertex, fragment shaders and pipeline 
+//! render pipeline features for recording vertex, fragment shaders and pipeline
 //! info
 use std::fmt::Display;
 use std::marker::PhantomData;
@@ -18,7 +18,7 @@ use super::render_pipeline_info::RenderPipelineInfo;
 /// results of successfully recording a render pipeline
 #[derive(Debug, Clone)]
 pub struct RenderPipelineRecording {
-    /// a pair of glsl (vertex_shader, fragment_shader) strings 
+    /// a pair of glsl (vertex_shader, fragment_shader) strings
     pub shaders_glsl: (String, String),
     /// additional pipeline info for creating a render pipeline layout
     pub info: RenderPipelineInfo,
@@ -42,8 +42,8 @@ pub struct RenderFeatures<'a> {
     phantom: PhantomData<()>,
 }
 
-/// access to rasterization functionality (drawing primitives on the pixel 
-/// grid). Must be used for a render pipeline to be valid, otherwise the 
+/// access to rasterization functionality (drawing primitives on the pixel
+/// grid). Must be used for a render pipeline to be valid, otherwise the
 /// recording will yield errors.
 pub struct Raster<'a> {
     inner: crate::shader::Raster<'a>,
@@ -72,7 +72,7 @@ impl IO<'_> {
         self.vertex_buffer_detailed(VertexStepMode::Vertex)
     }
 
-    /// instantiates T as interleaved attributes from a single vertex buffer 
+    /// instantiates T as interleaved attributes from a single vertex buffer
     /// which provides values per-instance
     pub fn instance_buffer<T: Fields>(&mut self) -> T {
         self.vertex_buffer_detailed(VertexStepMode::Instance)
@@ -82,7 +82,7 @@ impl IO<'_> {
 
         let (t, details) = self.vertex_stream_builder.attributes_detailed();
 
-        let attributes = details.into_iter().map(|(tensor, loc_range)| 
+        let attributes = details.into_iter().map(|(tensor, loc_range)|
             AttributeInfo {
                 location: loc_range.start,
                 type_: tensor,
@@ -92,7 +92,7 @@ impl IO<'_> {
         if let shame_graph::ShaderKind::Vertex = crate::current_shader() {
             with_thread_render_pipeline_info_mut(|r| {
                 r.vertex_buffers.push(VertexBufferInfo {
-                    step_mode, 
+                    step_mode,
                     attributes
                 })
             });
@@ -108,11 +108,11 @@ impl IO<'_> {
     }
 
     /// access a color target of format `T` as render pipeline output.
-    /// Theres an alternative [`IO::color_ms`] call for multisampled color 
+    /// Theres an alternative [`IO::color_ms`] call for multisampled color
     /// targets
-    pub fn color<T: IsColorFormat>(&mut self) -> target::Color<T> 
+    pub fn color<T: IsColorFormat>(&mut self) -> target::Color<T>
     where <<T>::Item as AsTen>::S: crate::rec::IsShapeScalarOrVec {
-        
+
         let color_target_index = with_thread_render_pipeline_info_mut(|r| {
             let index = r.color_targets.len();
             r.color_targets.push(ColorTargetInfo {
@@ -144,8 +144,8 @@ impl IO<'_> {
     }
 
     /// access the push constant as a tensor of given `S` `D`.
-    /// 
-    /// usage: 
+    ///
+    /// usage:
     /// ```text
     /// let p: float4 = io.push_constant();
     /// ```
@@ -153,9 +153,9 @@ impl IO<'_> {
         instantiate_push_constant()
     }
 
-    /// access a multisampled color target of format `T` as render pipeline 
+    /// access a multisampled color target of format `T` as render pipeline
     /// output. `SAMPLES` must be a valid sample count (2, 4, 8, 16, 32, 64)
-    pub fn color_ms<T: IsColorFormat, const SAMPLES: u8>(&mut self) -> target::ColorMS<T, SAMPLES> 
+    pub fn color_ms<T: IsColorFormat, const SAMPLES: u8>(&mut self) -> target::ColorMS<T, SAMPLES>
     where <<T>::Item as AsTen>::S: crate::rec::IsShapeScalarOrVec {
         let valid_sample_counts = [2, 4, 8, 16, 32, 64];
         assert!(valid_sample_counts.contains(&SAMPLES), "multisampling sample count must be one of {:?}. got {SAMPLES}", valid_sample_counts);
@@ -178,7 +178,7 @@ impl IO<'_> {
         }
     }
 
-    /// creates access to a new bind group, which can then be used to access 
+    /// creates access to a new bind group, which can then be used to access
     /// bindings such as textures, buffer bindings, samplers, ...
     pub fn group(&mut self) -> crate::shader::Group<RangeFrom<u32>>{
         self.inner.group(self.group_counter.next().expect("rangefrom iterator terminated"), 0..)
@@ -190,8 +190,8 @@ impl<'a> Raster<'a> {
     /// rasterize primitives at the provided clip_space positions.
     /// The clip space positions are combined to primitives according to the
     /// primitive topology specified in the index buffer.
-    /// If the indexing happens in the winding order described in 
-    /// `primitive_culling`, the primitive is not rasterized 
+    /// If the indexing happens in the winding order described in
+    /// `primitive_culling`, the primitive is not rasterized
     /// (see [face culling](https://learnopengl.com/Advanced-OpenGL/Face-culling)
     /// ).
     pub fn rasterize<P: PrimitiveIndex>(self,
@@ -208,8 +208,8 @@ impl<'a> Raster<'a> {
     }
 
     /// same as `rasterize` except without using an index buffer
-    pub fn rasterize_indexless(self, 
-        clip_space_position: impl AsFloat4, 
+    pub fn rasterize_indexless(self,
+        clip_space_position: impl AsFloat4,
         primitive_culling: Cull,
         primitive_topology: PrimitiveTopology,
     ) -> Primitive<'a> {
@@ -222,10 +222,10 @@ impl<'a> Raster<'a> {
     }
 }
 
-/// turn a rust render pipeline function into shaders and pipeline info by 
+/// turn a rust render pipeline function into shaders and pipeline info by
 /// executing it.
 /// The provided function is called multiple times to record different shader
-/// stages. 
+/// stages.
 pub fn record_render_pipeline(mut f: impl FnMut(RenderFeatures)) -> RenderPipelineRecording {
 
     //in a render pipeline, the provided `f` is recorded twice, which yields
@@ -233,7 +233,7 @@ pub fn record_render_pipeline(mut f: impl FnMut(RenderFeatures)) -> RenderPipeli
     //actually share the pipeline, the two RenderPipelineInfo recordings are later
     //merged into one before being returned to the user
     let mut pipeline_infos = vec![];
-    
+
     let (vert, frag) = record_render_shaders(|feat| {
 
         shame_graph::Context::with(|ctx| {
@@ -262,7 +262,7 @@ pub fn record_render_pipeline(mut f: impl FnMut(RenderFeatures)) -> RenderPipeli
     assert!(pipeline_infos.len() == 2);
     let vert_info = pipeline_infos.swap_remove(0);
     let frag_info = pipeline_infos.swap_remove(0);
-    
+
     RenderPipelineRecording {
         shaders_glsl: (vert, frag),
         info: RenderPipelineInfo::merge_individual_stage_recordings(vert_info, frag_info),

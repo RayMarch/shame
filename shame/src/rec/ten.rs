@@ -1,36 +1,36 @@
-//! [`Ten`] (short for "Tensor") is a shader type representing scalars, vectors 
+//! [`Ten`] (short for "Tensor") is a shader type representing scalars, vectors
 //! up to size 4 and matrices of up to size 4x4.
 use std::marker::PhantomData;
 use super::{*, fields::Fields};
 use shame_graph::{Any, Ty};
 
 #[derive(Clone, Copy)]
-/// [`Ten`] (short for "Tensor") is a shader type representing scalars, vectors 
+/// [`Ten`] (short for "Tensor") is a shader type representing scalars, vectors
 /// of up to size 4 and matrices of up to size 4x4.
-/// It supports many arithmetic operations commonly found in shader code. 
+/// It supports many arithmetic operations commonly found in shader code.
 /// The two generic args mean the following:
-/// 
-/// - `S: Shape` is the shape of the tensor, e.g. vec4, mat3x2. It describes 
+///
+/// - `S: Shape` is the shape of the tensor, e.g. vec4, mat3x2. It describes
 /// how many components/rows/columns it has
-/// - `D: DType` is the data type of the individual components. a 
-/// `Ten<vec4, f32>` consists of 4 `float` components, while a 
+/// - `D: DType` is the data type of the individual components. a
+/// `Ten<vec4, f32>` consists of 4 `float` components, while a
 /// `Ten<mat3x3, i32>` consists of 9 `int` components
 ///
-/// In your average non-generic shader code you don't need to write 
-/// `Ten<vec4, f32`> but instead can use the alias `float4` from the aliases 
+/// In your average non-generic shader code you don't need to write
+/// `Ten<vec4, f32`> but instead can use the alias `float4` from the aliases
 /// module, which is also `use`d in `prelude`.
-/// Every specific `Ten` parametrization has such a convenience type alias 
+/// Every specific `Ten` parametrization has such a convenience type alias
 /// (e.g. `int3x3`, `float`, `boolean`, `bool2`...)
 pub struct Ten<S: Shape, D: DType> {
     phantom: PhantomData<(S, D)>,
     pub(super) any: Any,
     pub(super) stage: Stage,
-    pub(super) swizzle: S::SwizzleMembers, 
+    pub(super) swizzle: S::SwizzleMembers,
 }
 
 impl<S: Shape, D: DType> Rec for Ten<S, D> {
     fn as_any(&self) -> Any {self.any}
-    
+
     fn ty() -> Ty {Ty::tensor(S::SHAPE, D::DTYPE)}
 
     fn from_downcast(any: Any, stage: Stage) -> Self {
@@ -51,7 +51,7 @@ impl<S: Shape, D: DType> Ten<S, D> {
         let out = f(any);
         let avail_after = out.is_available();
         crate::assert::assert_string(
-            avail_before == avail_after, 
+            avail_before == avail_after,
             format!("upcast Ten value has changed availability status within `with_any` call. {avail_before} => {avail_after}")
         );
         out.downcast(stage)
@@ -115,15 +115,15 @@ impl<'a, S: Shape, D: DType> std::iter::Sum<&'a Self> for Ten<S, D> {
 }
 
 /// types that can be converted into recorded tensors `Ten<S, D>`
-/// 
+///
 /// some conversion examples:
 ///
 /// `f32` -> `Ten<scal, f32>` aka `float`
-/// 
+///
 /// `(f32, f32)` -> `Ten<vec2, f32>` aka `float2`
-/// 
+///
 /// `(f32, float2)` -> `Ten<vec3, f32>` aka `float3`
-/// 
+///
 /// `((bool, bool), bool2)` -> `Ten<vec4, bool>` aka `bool4`
 pub trait AsTen: IntoRec<Rec=Ten<Self::S, Self::D>> + Copy {
     /// shape of `Self` when converted to a tensor
@@ -134,14 +134,14 @@ pub trait AsTen: IntoRec<Rec=Ten<Self::S, Self::D>> + Copy {
     /// convert `self` to a tensor type
     fn as_ten(&self) -> Ten<Self::S, Self::D>;
 
-    /// conversion from one tensor dtype to another, may cause an explicit 
-    /// conversion in the shader. 
-    /// implementing this via rusts `From`/`Into` traits is not possible due 
+    /// conversion from one tensor dtype to another, may cause an explicit
+    /// conversion in the shader.
+    /// implementing this via rusts `From`/`Into` traits is not possible due
     /// to overlapping impls.
     fn cast<D: DType>(&self) -> Ten<Self::S, D> {
         let src_tensor = shame_graph::Tensor::new(Self::S::SHAPE, Self::D::DTYPE);
         let dst_tensor = shame_graph::Tensor::new(Self::S::SHAPE, D::DTYPE);
-        
+
         match src_tensor == dst_tensor {
             true => self.into_any(),
             false => Any::new_tensor(dst_tensor, &[self.into_any()]),
@@ -177,7 +177,7 @@ impl<S: Shape, D: DType> Fields for Ten<S, D> {
     fn collect_fields(&self) -> Vec<(Any, Stage)> {
         vec![(self.any, self.stage)]
     }
-    
+
 }
 
 impl<S: Shape, D: DType> Default for Ten<S, D> {

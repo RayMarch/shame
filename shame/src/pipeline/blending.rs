@@ -34,17 +34,17 @@ pub enum BlendOp {
     Max,
 }
 
-/// Describes how to blend a source pixel onto a destination pixel of a certain 
+/// Describes how to blend a source pixel onto a destination pixel of a certain
 /// color target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BlendEquation {
-    /// Factor that the source color is multiplied with before [`BlendOp`] is 
+    /// Factor that the source color is multiplied with before [`BlendOp`] is
     /// applied
     pub src_factor: BlendFactor,
-    /// Factor that the destination color (the color of the pixel inside the 
+    /// Factor that the destination color (the color of the pixel inside the
     /// color target) is multiplied with before [`BlendOp`] is applied
     pub dst_factor: BlendFactor,
-    /// The operation 
+    /// The operation
     pub op: BlendOp,
 }
 
@@ -61,7 +61,7 @@ pub struct Blend {
 
 impl Blend {
 
-    /// constructs a new [`Blend`] given two blend equations, 
+    /// constructs a new [`Blend`] given two blend equations,
     /// one for the rgb components and one for the alpha components of
     /// source fragment and destination pixel
     pub fn new(rgb: BlendEquation, a: BlendEquation) -> Self {
@@ -99,7 +99,7 @@ impl Blend {
             },
         }
     }
-    
+
 }
 
 impl Display for Blend {

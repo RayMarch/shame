@@ -21,9 +21,9 @@ pub type TextureRG  <In = float2> = Texture<float2, In>;
 /// alias for textures that return a `float` when sampled
 pub type TextureR   <In = float2> = Texture<float , In>;
 
-/// a texture binding, which can be sampled with 
+/// a texture binding, which can be sampled with
 /// texture coordinates of type `In` to obtain a sample of type `Out`.
-/// 
+///
 /// examples:
 /// - `Texture<float4, float2>`: 2D RGBA texture:
 /// - `Texture<float , float3>`: 3D (voxel) R (1 color channel) texture
@@ -67,8 +67,8 @@ impl Sampler {
     }
 
     /// take a `Out` sample of `tex` at `tex_coords`
-    pub fn sample<In, Out>(&self, tex: &Texture<Out, In>, tex_coords: In) -> Ten<Out::S, Out::D> 
-    where 
+    pub fn sample<In, Out>(&self, tex: &Texture<Out, In>, tex_coords: In) -> Ten<Out::S, Out::D>
+    where
     In: TexCoordType,
     Out: TexSampleType {
         tex.sample(*self, tex_coords)
@@ -99,13 +99,13 @@ impl<Out: TexSampleType, In: TexCoordType> Texture<Out, In> {
     /// take a `Out` sample of `self` at `tex_coords` using `sampler`
     pub fn sample(&self, sampler: Sampler, tex_coords: In) -> Ten<Out::S, Out::D> {
         let sampler_any = sampler.any;
-        
+
         let kind = TexDtypeDimensionality(Out::D::DTYPE, In::DIM);
         let tcsampler = Any::texture_combined_sampler(kind, self.any, sampler_any);
 
         let (tex_coords_any, tex_coords_stage) = tex_coords.tex_coord_any();
         let sample = tcsampler.sample(tex_coords_any, None);
-        
+
         use shame_graph::Shape::*;
         //apply output shape by using the tensor constructor if necessary
         let channels = match Out::S::SHAPE {

@@ -6,30 +6,30 @@ use super::{Stage, IntoRec};
 
 /// implemented on structs via `#[derive(Fields)]`.
 /// This trait provides a way to make rust structs conveniently work with shader
-/// recording types. 
-/// Deriving this type on `T` will make it possible for `T` to be used in 
+/// recording types.
+/// Deriving this type on `T` will make it possible for `T` to be used in
 /// `Struct<T>` or shader inputs such as
 /// - vertex attributes (tensors only)
 /// - storage buffers
 /// - uniform blocks
-/// 
-/// each of which have their own restrictions which will be checked at recording 
+///
+/// each of which have their own restrictions which will be checked at recording
 /// time.
-/// 
-/// Ignore the functions of this trait, they are only used internally to 
-/// assemble the necessary information to create the shader inputs mentioned 
-/// above. Users should use the `RenderFeatures` or `ComputeFeatures` objects 
+///
+/// Ignore the functions of this trait, they are only used internally to
+/// assemble the necessary information to create the shader inputs mentioned
+/// above. Users should use the `RenderFeatures` or `ComputeFeatures` objects
 /// provided in the shader recording to create those inputs.
 pub trait Fields: IntoRec + Sized {
 
-    /// name of the type containing the fields, returns None if Fields is 
+    /// name of the type containing the fields, returns None if Fields is
     /// implemented for a single recording type element
     fn parent_type_name() -> Option<&'static str>;
 
     /// `Self` constructor that visits each field and asks `f` to create a
     /// `(Any, Stage)` tuple for it
     fn from_fields_downcast(name: Option<&'static str>, f: &mut impl FnMut(Ty, &'static str) -> (Any, Stage)) -> Self;
-    
+
     /// collects the fields into a type erased vector
     fn collect_fields(&self) -> Vec<(Any, Stage)>;
 
@@ -51,7 +51,7 @@ pub trait Fields: IntoRec + Sized {
         // implemented through `from_fields_downcast` in order to reduce the amount of things
         // that need to happen in the proc macro that derives this trait
         Self::from_fields_downcast(None, &mut |ty, field_name| {
-            f(ty, field_name); 
+            f(ty, field_name);
             (Any::not_available(), Stage::NotAvailable)
         });
     }

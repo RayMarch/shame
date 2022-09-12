@@ -11,7 +11,7 @@ pub struct ComputeFeatures<'a> {
     /// used to set up the work group dimensions and obtain invocation ids
     pub dispatch: WorkGroupSetup<'a>,
     /// pipeline io, used to add bind groups which contain textures, uniform/
-    /// storage buffer bindings etc. 
+    /// storage buffer bindings etc.
     pub io: IO<'a>,
     phantom: PhantomData<()>,
 }
@@ -49,15 +49,15 @@ impl WorkGroupSetup<'_> {
 }
 
 impl IO<'_> {
-    /// creates access to a new bind group, which can then be used to access 
+    /// creates access to a new bind group, which can then be used to access
     ///bindings such as textures, buffer bindings, samplers, ...
     pub fn group(&mut self) -> crate::shader::Group<RangeFrom<u32>>{
         self.inner.group(self.group_counter.next().expect("rangefrom iterator terminated"), 0..)
     }
 
     /// access the push constant as a tensor of given `S` `D`.
-    /// 
-    /// usage: 
+    ///
+    /// usage:
     /// ```text
     /// let p: float4 = io.push_constant();
     /// ```
@@ -82,7 +82,7 @@ impl Display for ComputePipelineRecording {
     }
 }
 
-/// turn a rust compute pipeline function into a shader + pipeline info by 
+/// turn a rust compute pipeline function into a shader + pipeline info by
 /// executing it.
 pub fn record_compute_pipeline(f: impl FnOnce(ComputeFeatures)) -> ComputePipelineRecording {
 
@@ -94,7 +94,7 @@ pub fn record_compute_pipeline(f: impl FnOnce(ComputeFeatures)) -> ComputePipeli
             //store render pipeline info in misc
             *ctx.misc_mut() = Box::new(ComputePipelineInfo::default())
         });
-        
+
         let features = ComputeFeatures {
             dispatch: WorkGroupSetup::new(),
             io: IO {
@@ -107,7 +107,7 @@ pub fn record_compute_pipeline(f: impl FnOnce(ComputeFeatures)) -> ComputePipeli
         super::record_groups_into_context();
         info = with_thread_compute_pipeline_info_mut(|c| std::mem::take(c));
     });
-    
+
     ComputePipelineRecording {
         shader_glsl,
         info,

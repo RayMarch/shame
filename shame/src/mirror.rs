@@ -24,7 +24,7 @@ macro_rules! define_mirror_traits {() => {
         type Device: shame::Fields;
         fn as_bytes(&self) -> &[u8];
     }
-    
+
     pub trait Device {
         type Host: Host + ?Sized;
     }

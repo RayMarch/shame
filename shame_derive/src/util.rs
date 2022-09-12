@@ -3,7 +3,7 @@ use syn::{*, spanned::Spanned};
 use syn::{DataStruct, DeriveInput, FieldsNamed};
 
 #[allow(unused)]
-pub fn map_fields<'a, R>(fields: &'a FieldsNamed, mut func: impl 'a + FnMut(Span, &Option<Ident>, &Type) -> R) 
+pub fn map_fields<'a, R>(fields: &'a FieldsNamed, mut func: impl 'a + FnMut(Span, &Option<Ident>, &Type) -> R)
 -> impl Iterator<Item=R> + 'a {
     fields.named.iter().map(move |f| {
         func(f.span(), &f.ident, &f.ty)
@@ -11,7 +11,7 @@ pub fn map_fields<'a, R>(fields: &'a FieldsNamed, mut func: impl 'a + FnMut(Span
 }
 
 #[allow(unused)]
-pub fn map_fields_enumerate<'a, R>(fields: &'a FieldsNamed, mut func: impl 'a + FnMut(usize, Span, &Option<Ident>, &Type) -> R) 
+pub fn map_fields_enumerate<'a, R>(fields: &'a FieldsNamed, mut func: impl 'a + FnMut(usize, Span, &Option<Ident>, &Type) -> R)
 -> impl Iterator<Item=R> + 'a {
     fields.named.iter().enumerate().map(move |(i, f)| {
         func(i, f.span(), &f.ident, &f.ty)

@@ -75,7 +75,7 @@ pub fn syntax_highlight_glsl(mut code: &str) -> String {
             GLUnderscore => {
                 code.starts_with("gl_").then(|| {
                     let len = code.chars().take_while(is_alphanumeric_underscore).map(|x| x.len_utf8()).sum();
-                    code.split_at(len) 
+                    code.split_at(len)
                 })
             }
             UppercaseIdent => {

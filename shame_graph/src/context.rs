@@ -10,7 +10,7 @@ thread_local!(static CONTEXT: RefCell<Option<Context>> = RefCell::new(None));
 thread_local!(static GENERATION: Cell<NonZeroU32> = Cell::new(NonZeroU32::new(999 /*arbitrary number*/).unwrap()));
 
 pub(super) fn increment_thread_generation() -> NonZeroU32 {GENERATION.with(|g| g.increment_by(1))}
-#[allow(unused)] 
+#[allow(unused)]
 pub(super) fn   current_thread_generation() -> NonZeroU32 {GENERATION.with(|g| g.get())}
 
 pub struct Context {
@@ -18,7 +18,7 @@ pub struct Context {
     blocks: Pool<Block>,
     items : Pool<Item>,
     idents: Pool<Option<String>>,
-    
+
     warnings: RefCell<Vec<Warning>>,
     errors:   RefCell<Vec<Error>>,
 
@@ -26,7 +26,7 @@ pub struct Context {
     misc: RefCell<Box<dyn std::any::Any>>,
 
     current_block: Cell<Option<Key<Block>>>,
-    
+
     pub(crate) shader_kind: ShaderKind,
     error_behavior: ErrorBehavior,
 }
@@ -77,7 +77,7 @@ impl Context {
         self.shader_kind
     }
 
-    pub(crate) fn new(generation: NonZeroU32, shader_kind: ShaderKind, error_behavior: ErrorBehavior) -> Self {     
+    pub(crate) fn new(generation: NonZeroU32, shader_kind: ShaderKind, error_behavior: ErrorBehavior) -> Self {
         Self {
             exprs:  Pool::new(generation),
             blocks: Pool::new(generation),
@@ -124,9 +124,9 @@ impl Context {
                 ctx.push_error(e)
             }
         });
-        
+
         CONTEXT.with(|thread_ctx| {
-            thread_ctx.borrow_mut().take().unwrap() 
+            thread_ctx.borrow_mut().take().unwrap()
         })
     }
 
@@ -144,7 +144,7 @@ impl Context {
                 blocks[expr.parent_block].stmts.push(stmt);
             }
         }
-        
+
         //sort all statements within a block
         for block in blocks.iter_mut() {
             block.stmts.sort_by_key(|a| a.time);
@@ -219,7 +219,7 @@ impl Context {
         maybe_state.map(|state| (state, result_stage))
     }
 
-    /// check if continue or break statements are 
+    /// check if continue or break statements are
     pub fn is_inside_loop_body(&self) -> bool {
         let blocks = self.blocks();
         let mut stack = self.stack_blocks(&blocks);
@@ -256,12 +256,12 @@ impl Context {
 
         //establish item <-> block link
         let item  = self.items_mut().push(Item::FuncDef {ident, body: Default::default(), args: Default::default()});
-        
+
         let parent = self.current_block.take();
         let block = self.blocks_mut().push(Block::new(parent, item, None, BlockKind::Body));
 
         unwrap_variant!(&self.items()[item], Item::FuncDef{body, ..} => body.set(Some(block)));
-        
+
         self.current_block.set(Some(block));
         let result = f();
         let block_ = self.current_block.replace(parent);
@@ -270,7 +270,7 @@ impl Context {
 
         result
     }
-    
+
     pub(crate) fn record_nested_block<R>(&self, kind: BlockKind, branch_info: Option<(BranchState, Stage)>, f: impl FnOnce() -> R) -> (R, Key<Block>) {
         assert!(self.current_block.get().is_some());
 
@@ -284,7 +284,7 @@ impl Context {
             ))
         }
         let item = blocks[self.current_block_key_unwrap()].origin_item;
-        
+
         let parent = self.current_block.take();
         let child = blocks.push(Block::new(parent, item, branch_info, kind));
         drop(blocks);

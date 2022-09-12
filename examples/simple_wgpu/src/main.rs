@@ -14,7 +14,7 @@ mod glue;
 mod render_pipeline;
 
 async fn run(event_loop: EventLoop<()>, window: Window) {
-    
+
     let recording = shame::record_render_pipeline(render_pipeline::pipeline);
     println!("{}", recording.to_string_colored());
 
@@ -55,7 +55,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let swapchain_format = surface.get_supported_formats(&adapter)[0];
 
     let render_pipeline = glue::make_render_pipeline(
-        &recording, 
+        &recording,
         &device,
         Some(swapchain_format)
     );
@@ -93,15 +93,15 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: None,
         entries: &vec![
-            wgpu::BindGroupLayoutEntry { 
-                binding: 0, 
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT, 
-                ty: wgpu::BindingType::Buffer { 
-                    ty: wgpu::BufferBindingType::Uniform, 
-                    has_dynamic_offset: false, 
-                    min_binding_size: None, 
-                }, 
-                count: None, 
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
             },
         ],
     });
@@ -109,10 +109,10 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
     let xform_buffer = device.create_buffer_init(&BufferInitDescriptor {
         label: None,
         contents: bytemuck::bytes_of(&[
-            0.6, 0.0, 0.0, 0.0, 
-            0.0, 0.6, 0.0, 0.0, 
-            0.0, 0.0, 0.6, 0.0, 
-            0.0, 0.0, 0.0, 1.0_f32, 
+            0.6, 0.0, 0.0, 0.0,
+            0.0, 0.6, 0.0, 0.0,
+            0.0, 0.0, 0.6, 0.0,
+            0.0, 0.0, 0.0, 1.0_f32,
         ]),
         usage: wgpu::BufferUsages::UNIFORM,
     });
@@ -121,7 +121,7 @@ async fn run(event_loop: EventLoop<()>, window: Window) {
         label: None,
         layout: &bind_group_layout,
         entries: &vec![
-            wgpu::BindGroupEntry { 
+            wgpu::BindGroupEntry {
                 binding: 0,
                 resource: xform_buffer.as_entire_binding(),
             },

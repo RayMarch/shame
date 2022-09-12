@@ -1,9 +1,9 @@
-//! trait for datatype of a tensor's components such as `f32`, `bool`, `i32`..., 
+//! trait for datatype of a tensor's components such as `f32`, `bool`, `i32`...,
 use super::*;
 use shame_graph::Any;
 
 /// datatype of a tensor's components
-/// 
+///
 /// e.g.
 /// - `float, float2, float3, float4` are of [`DType`] `f32`
 /// - `double, double2, double3, double4` are of [`DType`] `f64`
@@ -58,7 +58,7 @@ macro_rules! rust_primitive_types_as_ten {
         impl AsTen for $fXX {
             type S = scal;
             type D = <$ten_ty as AsTen>::D;
-        
+
             fn as_ten(&self) -> Ten<Self::S, Self::D> {
                 Self::D::new_literal(&(*self as <$ten_ty as AsTen>::D))
             }
@@ -77,10 +77,10 @@ macro_rules! rust_primitive_types_as_ten {
 }
 
 rust_primitive_types_as_ten!{
-    (f32)  as ten -> float; 
-    (i32)  as ten -> int; 
+    (f32)  as ten -> float;
+    (i32)  as ten -> int;
     (bool) as ten -> boolean;
-    (u32)  as ten -> uint; 
+    (u32)  as ten -> uint;
 }
 
 /// implemented for `f64` and `f32`, ensures `IsDTypeNumber`

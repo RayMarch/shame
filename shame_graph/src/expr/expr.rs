@@ -61,7 +61,7 @@ fn update_ident_requirements(kind: &ExprKind, block: Key<Block>, args: &[Key<Exp
             });
 
             //we always need an identifier if...
-            if block != val.parent_block //...if our expression references an argument across a block boundary 
+            if block != val.parent_block //...if our expression references an argument across a block boundary
                 || kind.is_mutating_arg_with_index(arg_i) //...if our expression needs the first arg to be an lvalue (e.g. +=, *= etc)
                 {
                 val.ident_req.set(IdentNeeded);
@@ -77,7 +77,7 @@ fn validate_argument_scope(args: &[Key<Expr>]) {
 
         let stack = ctx.stack_blocks(&blocks);
 
-        //check whether all argument exprs were created in a block 
+        //check whether all argument exprs were created in a block
         //that is present in the current block stack.
         for expr in args.iter().map(|key| &exprs[*key]) {
             if !stack.clone().any(|x| x == expr.parent_block) {
@@ -134,11 +134,11 @@ impl Expr {
         }
     }
 
-    /// forces the expression to be bound to an identifier with the given name, 
+    /// forces the expression to be bound to an identifier with the given name,
     /// or a generated name.
     /// this most likely causes a variable definition statement to be inserted.
     /// Calling this function multiple times on the same expression will yield the
-    /// same generated code as calling it only the last time. 
+    /// same generated code as calling it only the last time.
     pub fn force_ident(&mut self, maybe_name: Option<String>) {
         Context::with(|ctx| {
             self.ident_req.set(IdentRequirement::IdentNeeded);

@@ -4,7 +4,7 @@ use shame_graph::Any;
 use shame_graph::Tensor;
 
 /// trait implemented by tuples that can be assembled as a larger tensor
-/// 
+///
 /// e.g. `(float, float2, f32) => float4`
 pub trait VecCtor: AsTen + Sized {
     /// create a large tensor that contains all the components from `self`
@@ -74,7 +74,7 @@ where (A::S, B::S): VecCtorShapes {
 /// implemented for tuples of [`Shape`] types that can be combined to form
 /// larger vectors (not matrices!)
 pub trait VecCtorShapes {
-    /// the output vecN shape, containing all the components of the `Self` 
+    /// the output vecN shape, containing all the components of the `Self`
     /// tuple's tensors
     type Output: Shape;
 }
@@ -105,13 +105,13 @@ impl_vec_ctor_shapes!{
     (scal, scal) -> vec2;
 }
 
-/// implemented for tuples of [`Shape`] types that can be interpreted as 
+/// implemented for tuples of [`Shape`] types that can be interpreted as
 /// columns or rows of a matrix
 pub trait MatCtorShapes {
-    /// shape of the result matrix, where Self's tuple elements are 
+    /// shape of the result matrix, where Self's tuple elements are
     /// interpreted as columns
     type ColMat: IsShapeMat;
-    /// shape of the result matrix, where Self's tuple elements are 
+    /// shape of the result matrix, where Self's tuple elements are
     /// interpreted as rows
     type RowMat: IsShapeMat;
 }
@@ -124,11 +124,11 @@ pub trait MatCtor<D: DType> {
     /// the result type if the tuple elements are interpreted as matrix rows
     type RowMat: Shape;
 
-    /// create a matrix where the tuple elements are interpreted as matrix 
+    /// create a matrix where the tuple elements are interpreted as matrix
     /// columns
     fn mat_cols(&self) -> Ten<Self::ColMat, D>;
-    
-    /// create a matrix where the tuple elements are interpreted as matrix 
+
+    /// create a matrix where the tuple elements are interpreted as matrix
     /// rows
     fn mat_rows(&self) -> Ten<Self::RowMat, D>;
 }
@@ -141,7 +141,7 @@ macro_rules! impl_mat_ctor_shapes {
     ($(($($A: ident: $vecN: ty),*) => ($matRow: ty, $matCol: ty);)*
     ) => {$(
         impl MatCtorShapes for ($($vecN),*){
-            type ColMat = $matCol; 
+            type ColMat = $matCol;
             type RowMat = $matRow;
         }
     )*}
@@ -167,7 +167,7 @@ macro_rules! impl_mat_ctors {
             type ColMat = <($($A::S),*) as MatCtorShapes>::ColMat;
             type RowMat = <($($A::S),*) as MatCtorShapes>::RowMat;
 
-            fn mat_cols(&self) -> Ten<Self::ColMat, DT> { 
+            fn mat_cols(&self) -> Ten<Self::ColMat, DT> {
                 #[allow(non_snake_case)]
                 let ($($A),*) = self;
 

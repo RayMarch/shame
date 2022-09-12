@@ -121,34 +121,34 @@ pub fn try_deduce_builtin_fn(kind: &super::BuiltinFn, args: &[Ty]) -> Result<Ty,
             dvec3 cross(dvec3 x, dvec3 y);
         }),
         Min => apply(args, &glsl_generic_function_decls!{
-            genType min(genType x, genType y);            
-            genType min(genType x, float y);            
-            genDType min(genDType x, genDType y);            
-            genDType min(genDType x, double y);            
-            genIType min(genIType x, genIType y);            
-            genIType min(genIType x, int y);            
-            genUType min(genUType x, genUType y);            
-            genUType min(genUType x, uint y);           
+            genType min(genType x, genType y);
+            genType min(genType x, float y);
+            genDType min(genDType x, genDType y);
+            genDType min(genDType x, double y);
+            genIType min(genIType x, genIType y);
+            genIType min(genIType x, int y);
+            genUType min(genUType x, genUType y);
+            genUType min(genUType x, uint y);
         }),
         Max => apply(args, &glsl_generic_function_decls!{
-            genType max(genType x, genType y);            
-            genType max(genType x, float y);            
-            genDType max(genDType x, genDType y);            
-            genDType max(genDType x, double y);            
-            genIType max(genIType x, genIType y);            
-            genIType max(genIType x, int y);            
-            genUType max(genUType x, genUType y);            
-            genUType max(genUType x, uint y);        
+            genType max(genType x, genType y);
+            genType max(genType x, float y);
+            genDType max(genDType x, genDType y);
+            genDType max(genDType x, double y);
+            genIType max(genIType x, genIType y);
+            genIType max(genIType x, int y);
+            genUType max(genUType x, genUType y);
+            genUType max(genUType x, uint y);
         }),
         Clamp => apply(args, &glsl_generic_function_decls!{
-            genType clamp(genType x, genType minVal, genType maxVal);            
-            genType clamp(genType x, float minVal, float maxVal);            
-            genDType clamp(genDType x, genDType minVal, genDType maxVal);            
-            genDType clamp(genDType x, double minVal, double maxVal);            
-            genIType clamp(genIType x, genIType minVal, genIType maxVal);            
-            genIType clamp(genIType x, int minVal, int maxVal);            
-            genUType clamp(genUType x, genUType minVal, genUType maxVal);            
-            genUType clamp(genUType x, uint minVal, uint maxVal);           
+            genType clamp(genType x, genType minVal, genType maxVal);
+            genType clamp(genType x, float minVal, float maxVal);
+            genDType clamp(genDType x, genDType minVal, genDType maxVal);
+            genDType clamp(genDType x, double minVal, double maxVal);
+            genIType clamp(genIType x, genIType minVal, genIType maxVal);
+            genIType clamp(genIType x, int minVal, int maxVal);
+            genUType clamp(genUType x, genUType minVal, genUType maxVal);
+            genUType clamp(genUType x, uint minVal, uint maxVal);
         }),
         Smoothstep => apply(args, &glsl_generic_function_decls!{
             genType smoothstep(genType edge0, genType edge1, genType x);
@@ -157,15 +157,15 @@ pub fn try_deduce_builtin_fn(kind: &super::BuiltinFn, args: &[Ty]) -> Result<Ty,
             genDType smoothstep(double edge0, double edge1, genDType x);
         }),
         Mix => apply(args, &glsl_generic_function_decls!{
-            genType mix(genType x, genType y, genType a);            
-            genType mix(genType x, genType y, float a);            
-            genDType mix(genDType x, genDType y, genDType a);            
-            genDType mix(genDType x, genDType y, double a);            
-            genType mix(genType x, genType y, genBType a);            
-            genDType mix(genDType x, genDType y, genBType a);            
-            genIType mix(genIType x, genIType y, genBType a);            
-            genUType mix(genUType x, genUType y, genBType a);            
-            genBType mix(genBType x, genBType y, genBType a);           
+            genType mix(genType x, genType y, genType a);
+            genType mix(genType x, genType y, float a);
+            genDType mix(genDType x, genDType y, genDType a);
+            genDType mix(genDType x, genDType y, double a);
+            genType mix(genType x, genType y, genBType a);
+            genDType mix(genDType x, genDType y, genBType a);
+            genIType mix(genIType x, genIType y, genBType a);
+            genUType mix(genUType x, genUType y, genBType a);
+            genBType mix(genBType x, genBType y, genBType a);
         }),
         Abs => apply(args, &glsl_generic_function_decls!{
             genType abs(genType x);
@@ -177,7 +177,7 @@ pub fn try_deduce_builtin_fn(kind: &super::BuiltinFn, args: &[Ty]) -> Result<Ty,
             genDType normalize(genDType v);
         }),
         Texture => apply(args, &glsl_generic_function_decls!{
-            gvec4 texture(gsampler1D sampler, float P, [float bias]); 
+            gvec4 texture(gsampler1D sampler, float P, [float bias]);
             gvec4 texture(gsampler2D sampler, vec2 P, [float bias]);
             gvec4 texture(gsampler3D sampler, vec3 P, [float bias]);
             gvec4 texture(gsamplerCube sampler, vec3 P, [float bias]);

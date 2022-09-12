@@ -9,10 +9,10 @@ fn main() -> std::io::Result<()> {
     println!("recording shaders...");
     let recording = shame::record_render_pipeline(pipeline);
     let ((vert, frag), info) = recording.unpack();
-    
+
     let result = TcpStream::connect("127.0.0.1:32202")
     .and_then(|mut stream| stream.write_fmt(format_args!("{vert}$split_here${frag}$split_here${info}")));
-    
+
     match result {
         Err(e) => {
             println!("error sending shader to engine. The hot_reload_engine binary must be running.");

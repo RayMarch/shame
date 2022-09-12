@@ -40,7 +40,7 @@ fn my_render_pipeline(mut f: RenderFeatures) {
     // write to an sRGB render-target with alpha.
     // use alpha blending with frag_color as src color
     f.io.color::<RGBA_8888_sRGB>().blend(
-        Blend::alpha(), 
+        Blend::alpha(),
         frag_color
     );
 }
@@ -48,7 +48,7 @@ fn my_render_pipeline(mut f: RenderFeatures) {
 pub fn main() {
     // generate the shaders and pipeline layout
     let out = shame::record_render_pipeline(my_render_pipeline);
-    
+
     let (vertex_shader, fragment_shader) = &out.shaders_glsl;
     let info = &out.info;
 

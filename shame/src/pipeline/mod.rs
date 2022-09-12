@@ -3,14 +3,14 @@ use std::fmt::Display;
 
 use crate::{
     pipeline::{
-        compute_pipeline_info::ComputePipelineInfo, 
-    }, 
+        compute_pipeline_info::ComputePipelineInfo,
+    },
     rec::{
-        Shape, 
-        DType, 
+        Shape,
+        DType,
         AnyDowncast
-    }, 
-    Ten, 
+    },
+    Ten,
     current_shader
 };
 
@@ -102,12 +102,12 @@ fn record_groups_into_context() {
             },
         }
     };
-    
+
     with_thread_pipeline_bind_groups(|bind_groups| {
         assert!(bind_groups.is_empty());
-        
+
         shame_graph::Context::with(|ctx| {
-            
+
             *bind_groups =
             ctx.shader().side_effects.bind_groups().iter()
             .map(|(group_i, group)| {
@@ -133,7 +133,7 @@ fn instantiate_push_constant<S: Shape, D: DType>() -> Ten<S, D> {
     use shame_graph::Tensor;
 
     let tensor = Tensor::new(S::SHAPE, D::DTYPE);
-    
+
     let visibility = StageFlags::all_based_on_recording_kind(); //TODO: we're currently not tracking where the push_constant is actually being used. improve this for better visibility flags (can reduce delays)
 
     with_thread_pipeline_push_constant(|p| {
@@ -198,7 +198,7 @@ impl Display for BindingType {
     }
 }
 
-/// relevant info about a binding inside a bindgroup for creating pipeline 
+/// relevant info about a binding inside a bindgroup for creating pipeline
 /// layouts
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BindingInfo {
@@ -230,7 +230,7 @@ pub struct StageFlags {
 
 impl std::fmt::Debug for StageFlags {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("Stages{{{}{}{} }}", 
+        f.write_fmt(format_args!("Stages{{{}{}{} }}",
             if self.vertex   {" Vertex"  } else {""},
             if self.fragment {" Fragment"} else {""},
             if self.compute  {" Compute" } else {""},
@@ -240,7 +240,7 @@ impl std::fmt::Debug for StageFlags {
 
 impl std::fmt::Display for StageFlags {
     fn fmt(&self, format: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // if you're wondering what 
+        // if you're wondering what
         // "vfc", "v--", "-f-", "--c", "vf-"
         // means your search probably got you here.
         // Its the Stage Visibility Flags for the vertex/fragment/compute stages
@@ -264,7 +264,7 @@ impl StageFlags {
     pub fn compute() -> Self {StageFlags {vertex: false, fragment: false, compute: true}}
 
     /// returns the stage flags based on the current shader recording kind
-    /// 
+    ///
     /// - render shader/pipeline recording: vertex and fragment stage flags are set
     /// - compute shader/pipeline recording: compute stage flag is set
     pub fn all_based_on_recording_kind() -> Self {

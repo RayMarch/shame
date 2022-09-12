@@ -12,7 +12,7 @@ use std::mem::take;
 
 /// Additional info to the recorded render shaders, which is necessary to create
 /// a render pipeline.
-/// 
+///
 /// Members which are `None` or empty have not been recorded
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RenderPipelineInfo {
@@ -71,13 +71,13 @@ impl Display for RenderPipelineInfo {
             if let Some(x) = &self.depth_stencil_target {
                 f.write_fmt(format_args!("  depth => {x:?}\n"))?;
             }
-            
+
             match &self.color_targets[..] {
                 [] => (),
                 s => {
                     f.write_fmt(format_args!("color target blending:\n"))?;
                     for (i, x) in s.iter().enumerate() {
-                        match x.blending { 
+                        match x.blending {
                             Some(x) => {
                                 f.write_fmt(format_args!("  {i} => rgb = {}\n", x.rgb))?;
                                 f.write_fmt(format_args!("         a = {}\n", x.a))?;
@@ -87,7 +87,7 @@ impl Display for RenderPipelineInfo {
                     }
                 }
             }
-        } 
+        }
         else {
             f.write_str("no render targets\n")?;
         }
@@ -121,7 +121,7 @@ impl Display for RenderPipelineInfo {
 /// render pipeline
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ColorTargetInfo {
-    /// amount of color samples per pixel pixel of this rendertarget only 
+    /// amount of color samples per pixel pixel of this rendertarget only
     /// certain values are allowed such as 1, 2, 4, 8, 16
     pub sample_count: u8,
     /// the way in which incoming fragment colors are applied to the existing
@@ -218,7 +218,7 @@ impl RenderPipelineInfo {
         let vertex_buffer        = (take(&mut v.vertex_buffers), take(&mut f.vertex_buffers));
         let color_target         = (take(&mut v.color_targets), take(&mut f.color_targets));
         let depth_stencil_target = (take(&mut v.depth_stencil_target), take(&mut f.depth_stencil_target));
-        
+
         //then we compare the rest and assert on its equality
         assert!(v == f, "pipeline info was recorded differently in vertex vs fragment shader");
 

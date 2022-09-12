@@ -15,24 +15,24 @@ fn from_binding_info(shame: &shame::BindingInfo) -> wgpu::BindGroupLayoutEntry {
             shame::BindingType::Sampler              => wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
             shame::BindingType::TextureCombinedSampler => panic!("texture-combined samplers are not supported. Use separate sampler/texture bindings instead."),
             shame::BindingType::ShadowSampler => wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
-            shame::BindingType::UniformBuffer => wgpu::BindingType::Buffer { 
-                ty: wgpu::BufferBindingType::Uniform, 
+            shame::BindingType::UniformBuffer => wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
                 has_dynamic_offset: false, //TODO: Add
-                min_binding_size: None 
+                min_binding_size: None
             },
-            shame::BindingType::ReadWriteStorageBuffer => wgpu::BindingType::Buffer { 
-                ty: wgpu::BufferBindingType::Storage { read_only: false }, 
+            shame::BindingType::ReadWriteStorageBuffer => wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: false },
                 has_dynamic_offset: false, //TODO: Add
-                min_binding_size: None 
+                min_binding_size: None
             },
-            shame::BindingType::ReadOnlyStorageBuffer => wgpu::BindingType::Buffer { 
-                ty: wgpu::BufferBindingType::Storage { read_only: true }, 
+            shame::BindingType::ReadOnlyStorageBuffer => wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
                 has_dynamic_offset: false, //TODO: Add
-                min_binding_size: None 
+                min_binding_size: None
             },
-            shame::BindingType::Texture => wgpu::BindingType::Texture { 
-                sample_type: wgpu::TextureSampleType::Float { filterable: true }, 
-                view_dimension: wgpu::TextureViewDimension::D2, 
+            shame::BindingType::Texture => wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                view_dimension: wgpu::TextureViewDimension::D2,
                 multisampled: false //TODO: Add
             },
             shame::BindingType::UniformTexelBuffer => unimplemented!(),
@@ -71,7 +71,7 @@ fn make_push_constant_range(shame: &shame::PushConstantInfo) -> wgpu::PushConsta
 
 fn empty_push_constant_range() -> wgpu::PushConstantRange {
     wgpu::PushConstantRange {
-        stages: wgpu::ShaderStages::empty(), 
+        stages: wgpu::ShaderStages::empty(),
         range: 0..0
     }
 }
@@ -189,8 +189,8 @@ fn make_vertex_buffer_layouts<'a>(infos: &[shame::VertexBufferInfo], scratch: &'
         }).collect()
 }
 
-fn make_vertex_state<'a, 'b>(shame: &shame::RenderPipelineInfo, module: &'a wgpu::ShaderModule, 
-    scratch0: &'b mut Vec<wgpu::VertexAttribute>, 
+fn make_vertex_state<'a, 'b>(shame: &shame::RenderPipelineInfo, module: &'a wgpu::ShaderModule,
+    scratch0: &'b mut Vec<wgpu::VertexAttribute>,
     scratch1: &'a mut Vec<wgpu::VertexBufferLayout<'b>>
 ) -> wgpu::VertexState<'a> {
     assert!(scratch0.is_empty());
@@ -335,7 +335,7 @@ fn make_blend_state(shame: &Option<shame::Blend>) -> Option<wgpu::BlendState> {
                 SF::OneMinusConstantAlpha => unimplemented!(), //TODO: this might be wrong to include altogether
             }
         };
-        
+
         let convert_op = |op: shame::BlendOp| -> wgpu::BlendOperation {
             match op {
                 shame::BlendOp::Add => wgpu::BlendOperation::Add,

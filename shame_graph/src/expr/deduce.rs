@@ -160,7 +160,7 @@ pub fn try_deduce_constructor(kind: &super::Constructor, args: &[Ty]) -> Result<
 
                             let comp_sum = arg_tens.iter().map(|t| t.shape.comps_total()).sum::<usize>();
                             let result_comps = result_ten.shape.comps_total();
-                            
+
                             match comp_sum {
                                 1 => panic!("component sum of multiple-arg match should never be 1"), //caught in outter match
                                 _ if all_same_dtype && no_mats && comp_sum == result_comps => Ok(result_type),
@@ -201,8 +201,8 @@ pub fn try_deduce_constructor(kind: &super::Constructor, args: &[Ty]) -> Result<
                     match (&texture.kind, &sampler.kind) {
                         (
                             TyKind::Opaque(OpaqueTy::Texture(arg_dtype_dims)),
-                            TyKind::Opaque(OpaqueTy::Sampler), 
-                        ) => 
+                            TyKind::Opaque(OpaqueTy::Sampler),
+                        ) =>
                         match ctor_dtype_dims == arg_dtype_dims {
                             true => Ok(Ty::texture_combined_sampler(ctor_dtype_dims.0, ctor_dtype_dims.1)),
                             false => Err(invalid_arguments(kind, args)),
@@ -214,7 +214,7 @@ pub fn try_deduce_constructor(kind: &super::Constructor, args: &[Ty]) -> Result<
             }
         },
     }
-    
+
 }
 
 pub fn try_deduce_operator(kind: &super::Operator, args: &[Ty]) -> Result<Ty, Error> {
@@ -340,12 +340,12 @@ pub fn try_deduce_tensor_operator(kind: &super::Operator, args: &[Ty]) -> Result
             use Shape::*;
             let dtype_ok = |ten: Tensor| [DType::U32, DType::I32].contains(&ten.dtype) && !ten.shape.is_mat();
             let shapes_ok = match (l.shape, r.shape) {
-                (Scalar, Scalar) => true, 
+                (Scalar, Scalar) => true,
                 (Vec(_), Scalar) => true,
                 (Vec(x), Vec(y)) if x == y => true,
                 _ => false,
             };
-            
+
             match dtype_ok(l) && dtype_ok(r) && shapes_ok {
                 true => Ok(l),
                 false => Err(invalid_arguments(kind, args)),
@@ -357,7 +357,7 @@ pub fn try_deduce_tensor_operator(kind: &super::Operator, args: &[Ty]) -> Result
             let no_mats   = [l, r].iter().all(|t| !t.shape.is_mat());
             match both_int_uint && no_mats {
                 true => match (l.shape, r.shape) {
-                    (Scalar, Scalar) | 
+                    (Scalar, Scalar) |
                     (Scalar, Vec(_)) => Ok(r),
                     (Vec(_), Scalar) => Ok(l),
                     (Vec(x), Vec(y)) if x == y => Ok(l),
@@ -399,7 +399,7 @@ pub fn try_deduce_tensor_operator(kind: &super::Operator, args: &[Ty]) -> Result
         (&[exp1, exp2, exp3], TernaryIf) if exp1 == Tensor::bool() && exp2 == exp3 => Ok(exp2),
         (&[l, r], Assign) if l == r => Ok(l),
         (&[_l, _r], AddAssign | SubAssign | MulAssign | DivAssign | RemAssign | ShiftLAssign | ShiftRAssign | AndAssign | XorAssign | OrAssign) => {
-            let non_assign_version = match kind { 
+            let non_assign_version = match kind {
                    AddAssign => Add,
                    SubAssign => Sub,
                    MulAssign => Mul,

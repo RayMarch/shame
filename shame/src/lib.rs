@@ -3,7 +3,7 @@
 #![deny(rustdoc::bare_urls)]
 
 //! [`shame`] - shader metaprogramming
-//! 
+//!
 //! an EDSL for writing render and compute pipelines in rust.
 //!
 //! see the examples folder for how to use [`shame`].
@@ -61,7 +61,7 @@ pub use rec::aliases::*;
 
 pub use rec::sampler_texture::{
     Sampler,
-    Texture, 
+    Texture,
 
     TextureR,
     TextureRG,
@@ -112,7 +112,7 @@ pub use pipeline::GenericPipelineIO;
 
 pub use rec::*;
 
-pub mod tensor_type { 
+pub mod tensor_type {
     //!additional module for those imports to avoid confusion with Tensor trait
     pub use shame_graph::Tensor;
     pub use shame_graph::Shape;

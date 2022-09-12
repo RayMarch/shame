@@ -24,7 +24,7 @@ pub enum Binding {
     Opaque (OpaqueTy, Any),
     OpaqueImage {
         tex_dtype_dims: TexDtypeDimensionality,
-        any: Any, 
+        any: Any,
         is_read_only: bool,
         tex_format: (), //TODO: add texture format enum in shame_graph
     },
@@ -186,7 +186,7 @@ impl StageInterface {
         match self {
             StageInterface::Vertex { inputs, outputs } => {
                 if let Some((a, b)) = inputs.vertex_attributes.iter().find_pair(|(a, _), (b, _)| {
-                    ranges_overlap(a, b).then(|| (a, b)) 
+                    ranges_overlap(a, b).then(|| (a, b))
                 }) {
                     Err(Error::OverlappingAttributeLocation(a.clone(), b.clone()))?;
                 }
@@ -215,22 +215,22 @@ impl SideEffects {
         }) {
             Err(Error::OverlappingBindGroupIndex{duplicate_index: *overlap})?;
         }
-        
+
         for (group_i, group) in &self.bind_groups {
 
             if let Some(overlap) = group.0.iter().find_pair(|(a, _), (b, _)| {
                 (a == b).then(|| a)
             }) {
-                Err(Error::OverlappingBindingIndex { 
-                    bind_group: *group_i, 
-                    duplicate_index: *overlap 
+                Err(Error::OverlappingBindingIndex {
+                    bind_group: *group_i,
+                    duplicate_index: *overlap
                 })?;
             }
-            
+
             for (_, binding) in &group.0 {
                 match binding {
                     Binding::Opaque(opaque_ty, any) => match opaque_ty {
-                        OpaqueTy::TextureCombinedSampler(_) | 
+                        OpaqueTy::TextureCombinedSampler(_) |
                         OpaqueTy::ShadowSampler(_) => {
                             Context::with(|ctx| -> Result<(), Error> {
                                 match any.ty_via_ctx(ctx) {
@@ -276,7 +276,7 @@ impl SideEffects {
                                 .to_string()
                             ))
                         };
-                    }   
+                    }
                     _ => (),
                 }
             }

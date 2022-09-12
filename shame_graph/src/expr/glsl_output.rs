@@ -22,12 +22,12 @@ fn operator_to_glsl(ex: &State, op: &Operator, args: &[Key<Expr>]) -> String {
 
         match (has_binding, &sub_expr.kind) {
             (false, ExprKind::Operator(sub)) => {
-            
+
                 //while we're here lets check that lhs lvalues do have an identifier (even though this check is unrelated to precedence)
                 if sub.lhs_lvalue && is_left_of_sub {
                     assert!(matches!(sub_expr.ident, Some(_)), "left hand side expression of operator{} doesn't have a binding", sub.glsl_str);
                 }
-            
+
                 match op.glsl_prec == sub.glsl_prec {
                     true => {
                         debug_assert!(op.glsl_assoc == sub.glsl_assoc, "same precedence must imply same associativity");
@@ -50,7 +50,7 @@ fn operator_to_glsl(ex: &State, op: &Operator, args: &[Key<Expr>]) -> String {
         [a] => {
             let is_left_of_sub = op.glsl_assoc == RightToLeft;
             let a = wrap_if(binds_stronger_than(op, *a, is_left_of_sub), expr_key_to_glsl(ex, *a, false));
-            
+
             match op.glsl_assoc {
                 LeftToRight => format!("{a}{op_str}"), //postfix
                 RightToLeft => format!("{op_str}{a}"), //prefix
@@ -168,10 +168,10 @@ fn expr_kind_to_glsl(ex: &State, expr: &Expr) -> String {
 
                 let field_idents = fields.iter()
                 .map(|Named(_, id)| ex.valid_ident(**id));
-                
+
                 let arglist = ex.with_deeper_indent(|| {
                     let indent = ex.indent_string();
-                    
+
                     args.zip(field_idents)
                     .map(|(arg, ident)| format!("\n{indent}/*{ident}*/ {arg}"))
                     .collect::<Vec<_>>()
@@ -206,7 +206,7 @@ fn expr_kind_to_glsl(ex: &State, expr: &Expr) -> String {
 fn field_select_to_glsl(ex: &State, field: &IdentSlot, args: &[Key<Expr>]) -> String {
     match args {
         [arg] => {
-            
+
             let expr = expr_key_to_glsl(ex, *arg, false);
             let field_ident = ex.valid_ident(field.0);
 
@@ -323,14 +323,14 @@ fn ty_to_glsl(ex: &State, ty: &Ty) -> String {
             None    => format!("{}[]"  , ty_to_glsl(ex, ty)),
         }
         TyKind::Opaque(x) => match x {
-            OpaqueTy::TextureCombinedSampler(TexDtypeDimensionality(dtype, kind)) => 
+            OpaqueTy::TextureCombinedSampler(TexDtypeDimensionality(dtype, kind)) =>
                 format!("{}sampler{}", dtype_to_glsl_prefix(*dtype), tex_dimensionality_to_glsl_suffix(*kind)),
-            OpaqueTy::ShadowSampler(kind) => 
+            OpaqueTy::ShadowSampler(kind) =>
                 format!("sampler{}Shadow", shadow_sampler_kind_to_glsl_suffix(*kind)),
             OpaqueTy::Sampler => "sampler".to_string(),
             OpaqueTy::Texture(TexDtypeDimensionality(dtype, kind)) =>
                 format!("{}texture{}", dtype_to_glsl_prefix(*dtype), tex_dimensionality_to_glsl_suffix(*kind)),
-            OpaqueTy::Image(TexDtypeDimensionality(dtype, kind)) => 
+            OpaqueTy::Image(TexDtypeDimensionality(dtype, kind)) =>
                 format!("{}image{}", dtype_to_glsl_prefix(*dtype), tex_dimensionality_to_glsl_suffix(*kind)),
             OpaqueTy::AtomicCounter(_) => todo!(),
         },
@@ -358,14 +358,14 @@ fn expr_key_to_glsl(ex: &State, expr_key: Key<Expr>, ignore_ident: bool) -> Stri
 fn stmt_to_glsl(ex: &State, stmt: &Stmt) -> String {
     match &stmt.kind {
         StmtKind::VariableDecl(Named(ty, ident)) => {
-            format!("{} {};", 
-                ty_to_glsl(ex, ty), 
+            format!("{} {};",
+                ty_to_glsl(ex, ty),
                 ex.valid_ident(ident.0)
             )
         },
         StmtKind::VariableDef(Named(expr_key, ident)) => {
-            format!("{} {} = {};", 
-                ty_to_glsl(ex, &ex.ctx.exprs()[*expr_key].ty), 
+            format!("{} {} = {};",
+                ty_to_glsl(ex, &ex.ctx.exprs()[*expr_key].ty),
                 ex.valid_ident(ident.0),
                 expr_key_to_glsl(ex, *expr_key, true),
             )
@@ -442,7 +442,7 @@ fn block_to_glsl(ex: &State, block: &Block) -> String {
             if let Some(first) = first {
                 match &first.kind {
                     VariableDecl(_) | VariableDef(_) => {
-                        
+
                         let decl_ty = match &first.kind {
                             VariableDecl(Named(ty, _)) => ty.clone(),
                             VariableDef(Named(key, _)) => ex.ctx.exprs()[*key].ty.clone(),
@@ -460,7 +460,7 @@ fn block_to_glsl(ex: &State, block: &Block) -> String {
                             };
 
                             assert!(decl_ty.eq_ignore_access(&ty), "glsl only supports one declaration type per loop init statement. This loop init statement tries to declare at least a {decl_ty} and {ty} type");
-                            
+
                             let ident = ex.valid_ident(ident.0);
                             decls.push(match expr_key {
                                 Some(expr_key) => format!("{} = {}", ident, expr_key_to_glsl(ex, *expr_key, true)),
@@ -553,7 +553,7 @@ fn struct_layout_to_glsl(ex: &State, struct_layout: &InterfaceBlock) -> Result<S
 fn binding_to_glsl(ex: &State, set_binding_index: (u32, u32), binding: &Binding) -> Result<(String, Option<Packing>), Error> {
     use Binding::*;
     let block_ident = |(set_i, bind_i)| format!("S{}_B{}", set_i, bind_i);
-    
+
     let result = match binding {
         Opaque(opaque_ty, any) => {
             assert!(!matches!(opaque_ty, OpaqueTy::Image(_)), "Image bindings are not supposed to be in Binding::Opaque, but in Binding::OpaqueImage because of their additional parameters");
@@ -571,12 +571,12 @@ fn binding_to_glsl(ex: &State, set_binding_index: (u32, u32), binding: &Binding)
         },
         OpaqueImage { .. } => {
             unimplemented!()
-        }, 
-        UniformBlock(x) => format!("uniform {} {};\n", block_ident(set_binding_index), 
+        },
+        UniformBlock(x) => format!("uniform {} {};\n", block_ident(set_binding_index),
             struct_layout_to_glsl(ex, x)?),
-        StorageMut(x) => format!("buffer {} {};\n", block_ident(set_binding_index), 
+        StorageMut(x) => format!("buffer {} {};\n", block_ident(set_binding_index),
             struct_layout_to_glsl(ex, x)?),
-        Storage(x) => format!("readonly buffer {} {};\n", block_ident(set_binding_index), 
+        Storage(x) => format!("readonly buffer {} {};\n", block_ident(set_binding_index),
             struct_layout_to_glsl(ex, x)?),
     };
 
@@ -691,7 +691,7 @@ fn stage_interface_to_glsl(ex: &State, stage: &StageInterface) -> Result<String,
 }
 
 fn is_ident(s: &str) -> bool {
-    !s.is_empty() && s.chars().enumerate().all(|(i, c)| 
+    !s.is_empty() && s.chars().enumerate().all(|(i, c)|
         match i {
             0 => c.is_ascii_alphabetic(),
             _ => c.is_ascii_alphanumeric(),
@@ -701,8 +701,8 @@ fn is_ident(s: &str) -> bool {
 
 fn ident_satisfies_glsl_constraints(s: &str) -> bool {
     !(
-        s.starts_with("gl_") || 
-        s.starts_with("__") || 
+        s.starts_with("gl_") ||
+        s.starts_with("__") ||
         GLSL_WORDS_THAT_CANNOT_BE_IDENTIFIERS.contains(&s)
     )
 }
@@ -724,9 +724,9 @@ fn single_valid_ident_for_slot(slot: &Option<String>) -> String {
     }
 }
 
-/// takes idents with the same name and puts numbers (1, 2...) behind the duplicates to 
-/// make them different form each other. this may result in new name collisions, therefore 
-/// the function returns the amount of edited idents. Call it repeatedly until it returns 
+/// takes idents with the same name and puts numbers (1, 2...) behind the duplicates to
+/// make them different form each other. this may result in new name collisions, therefore
+/// the function returns the amount of edited idents. Call it repeatedly until it returns
 /// 0 to make sure all the identifiers are unique.
 /// TODO: add tests, verify that it works, or rewrite it with a more elegant algorithm.
 #[allow(clippy::needless_range_loop)]
@@ -734,16 +734,16 @@ fn deduplicate_idents_pass(idents: &mut Vec<String>) -> usize {
     let mut order = (0..idents.len()).collect::<Vec<_>>();
     order.sort_by_key(|i| &idents[*i]);
     let mut changed_counter = 0;
-    
+
     for i in 0..order.len() {
         let ai = order[i];
-        
+
         for j in i+1..order.len() {
             let bi = order[j];
 
             let a = &idents[ai];
             let b = &idents[bi];
-            
+
             if a == b {
                 let delta = j-i;
                 let b_mut = &mut idents[bi];

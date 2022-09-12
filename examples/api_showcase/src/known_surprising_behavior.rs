@@ -23,7 +23,7 @@ pub fn main() {
 
     // mutating a struct member or array element lvalue does not
     // narrow the stage of the struct/array
-    // 
+    //
     // this is planned to be fixed in a future version
     // it requires a larger refactor of the stage mechanism
     let out = shame::record_render_pipeline(|mut f| {
@@ -33,17 +33,17 @@ pub fn main() {
         let poly = f.raster.rasterize(vertex.pos.xyz1(), Cull::default(), topo);
 
         let fragment_pos = poly.plerp(vertex.pos);
-        
+
         // create uniform value `my_struct`
         let mut foo = MyStruct::default().rec();
 
         foo.a += vertex.pos;   // `foo.a` becomes `Stage::Vertex`
         foo.b += fragment_pos; // `foo.b` becomes `Stage::Fragment`
         // the rust code implies that both modify the same struct, but they don't.
-        // in the resulting shader code there are two `foo`, each with only one 
+        // in the resulting shader code there are two `foo`, each with only one
         // of the mutations.
         // possible solution: the first assignment to `foo.a` should also affect
-        // `foo` itself and turn it into a `Stage::Vertex` value. Then the 2nd 
+        // `foo` itself and turn it into a `Stage::Vertex` value. Then the 2nd
         // assignment could yield a nice error message. This is not possible
         // with the current implementation and requires some refactoring.
 

@@ -15,7 +15,7 @@ pub struct Any {
 }
 
 impl Any {
-    
+
     fn by_recording_expr(kind: ExprKind, args: &[Any]) -> Self {
 
         let all_args_available = args.iter().all(|any| any.expr_key.is_some());
@@ -27,8 +27,8 @@ impl Any {
             let current_block = Context::with(|ctx| ctx.current_block_key_unwrap());
 
             let expr_result = Expr::new(
-                None, 
-                kind, 
+                None,
+                kind,
                 unwrapped_args,
                 current_block
             );
@@ -45,8 +45,8 @@ impl Any {
             );
             Self {expr_key: maybe_expr}
         } else {
-            // attempting to record an expr but not all args are available 
-            // in this shader recording (i.e. they are values from a 
+            // attempting to record an expr but not all args are available
+            // in this shader recording (i.e. they are values from a
             // different stage (vertex/fragment))
             Any::not_available()
         }
@@ -78,7 +78,7 @@ impl Any {
     pub fn ty_via_thread_ctx(&self) -> Option<Ty> {
         Context::with(|ctx| self.ty_via_ctx(ctx))
     }
-    
+
     /// assign a name that will be used when the recorded expression is converted into a variable in the resulting shader code.
     /// the provided name may get changed slightly in order to not collide with keywords/other variables in the target language.
     pub fn aka(self, name: &str) -> Self {
@@ -95,7 +95,7 @@ impl Any {
         });
         self
     }
-    
+
     //
     // ctors
     //
@@ -160,7 +160,7 @@ impl Any {
     pub fn global_interface(ty: Ty, ident: Option<String>) -> Self {
         Any::by_recording_expr(ExprKind::GlobalInterface(ty), &[]).aka_maybe(ident)
     }
-    
+
     pub fn texture_combined_sampler(kind: TexDtypeDimensionality, texture: Any, sampler: Any) -> Any {
         Any::by_recording_expr(ExprKind::Constructor(Constructor::TextureCombinedSampler(kind)), &[texture, sampler])
     }
@@ -172,7 +172,7 @@ impl Any {
     pub fn float(value: f32) -> Self {
         use std::num::FpCategory::*;
         match value.classify() {
-            Normal | Zero => 
+            Normal | Zero =>
                 Any::by_recording_expr(ExprKind::Literal(Literal::F32(value)), &[]),
             cat => Context::with(|ctx| {
                 ctx.push_error(Error::UnsupportedFloatingPointCategory(cat));
@@ -264,7 +264,7 @@ impl Any {
 
     pub fn new_matrix_from_rows(tensor: Tensor, args: &[Any]) -> Self {
         let (c, r) = tensor.shape.dims_u8();
-        
+
         match args.len() == tensor.shape.row_count() {
             false => {
                 Context::with(|ctx| ctx.push_error(Error::ArgumentError(
@@ -275,8 +275,8 @@ impl Any {
             true => {
                 // this calls
                 // matMxN(row0.x, row1.x..., row0.y, row1.y... ,...)
-                let comps = 
-                (0..c).map(|col_i| 
+                let comps =
+                (0..c).map(|col_i|
                     (0..r).map(move |row_i|
                         args[row_i as usize].swizzle(&[col_i])
                     )
@@ -352,7 +352,7 @@ impl Any {
                 TyKind::Void |
                 TyKind::Struct(_) |
                 TyKind::Callable(_) |
-                TyKind::InterfaceBlock(_) => InvalidTy(ty), 
+                TyKind::InterfaceBlock(_) => InvalidTy(ty),
             }
         })
     }
@@ -361,9 +361,9 @@ impl Any {
 
         let index_literal = index.expr_key
         .and_then(|key| {
-            Context::with(|ctx| { 
+            Context::with(|ctx| {
                 let expr = &ctx.exprs()[key];
-                
+
                 match expr.kind {
                     ExprKind::Literal(lit) => match lit {
                         Literal::U32(i) => Some(i as i64),
@@ -387,7 +387,7 @@ impl Any {
         if let (Some(ty), Some(len), Some(i)) = (self.ty_via_thread_ctx(), maybe_len, index_literal) {
             let in_bounds = 0 <= i && i < len as i64;
             if !in_bounds {
-                Context::with(|ctx| { 
+                Context::with(|ctx| {
                     ctx.push_error(
                         Error::OutOfBounds(format!("access into {ty} out of bounds 0..{len} at index {i}"))
                     )
@@ -499,7 +499,7 @@ impl Any {
     // assignment
     //
 
-    /// calls a binary assign operation `op_assign`. 
+    /// calls a binary assign operation `op_assign`.
     /// This is where `=`, `+=`, `-=` etc calls end up
     pub fn binary_assign_op(&mut self, rhs: Any, op_assign: Operator) -> Any {
         self.ty_via_thread_ctx().map(|ty| {
@@ -512,7 +512,7 @@ impl Any {
         //no need to assert!(op.argc == 2), the type deduction will provide a nicer error
         assert!(op_assign.lhs_lvalue, "calling binary_assign_op with non-assign op");
         let result = Any::by_recording_expr(ExprKind::Operator(op_assign), &[*self, rhs]);
-        if !rhs.is_available() { 
+        if !rhs.is_available() {
             //TODO: proper implementation of this would be to add an Option<&mut Self> argument, to `by_recording_expr` so that `by_recording_expr` can query the expression and decide if `&mut self` needs to be NA'd.
             *self = Any::not_available();
         }
@@ -696,12 +696,12 @@ impl Any {
     /// if `inclusive` is
     ///     `true` returns whether `self <= upper_limit`
     ///     `false` returns whether `self <  upper_limit`
-    /// 
+    ///
     /// this function also accepts bool bounds
     pub fn is_below_upper_bound(&mut self, bound: Bound<Any>) -> Any {
         use {DType::*, Bound::*};
         let dtype = self.get_dtype()
-        .unwrap_or(I32); // pretend it's `i32` if the type is not a tensor, that 
+        .unwrap_or(I32); // pretend it's `i32` if the type is not a tensor, that
         // will trigger a nice error later for `self < limit` or `self <= limit`
 
         match (bound, dtype) {
@@ -718,7 +718,7 @@ impl Any {
         use {DType::*, Bound::*};
         match bound {
             Included(limit) => Ok(limit),
-            // pretend it's `i32` if the type is not a tensor, that 
+            // pretend it's `i32` if the type is not a tensor, that
             // will trigger a nice error later for `self + 1`
             Excluded(limit) => match limit.get_dtype().unwrap_or(I32) {
                 Bool => Ok(!limit),
@@ -731,7 +731,7 @@ impl Any {
     }
 
     /// implements increment by `step` in a prettified way.
-    /// For example, incrementing self with a literal `1` will record a `++i` 
+    /// For example, incrementing self with a literal `1` will record a `++i`
     /// operation.
     /// Bool values will record different operations that resemble increment
     pub fn increment_by(&mut self, step: Any) {
@@ -827,7 +827,7 @@ impl Any {
         } else {
             super::Any::not_available()
         }
-        
+
     }
 
     /// records the pow function for integer values by repeated multiplication
@@ -860,7 +860,7 @@ impl Any {
     }
 
     // operators that cannot be implemented through std::ops traits
-    
+
     /// equals operator
     pub fn eq(&self, rhs: Any) -> Any {
         Any::by_recording_expr(ExprKind::Operator(Operator::Equal), &[*self, rhs])
@@ -983,12 +983,12 @@ impl Any {
     pub fn record_then(&self, self_stage: Stage, f: impl FnOnce()) {
 
         let branch_state = Some((self.to_branch_state(), self_stage));
-        
-        
+
+
         match self.expr_key {
             Some(cond_key) => {
                 let now = RecordTime::next();
-                
+
                 Context::with(|ctx| {
                     let ((), block_key) = ctx.record_nested_block(BlockKind::Body, branch_state, f);
 
@@ -1018,20 +1018,20 @@ impl Any {
         Context::with(|ctx| match self.expr_key {
             Some(cond_key) => {
                 let now = RecordTime::next();
-                
+
                 let ((), then_key) = ctx.record_nested_block(kind, branch_state, f_then);
                 let ((), else_key) = ctx.record_nested_block(kind, branch_state, f_else);
-                
+
                 let stmt = Stmt::new(now, StmtKind::Flow(Flow::IfThenElse {
-                    cond: cond_key, 
+                    cond: cond_key,
                     then: then_key,
                     els : else_key,
                 }));
-                
+
                 ctx.blocks_mut()[ctx.current_block_key_unwrap()].add_stmt(stmt);
             },
             None => {
-                //functions still need to be executed, due to their potential side effects. 
+                //functions still need to be executed, due to their potential side effects.
                 //The resulting blocks will not be recorded into statements so that
                 //they don't actually end up in the shader code
                 let _unused = ctx.record_nested_block(kind, branch_state, f_then);
@@ -1049,7 +1049,7 @@ impl Any {
 
     pub fn record_for_loop(
         init_fn      : impl FnOnce(),
-        condition_fn : impl FnOnce() -> (Any, Stage), 
+        condition_fn : impl FnOnce() -> (Any, Stage),
         increment_fn : impl FnOnce(),
         body_fn      : impl FnOnce(),
     ) {
@@ -1064,7 +1064,7 @@ impl Any {
                 }
             })
         };
-        
+
         Context::with(|ctx| {
 
             let block_has_na_exprs = |key| match &mut ctx.blocks_mut()[key] {
@@ -1100,7 +1100,7 @@ impl Any {
 
                 // whether the condition expr is not available in this stage
                 let _cond_is_na = !cond_any.is_available();
-                
+
                 if cond_stage == ctx.shader_kind().into() {
                     for (block_name, block_has_na_exprs) in [
                         ("initialization block", init_block_has_na_exprs),
@@ -1118,12 +1118,12 @@ impl Any {
 
 
                 cond_any.is_available().then(|| {
-                    Stmt::new(RecordTime::next(), 
-                        StmtKind::Flow(Flow::For { 
-                            init: ctx.current_block_key_unwrap(), 
-                            cond: cond_block_key, 
-                            inc: inc_block_key, 
-                            body: body_block_key, 
+                    Stmt::new(RecordTime::next(),
+                        StmtKind::Flow(Flow::For {
+                            init: ctx.current_block_key_unwrap(),
+                            cond: cond_block_key,
+                            inc: inc_block_key,
+                            body: body_block_key,
                         })
                     )
                 })
@@ -1140,7 +1140,7 @@ macro_rules! impl_binary_operators {
     ($($Op: ident, $OpFunc: ident, $OpEnum: expr;)*) => {
         $(impl $Op<Any> for Any {
             type Output = Any;
-        
+
             fn $OpFunc(self, rhs: Any) -> Self::Output {
                 Any::by_recording_expr(ExprKind::Operator($OpEnum), &[self, rhs])
             }
@@ -1162,7 +1162,7 @@ macro_rules! impl_unary_operators {
     ($($Op: ident, $OpFunc: ident, $OpEnum: expr;)*) => {
         $(impl $Op for Any {
             type Output = Any;
-        
+
             fn $OpFunc(self) -> Self::Output {
                 Any::by_recording_expr(ExprKind::Operator($OpEnum), &[self])
             }
@@ -1218,7 +1218,7 @@ impl_assign_operators!{
 }
 
 macro_rules! impl_builtin_var_fns {
-    (   
+    (
         $builtin_var_ty: ident, $valid_shader_kind: expr, $exhaustive_check_fn: ident =>
         $(
             $fn_name: ident -> $builtin_var_enum: ident;
@@ -1261,7 +1261,7 @@ impl Any {
         f_front_facing -> gl_FrontFacing;
         f_point_coord -> gl_PointCoord;
 
-        f_sample_id -> gl_SampleID; 
+        f_sample_id -> gl_SampleID;
         f_sample_position -> gl_SamplePosition; //any usage of this will force per-sample evaluation
         f_sample_mask_in -> gl_SampleMaskIn;  //any usage of this will force per-sample evaluation
 
@@ -1283,7 +1283,7 @@ impl Any {
         //     gl_LocalInvocationID.y * gl_WorkGroupSize.x +
         //     gl_LocalInvocationID.x;
         c_local_invocation_index -> gl_LocalInvocationIndex;
-        
+
         c_work_group_size -> gl_WorkGroupSize;
     }
 }

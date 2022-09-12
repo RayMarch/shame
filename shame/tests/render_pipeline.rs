@@ -66,8 +66,8 @@ fn vertex_buffer_added() {
 
     let info = RenderPipelineInfo {
         vertex_buffers: vec![
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Vertex, 
+            VertexBufferInfo {
+                step_mode: VertexStepMode::Vertex,
                 attributes: vec![
                     AttributeInfo { location: 0, type_: Tensor::vec4() },
                 ]
@@ -101,8 +101,8 @@ fn instance_buffer_added() {
 
     let info = RenderPipelineInfo {
         vertex_buffers: vec![
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Instance, 
+            VertexBufferInfo {
+                step_mode: VertexStepMode::Instance,
                 attributes: vec![
                     AttributeInfo { location: 0, type_: Tensor::vec4() },
                 ]
@@ -145,15 +145,15 @@ fn vertex_buffer_mixed_interleaved() {
 
     let info = RenderPipelineInfo {
         vertex_buffers: vec![
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Vertex, 
+            VertexBufferInfo {
+                step_mode: VertexStepMode::Vertex,
                 attributes: vec![
                     AttributeInfo { location: 0, type_: Tensor::vec2() },
                     AttributeInfo { location: 1, type_: Tensor::vec3() },
                 ]
             },
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Vertex, 
+            VertexBufferInfo {
+                step_mode: VertexStepMode::Vertex,
                 attributes: vec![
                     AttributeInfo { location: 2, type_: Tensor::vec4() },
                 ]
@@ -189,15 +189,15 @@ fn vertex_attribute_matrix_locations() {
         void main() {
             gl_Position = vec4(0.);
         }
-    "    
-    
+    "
+
 );
     assert_eq_code!(&out.shaders_glsl.1, EMPTY_FSH);
 
     let info = RenderPipelineInfo {
         vertex_buffers: vec![
-            VertexBufferInfo { 
-                step_mode: VertexStepMode::Vertex, 
+            VertexBufferInfo {
+                step_mode: VertexStepMode::Vertex,
                 attributes: vec![
                     AttributeInfo { location: 0, type_: Tensor::mat4() },
                     AttributeInfo { location: 4, type_: Tensor::vec4() },
@@ -285,10 +285,10 @@ fn uniform_buffer_added() {
     let info = RenderPipelineInfo {
         bind_groups: vec![
             BindGroupInfo { index: 0, bindings: vec![
-                BindingInfo { 
-                    binding: 0, 
-                    binding_type: BindingType::UniformBuffer, 
-                    visibility: StageFlags::vertex_fragment(), //no fine grained stage tracking implemented yet 
+                BindingInfo {
+                    binding: 0,
+                    binding_type: BindingType::UniformBuffer,
+                    visibility: StageFlags::vertex_fragment(), //no fine grained stage tracking implemented yet
                 }
             ] }
         ],
@@ -311,30 +311,30 @@ fn mutating_expr_propagates_not_availableness() {
     macro_rules! test_tensor_types {
         (
             $(
-                $dtype: ty, $shape: ty => ($($op_assign: ident,)+); 
+                $dtype: ty, $shape: ty => ($($op_assign: ident,)+);
             )*
         ) => {$(
             shame::record_render_pipeline(|mut feat| {
                 type TenT = Ten<$shape, $dtype>;
-                
+
                 let i: TriangleList<u32> = feat.io.index_buffer();
                 let v = feat.io.vertex_buffer::<TenT>().copy();
-        
+
                 let poly = feat.raster.rasterize(float4::default(), Default::default(), i);
-        
+
                 let one = Ten::<$shape, f32>::one();
                 let f: TenT = poly.flat(one).cast();
-                
+
                 let u = TenT::one();
                 assert_eq!(u.stage(), Stage::Uniform);
                 assert!(u.as_any().is_available());
-                
+
                 $({
                     let mut u = TenT::one();
                     u.$op_assign(f);
                     assert_eq!(u.stage(), Stage::Fragment);
                     assert_eq!(shame::shader::is_fragment_shader(), u.as_any().is_available());
-            
+
                     let mut u = TenT::one();
                     u.$op_assign(v);
                     assert_eq!(u.stage(), Stage::Vertex);
@@ -362,5 +362,5 @@ fn mutating_expr_propagates_not_availableness() {
         bool => (add_assign, sub_assign, mul_assign, div_assign,);
     }
 
-    
+
 }

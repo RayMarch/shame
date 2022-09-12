@@ -17,11 +17,11 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
     ids.total_work_groups_dispatched(); // how many 64x64x1 groups got dispatched
 
     // a "3" at the end of the function suggests it is a 3 component coordinate vector
-    ids.local3(); //coords of this invocation within [0, 0, 0]..[64, 64, 1] 
+    ids.local3(); //coords of this invocation within [0, 0, 0]..[64, 64, 1]
     ids.global3(); // same as ids.work_group3() * ids.work_group_size() + ids.local3();
     ids.local(); // local3 but stretched out into a one dimensional index
 
-    // create bind groups like this 
+    // create bind groups like this
     // (not to be confused with work groups! Bind groups are called `sets` in glsl)
     let mut group0 = feat.io.group(); // bind group #0
     let mut group1 = feat.io.group(); //bind group #1
@@ -30,14 +30,14 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
     // you can add uniform blocks and read-only storage buffers like this
     let matrix: float4x4 = group0.uniform_block(); //group #0 binding #0
     let matrix: float4x4 = group0.storage(); //group #0 binding #1
-    
-    // shame encourages you to write your own additional wrappers around the group/binding 
+
+    // shame encourages you to write your own additional wrappers around the group/binding
     // calls, which also take care of some of your graphics-api specific setup. That way
-    // layouts/buffer types can be inferred when creating pipelines and recording binding 
+    // layouts/buffer types can be inferred when creating pipelines and recording binding
     // of resources into command buffers.
     // it is up to you to decide how far you let shame into your setup.
 
-    //read/write storage buffers are unsafe to access. 
+    //read/write storage buffers are unsafe to access.
     let mut matrix: UnsafeAccess<float4x4> = group0.storage_mut(); //binding #2
     unsafe {
         let matrix = matrix.access_mut();
@@ -78,7 +78,7 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
 
     // below is NOT how you make an array of `Foo`.
     //let foo_array: Array<Foo, _> = ...;
-    
+
     //instead do this
     let foo_array: Array<Struct<Foo>, Size<16>> = Array::new([foo0; 16]);
 
@@ -91,7 +91,7 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
     // Bar is a runtime-sized type, because it has a runtime-sized array at the end.
     #[derive(shame::Fields)]
     struct Bar {
-        head: float4, 
+        head: float4,
         ///this is a compile time sized array, it has no restrictions of where it can be used
         sized_array: Array<uint, Size<128>>,
         ///this is a runtime-sized array. it can only be used as the last field of a storage buffer layout
@@ -102,7 +102,7 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
     let bar0: Bar = group1.storage(); // group #1 binding #0
     let bar1: UnsafeAccess<Bar> = group1.storage_mut(); // group #1 binding #1
     //let bar2: Bar = group1.uniform_block(); //error
-    
+
     // runtime-sized array bindings don't need to be declared as rust structs
     // their type can be described right in the binding call
     let bar3: Array<float4x4> = group1.storage(); // group #1 binding #2
@@ -117,7 +117,7 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
     // the only exception is indexing shader compile-time sized arrays with
     // shader constants, which can be bounds checked when the shader is recorded.
     // use `at_const` insted of `at`
-    bar0.sized_array.at_const(127); 
+    bar0.sized_array.at_const(127);
 
     // note how the index only needs to be constant for the shader, the
     // rust value doesn't need to be constant
@@ -127,8 +127,8 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
         // or in other words, the loop gets unrolled.
     }
 
-    // if the behavior of unrolling feels unintuitive to you, you can always double check your 
-    // generated shader code every now and then. This way you can get a feel for which 
+    // if the behavior of unrolling feels unintuitive to you, you can always double check your
+    // generated shader code every now and then. This way you can get a feel for which
     // operations are unrolled and which aren't.
     // shame encourages you to write your own abstractions on top of the shame types, which
     // can "unroll" all kinds of interesting shader behavior!

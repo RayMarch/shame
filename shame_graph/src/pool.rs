@@ -34,7 +34,7 @@ impl<T> Pool<T> {
 impl<T> PoolRefMut<'_, T> {
     pub fn push(&mut self, t: T) -> Key<T> {
         let vec = &mut *self.store;
-    
+
         let index = vec.len();
         vec.push(t);
         Key::new(index, self.generation)
@@ -48,7 +48,7 @@ impl<T> Index<Key<T>> for PoolRefMut<'_, T> {
         assert!(key.generation == self.generation);
         &self.store[key.index]
     }
-} 
+}
 
 impl<T> IndexMut<Key<T>> for PoolRefMut<'_, T> {
 
@@ -115,9 +115,9 @@ impl<T> PartialEq for Key<T> {
 //workaround because we cannot derive copy and clone because of PhantomData
 impl<T> Clone for Key<T> {
     fn clone(&self) -> Self {
-        Self { 
-            generation: self.generation, 
-            index: self.index, 
+        Self {
+            generation: self.generation,
+            index: self.index,
             phantom: PhantomData
         }
     }
@@ -127,9 +127,9 @@ impl<T> Copy for Key<T> {}
 
 impl<T> Key<T> {
     fn new(index: usize, generation: NonZeroU32) -> Self {
-        Self { 
-            generation, 
-            index, 
+        Self {
+            generation,
+            index,
             phantom: PhantomData
         }
     }
@@ -145,10 +145,10 @@ impl<T> PoolRef<'_, T> {
     pub fn enumerate(&self) -> impl Iterator<Item=(Key<T>, &T)> {
         let generation = self.generation;
         self.iter().enumerate().map(move |(i, t)| {
-            (Key::new(i, generation), t) 
+            (Key::new(i, generation), t)
         })
     }
-    
+
 }
 
 impl<T> PoolRefMut<'_, T> {
@@ -156,8 +156,8 @@ impl<T> PoolRefMut<'_, T> {
     pub fn enumerate(&mut self) -> impl Iterator<Item=(Key<T>, &mut T)> {
         let generation = self.generation;
         self.iter_mut().enumerate().map(move |(i, t)| {
-            (Key::new(i, generation), t) 
+            (Key::new(i, generation), t)
         })
     }
-    
+
 }

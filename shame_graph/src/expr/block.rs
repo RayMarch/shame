@@ -18,23 +18,23 @@ pub enum BlockKind {
     /// - only expression statements allowed, which means
     ///     - no variable declarations/definitions in this block
     ///     - may not contain any blocks
-    /// 
+    ///
     /// contains either
     ///     - `Some(expr)` => the boolean condition expression
     ///     - `None` => infinite loop
     LoopCondition(Option<Key<Expr>>),
-    /// Block representing `inc` in `for(a; b; inc)` 
+    /// Block representing `inc` in `for(a; b; inc)`
     /// - only expression statements allowed, which means
     ///     - no variable declarations/definitions in this block
     ///     may not contain blocks of type: Body, LoopCondition, LoopIncrement, LoopInit
     LoopIncrement,
     /// Block representing `inc` in `for(a; b; inc)`
-    /// 
+    ///
     /// allowed statements are:
-    /// - declarations/definitions, but only if they all declare variables of 
+    /// - declarations/definitions, but only if they all declare variables of
     ///   the same type
     /// - expression statements
-    /// 
+    ///
     /// may not contain blocks of type Body.
     LoopInit,
 }
@@ -76,24 +76,24 @@ impl Default for BlockKind {
     fn default() -> Self {BlockKind::Body}
 }
 
-/// see [`BlockKind`] for what a block can be. 
+/// see [`BlockKind`] for what a block can be.
 pub struct Block {
     pub(crate) kind: BlockKind,
     pub(crate) branch_info: Option<(BranchState, Stage)>,
     /// Amount of times expressions were attempted to be recorded that contained
     /// exclusively `Any` objects that had a non available expression
-    /// e.g. "per-vertex" expressions during a fragment shader recording in this 
+    /// e.g. "per-vertex" expressions during a fragment shader recording in this
     /// block (not counting ones that happened in nested blocks).
-    /// 
+    ///
     /// this is a number instead of a bool to provide more info in an error message
     pub(crate) amount_of_attempts_recording_not_available_exprs: u32,
     /// amount of expressions that were successfully recorded in this block
     /// (not counting expressions recorded in nested blocks)
-    /// 
+    ///
     /// this is a number instead of a bool to provide more info in an error message
     pub(crate) amount_of_exprs_recorded: u32,
     pub(crate) parent: Option<Key<Block>>,
-    /// item it belongs to, in order to decide whether a function boundary was 
+    /// item it belongs to, in order to decide whether a function boundary was
     /// crossed during recording
     pub(crate) origin_item: Key<Item>,
     pub(crate) stmts: Vec<Stmt>,
@@ -102,8 +102,8 @@ pub struct Block {
 impl Block {
 
     pub(crate) fn new(
-        parent: Option<Key<Block>>, 
-        origin_item: Key<Item>, 
+        parent: Option<Key<Block>>,
+        origin_item: Key<Item>,
         branch_info: Option<(BranchState, Stage)>,
         kind: BlockKind) -> Block {
         Self {
@@ -130,7 +130,7 @@ impl Block {
 
     //             match (na_amount, expr_amount) {
     //                 (1.., 0) => (),
-                    
+
     //             }
     //             // ctx.push_error(Error::BlockRestrictionsViolated(
     //             //     format!("{}")

@@ -30,14 +30,14 @@ pub fn structs_example(mut feat: shame::RenderFeatures) {
     let mutable_storage: UnsafeAccess<Foo> = group0.storage_mut();
 
     // this struct does not show up in the shader code as such. To the shader
-    // only the creation of the individual fields as variables is visible. 
+    // only the creation of the individual fields as variables is visible.
     // therefore first, second and third are 3 separate vectors in the resulting shader code.
     let invisible_struct = Foo {
         first: float4::one(),
         second: float3::one(),
         third: float2::one(),
     };
-    
+
     // calling .rec() turns our value into a shame::Struct<Foo> which is visible
     // in the resulting shader code
     let visible_struct = Foo {
@@ -53,7 +53,7 @@ pub fn structs_example(mut feat: shame::RenderFeatures) {
         second: float3::one(),
         third: float2::one(),
     });
-    
+
     //flat composition feature of shame::Fields
     #[derive(shame::Fields)]
     struct PositionUvAnd<T: shame::Fields> {

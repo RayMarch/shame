@@ -35,31 +35,31 @@ macro_rules! glsl_decl_builtin_var_enum {
                 }
             }
         }
-        
+
     };
 }
 
 //https://www.khronos.org/opengl/wiki/Built-in_Variable_(GLSL)
-glsl_decl_builtin_var_enum!{ 
+glsl_decl_builtin_var_enum!{
     pub enum VertexVar {
         _in int gl_VertexID;       // only present when not targeting Vulkan
         _in int gl_InstanceID;     // only present when not targeting Vulkan
         _in int gl_VertexIndex;    // only present when targeting Vulkan
         _in int gl_InstanceIndex;  // only present when targeting Vulkan
-        
+
         out vec4 gl_Position;
         out float gl_PointSize;
         out float gl_ClipDistance[];
     }
 }
 
-glsl_decl_builtin_var_enum!{ 
+glsl_decl_builtin_var_enum!{
     pub enum FragmentVar {
         _in vec4 gl_FragCoord;
         _in bool gl_FrontFacing;
         _in vec2 gl_PointCoord;
 
-        _in int gl_SampleID; 
+        _in int gl_SampleID;
         _in vec2 gl_SamplePosition; //any usage of this will force per-sample evaluation
         _in int gl_SampleMaskIn[];  //any usage of this will force per-sample evaluation
 
@@ -70,14 +70,14 @@ glsl_decl_builtin_var_enum!{
     }
 }
 
-glsl_decl_builtin_var_enum!{ 
+glsl_decl_builtin_var_enum!{
     pub enum ComputeVar {
         _in uvec3 gl_NumWorkGroups;
         _in uvec3 gl_WorkGroupID;
         _in uvec3 gl_LocalInvocationID;
         _in uvec3 gl_GlobalInvocationID;
         _in uint  gl_LocalInvocationIndex;
-        
+
         _const uvec3 gl_WorkGroupSize;
     }
 }
@@ -95,7 +95,7 @@ impl BuiltinVar {
         BuiltinVar::FragmentVar(_) => ShaderKind::Fragment,
         BuiltinVar::ComputeVar (_) => ShaderKind::Compute,
     }}
-    
+
     pub fn glsl_str(&self) -> &'static str {
         match self {
             BuiltinVar::VertexVar  (x) => x.glsl_str(),
@@ -123,8 +123,8 @@ pub fn try_deduce_builtin_var(kind: &super::BuiltinVar, args: &[Ty]) -> Result<T
 
 #[allow(non_camel_case_types)]
 enum InOut {
-    _in, 
-    out, 
+    _in,
+    out,
     _const,
 }
 

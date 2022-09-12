@@ -41,7 +41,7 @@ pub fn derive_fields(input: TokenStream) -> TokenStream {
 
 fn generate_fields_tokens(input: syn::DeriveInput) -> Result<TokenStream2, Error> {
     match util::parse(&input) {
-        util::DeriveData::Struct(input, struct_data, named_fields) 
+        util::DeriveData::Struct(input, struct_data, named_fields)
             => Ok(derive_fields::impl_for_struct(input, struct_data, named_fields)),
         _ => Err(syn::Error::new(input.span(), "Must be used on a struct with named fields")),
     }
@@ -71,7 +71,7 @@ pub fn device(args: TokenStream, input: TokenStream) -> TokenStream {
 
 fn generate_mirror_tokens(kind: mirror::Kind, args: mirror::Args, input: syn::DeriveInput) -> Result<TokenStream2, Error> {
     match util::parse(&input) {
-        util::DeriveData::Struct(input, struct_data, named_fields) 
+        util::DeriveData::Struct(input, struct_data, named_fields)
             => Ok(mirror::impl_for_struct(kind, args, input, struct_data, named_fields)),
         _ => Err(syn::Error::new(input.span(), "Must be used on a struct with named fields")),
     }

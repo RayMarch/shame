@@ -16,14 +16,14 @@ macro_rules! glsl_generic_function_decls {
             );
         )*
     ) => {
-        
+
         [$(GlslGenericFunctionDecl {
             ret: $ret_type,
             name: stringify!($fn_name),
             args:          smallvec::SmallVec::from_slice(&[  $((    $arg_type, stringify!(    $arg_name))),*  ]),
             optional_args: smallvec::SmallVec::from_slice(&[$($(($opt_arg_type, stringify!($opt_arg_name))),*)?]),
         }),*]
-        
+
     };
 }
 
@@ -54,7 +54,7 @@ impl GlslGenericFunctionDecl {
     pub fn deduce_return_type(&self, args: &[Ty]) -> Option<Ty> {
 
         let allowed_arg_range = self.args.len()..=(self.args.len() + self.optional_args.len());
-        
+
         match allowed_arg_range.contains(&args.len()) {
             false => None,
             true => {

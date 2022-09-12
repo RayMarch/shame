@@ -11,7 +11,7 @@ pub struct Tensor {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DType {
-    Bool, F32, F64, I32, U32, 
+    Bool, F32, F64, I32, U32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,10 +23,10 @@ impl Display for DType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use DType::*;
         f.write_str(match self {
-            Bool => "bool", 
-            I32 => "i32", 
-            U32 => "u32", 
-            F32 => "f32", 
+            Bool => "bool",
+            I32 => "i32",
+            U32 => "u32",
+            F32 => "f32",
             F64 => "f64",
         })
     }
@@ -95,7 +95,7 @@ impl Tensor {
     pub fn len_wrt_subscript_operator(&self) -> Option<usize> {
         match self.shape {
             Shape::Scalar => None,
-            Shape::Vec(len) | 
+            Shape::Vec(len) |
             Shape::Mat(len, _) => Some(len as usize),
         }
     }

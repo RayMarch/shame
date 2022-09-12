@@ -9,7 +9,7 @@ pub enum PixelFormat {
     Depth(DepthFormat),
 }
 
-/// implemented by pixel format tag types (see `define_color_format_types` and 
+/// implemented by pixel format tag types (see `define_color_format_types` and
 /// `define_depth_format_types`)
 pub trait IsPixelFormat {
     /// the corresponding enum variant to `Self`
@@ -32,12 +32,12 @@ pub trait IsDepthFormat: IsPixelFormat {
 
 macro_rules! define_color_format_types {
     ($($format: ident: $item_type: ident, $pixel_format: expr,)*) => { //pixel_format is ignored for now
-        
+
         $(
             #[allow(non_camel_case_types)]
             #[doc = std::concat!(
-                std::stringify!($format), 
-                " is a color format which can be written via a ", 
+                std::stringify!($format),
+                " is a color format which can be written via a ",
                 std::stringify!($item_type)
             )]
             pub struct $format;
@@ -63,11 +63,11 @@ macro_rules! define_color_format_types {
 
 macro_rules! define_depth_format_types {
     ($($format: ident, $pixel_format: expr,)*) => { //pixel_format is ignored for now
-        
+
         $(
             #[allow(non_camel_case_types)]
             #[doc = std::concat!(
-                std::stringify!($format), 
+                std::stringify!($format),
                 " is a depth format",
             )]
             pub struct $format;
@@ -106,18 +106,18 @@ define_color_format_types! {
     RGB_32_32_32_sFloat: float3,      PixelFormat::R32G32B32_SFLOAT,
     RGBA_32_32_32_32_sFloat: float4,  PixelFormat::R32G32B32A32_SFLOAT,
     RGBA_16_16_16_16_sFloat: float4,  PixelFormat::R16G16B16A16_SFLOAT,
-    
+
     // sRGB color formats, pixels are converted at read/write operations
     R_8_sRGB: float,          PixelFormat::R8_SRGB,
     RG_88_sRGB: float2,       PixelFormat::R8G8_SRGB,
     RGB_888_sRGB: float3,     PixelFormat::R8G8B8_SRGB,
     RGBA_8888_sRGB: float4,   PixelFormat::R8G8B8A8_SRGB,
-    
+
     // // BGRA Formats
     BGRA_8888: float4,        PixelFormat::B8G8R8A8,
     BGR_888_sRGB: float3,     PixelFormat::B8G8R8_SRGB,
     BGRA_8888_sRGB: float4,   PixelFormat::B8G8R8A8_SRGB,
-    
+
     // HDR Formats
     ABGR_2_10_10_10_Pack32: float4, PixelFormat::A2B10G10R10UnormPack32,
     ARGB_2_10_10_10_Pack32: float4, PixelFormat::A2R10G10B10UnormPack32,

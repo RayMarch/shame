@@ -27,7 +27,7 @@ impl Parse for Args {
         let pre_star: Option<Token![*]> = args.parse().ok();
         let name: syn::Ident = args.parse()?;
         let post_star: Option<Token![*]> = args.parse().ok();
-        
+
         let name_ext = match (pre_star, post_star) {
             (None, None) => NameExtension::Replace(name),
             (None, Some(_)) => NameExtension::Prefix(name),
@@ -36,7 +36,7 @@ impl Parse for Args {
                 return Err(syn::Error::new(args.span(), "only one asterisk allowed either before or after the identifier"))
             },
         };
-        
+
         let maybe_comma: Option<Token![,]> = args.parse().ok();
         let module_path: Option<syn::Path> = maybe_comma.and_then(|_| args.parse().ok());
 
@@ -71,17 +71,17 @@ pub fn push_ident_onto_path(path: &Option<Path>, ident: Ident) -> Path {
 pub fn impl_for_struct(kind: Kind, args: Args, input: &DeriveInput, _struct_data: &DataStruct, fields: &FieldsNamed) -> TokenStream2 {
     let host_trait   = push_ident_onto_path(&args.module_path, Ident::new("Host", Span::call_site()));
     let device_trait = push_ident_onto_path(&args.module_path, Ident::new("Device", Span::call_site()));
-    
+
     match kind {
         Kind::Host => {
             let host_type = &input.ident;
             let device_type = make_mirror_type_ident(host_type, args.name_ext);
 
-            let host_fields = map_fields(fields, |span, ident, ty| quote_spanned! {span => 
+            let host_fields = map_fields(fields, |span, ident, ty| quote_spanned! {span =>
                 #ident: #ty
             });
 
-            let device_fields = map_fields(fields, |span, ident, ty| quote_spanned! {span => 
+            let device_fields = map_fields(fields, |span, ident, ty| quote_spanned! {span =>
                 #ident: <#ty as #host_trait>::Device
             });
 
@@ -91,17 +91,17 @@ pub fn impl_for_struct(kind: Kind, args: Args, input: &DeriveInput, _struct_data
                 struct #host_type {
                     #(#host_fields),*
                 }
-            
+
                 #[derive(shame::Fields)]
-                #[allow(non_camel_case_types)] 
+                #[allow(non_camel_case_types)]
                 struct #device_type {
                     #(#device_fields),*
                 }
-            
+
                 impl #device_trait for #device_type {
                     type Host = #host_type;
                 }
-            
+
                 impl #host_trait for #host_type {
                     type Device = #device_type;
                     fn as_bytes(&self) ->  &[u8] {
@@ -113,32 +113,32 @@ pub fn impl_for_struct(kind: Kind, args: Args, input: &DeriveInput, _struct_data
         Kind::Device => {
             let device_type = &input.ident;
             let host_type = make_mirror_type_ident(device_type, args.name_ext);
-        
-            let host_fields = map_fields(fields, |span, ident, ty| quote_spanned! {span => 
+
+            let host_fields = map_fields(fields, |span, ident, ty| quote_spanned! {span =>
                 #ident: <#ty as #device_trait>::Host
             });
-        
-            let device_fields = map_fields(fields, |span, ident, ty| quote_spanned! {span => 
+
+            let device_fields = map_fields(fields, |span, ident, ty| quote_spanned! {span =>
                 #ident: #ty
             });
-        
+
             quote!{
                 #[repr(C)]
                 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-                #[allow(non_camel_case_types)] 
+                #[allow(non_camel_case_types)]
                 struct #host_type {
                     #(#host_fields),*
                 }
-            
+
                 #[derive(shame::Fields)]
                 struct #device_type {
                     #(#device_fields),*
                 }
-            
+
                 impl #device_trait for #device_type {
                     type Host = #host_type;
                 }
-            
+
                 impl #host_trait for #host_type {
                     type Device = #device_type;
                     fn as_bytes(&self) ->  &[u8] {

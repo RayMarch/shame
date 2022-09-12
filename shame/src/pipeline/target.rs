@@ -13,7 +13,7 @@ pub struct Color<CF: IsColorFormat> {
 }
 
 impl<CF: IsColorFormat> Color<CF> {
-    
+
     /// assign color values to the pixels in this rendertarget
     /// (same as `set`, couldn't decide on a name)
     pub fn write(mut self, color_value: impl AsTen<S=<CF::Item as AsTen>::S, D=<CF::Item as AsTen>::D>) {
@@ -81,35 +81,35 @@ pub struct Depth<DF: IsDepthFormat> { //TODO: multisampling depth buffer
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DepthTest {
     /// the fragment always passes the depth test
-    Always, 
+    Always,
     /// the fragment never passes the depth test
     Never,
-    /// the fragment passes if its depth value is less than the value in the 
+    /// the fragment passes if its depth value is less than the value in the
     /// depth buffer
     Less,
     /// the fragment passes if its depth value is equal to the value in the
     /// depth buffer
     Equal,
-    /// the fragment passes if its depth value is greater than the value in the 
+    /// the fragment passes if its depth value is greater than the value in the
     /// depth buffer
     Greater,
-    /// the fragment passes if its depth value is <= than the value in the depth 
+    /// the fragment passes if its depth value is <= than the value in the depth
     /// buffer
     LessOrEqual,
-    /// the fragment passes if its depth value is >= than the value in the depth 
+    /// the fragment passes if its depth value is >= than the value in the depth
     /// buffer
     GreaterOrEqual,
-    /// the fragment passes if its depth value is != than the value in the depth 
+    /// the fragment passes if its depth value is != than the value in the depth
     /// buffer
     NotEqual,
 }
 
 /// value that should be written to the depth buffer
 pub enum DepthWrite {
-    /// a specific per-fragment float value (this value is converted to the 
+    /// a specific per-fragment float value (this value is converted to the
     /// depth format of the respective depth buffer)
     Write(float),
-    /// write the z value of the interpolated clip-space position that was 
+    /// write the z value of the interpolated clip-space position that was
     /// passed to the rasterizer
     PrimitiveZ,
     /// don't write a depth value. Keep the one that is currently in the buffer
@@ -119,9 +119,9 @@ pub enum DepthWrite {
 impl<DF: IsDepthFormat> Depth<DF> {
 
     /// perform a depth test and/or write a value to the depth buffer
-    /// 
+    ///
     /// if you don't want to depth-test, use [`DepthTest::Always`]
-    /// 
+    ///
     /// if you don't want to depth-write, use [`DepthWrite::Off`]
     pub fn test_write(self, test: DepthTest, write: DepthWrite) {
         with_thread_render_pipeline_info_mut(|r| {

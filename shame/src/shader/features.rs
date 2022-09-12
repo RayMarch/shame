@@ -123,7 +123,7 @@ impl ComputeIO<'_> {
     where It: Iterator<Item=u32> {
         Group::new(group_index, binding_index_iterator)
     }
-    
+
 }
 
 impl RenderIO<'_> {
@@ -139,12 +139,12 @@ impl RenderIO<'_> {
 
     /// creates a vertex stream builder for adding vertex attributes to the
     /// inputs of the currently recorded shader.
-    /// 
-    /// the attribute location iterator will skip locations that are overlapping 
+    ///
+    /// the attribute location iterator will skip locations that are overlapping
     /// with previously used locations
-    /// e.g. if the iterator provides [0, 2, 4..] and the user binds a mat4 and 
-    /// then a vec4, the mat4 will be assigned location 0, and the vec4 will be 
-    /// assigned location 4, since the mat4 occupies locations 0, 1, 2, 3 for 
+    /// e.g. if the iterator provides [0, 2, 4..] and the user binds a mat4 and
+    /// then a vec4, the mat4 will be assigned location 0, and the vec4 will be
+    /// assigned location 4, since the mat4 occupies locations 0, 1, 2, 3 for
     /// its 4 column vectors.
     #[must_use]
     pub fn vertex<It>(&self, attribute_location_iterator: It) -> VertexStreamBuilder<It>
@@ -195,7 +195,7 @@ pub struct VertexStreamBuilder<It: Iterator<Item=u32>> {
     attribute_location_iterator: LocationIter<It>,
 }
 
-/// add fragment outputs (color attachments) inputs to the currently recorded 
+/// add fragment outputs (color attachments) inputs to the currently recorded
 /// shader
 pub struct FragmentOutputsBuilder<It: Iterator<Item=u32>> {
     output_location_iterator: It,
@@ -213,7 +213,7 @@ impl<It: Iterator<Item=u32>> Group<It> {
     fn new(group_index: u32, binding_index_iterator: It) -> Self
     where It: Iterator<Item=u32> {
         Group {
-            group_index, 
+            group_index,
             bindings: Vec::new(),
             binding_index_iterator,
         }
@@ -229,9 +229,9 @@ impl<It: Iterator<Item=u32>> Group<It> {
     }
 
     /// add a mutable storage buffer binding to this group
-    /// 
-    /// mutable storage buffers allow for all kinds of memory race conditions, 
-    /// until we figure out how to expose them through safe highlevel sync 
+    ///
+    /// mutable storage buffers allow for all kinds of memory race conditions,
+    /// until we figure out how to expose them through safe highlevel sync
     /// primitives, using them will remain unsafe
     pub fn storage_mut<T: Fields>(&mut self) -> UnsafeAccess<T> {
         use shame_graph::*;
@@ -295,7 +295,7 @@ impl<It: Iterator<Item=u32>> VertexStreamBuilder<It> {
         use shame_graph::*;
         let stage = crate::Stage::Vertex;
         let mut loc_iter = &mut self.attribute_location_iterator;
-        
+
         let mut attribute_for_tensor = |ctx: &Context, ten: Tensor, name: &str| -> Option<(Any, Tensor, Range<u32>)> {
             let mut shader = ctx.shader_mut();
             match &mut shader.stage_interface {
@@ -308,16 +308,16 @@ impl<It: Iterator<Item=u32>> VertexStreamBuilder<It> {
                 _ => None,
             }
         };
-        
+
         let non_tensor_error = |ctx: &Context, ty, name| -> Any {
             let fields_of = T::parent_type_name().map(|p| format!(" of `{p}`")).unwrap_or_default();
             let err_text = format!("cannot interpret field `{}: {}`{} as a vertex attribute, only tensor types `Ten<S, D>` allowed (e.g. `floatN`, `floatMxN`)", name, &ty, fields_of);
             ctx.push_error(Error::TypeError(err_text));
             Any::not_available()
         };
-        
+
         let mut ranges = Vec::new();
-        
+
         let t = Context::with(|ctx| {
             T::from_fields_downcast(None, &mut |ty, name| -> (Any, crate::Stage) {
                 let any = match ty.kind {
@@ -343,7 +343,7 @@ impl<It: Iterator<Item=u32>> FragmentOutputsBuilder<It> {
     }
 
     /// add a color target to the currently recorded shader
-    pub fn color<Ten: AsTen>(&mut self) -> WriteOnly<Ten::S, Ten::D> 
+    pub fn color<Ten: AsTen>(&mut self) -> WriteOnly<Ten::S, Ten::D>
     where Ten::S: IsShapeScalarOrVec {
         self.color_with_ident::<Ten>(Some("color_out".to_string()))
     }
@@ -351,7 +351,7 @@ impl<It: Iterator<Item=u32>> FragmentOutputsBuilder<It> {
     /// add a color target to the currently recorded shader.
     /// The color target will be called `ident` in the generated shader code
     /// if possible.
-    pub fn color_with_ident<Ten: AsTen>(&mut self, ident: Option<String>) -> WriteOnly<Ten::S, Ten::D> 
+    pub fn color_with_ident<Ten: AsTen>(&mut self, ident: Option<String>) -> WriteOnly<Ten::S, Ten::D>
     where Ten::S: IsShapeScalarOrVec { //TODO: replace with better writeonly type
         let location = self.next_location();
 
@@ -391,7 +391,7 @@ impl<'a> Raster<'a> {
     /// primitive topology specified elsewhere in your application.
     pub fn rasterize(mut self, clip_space_position: float4,) -> Primitive<'a> {
         assert::assert_string(
-            !Context::with(|ctx| ctx.inside_branch().is_some()), 
+            !Context::with(|ctx| ctx.inside_branch().is_some()),
             "rasterize cannot be called from within conditional blocks such as if-then/if-then-else/for/while."
         );
         Any::v_position().assign(clip_space_position.as_any());
@@ -403,7 +403,7 @@ impl<'a> Raster<'a> {
 impl Drop for Raster<'_> {
     fn drop(&mut self) {
         assert::assert_string(
-            !self.needs_to_be_used, 
+            !self.needs_to_be_used,
             "rasterizer was dropped before being used. A vertex stage recording must call the rasterizer via `features.raster.rasterize(...)`."
         );
     }
@@ -416,13 +416,13 @@ pub struct WorkGroupSetup<'a> {pub(crate) _phantom: PhantomData<&'a ()>}
 impl WorkGroupSetup<'_> {
 
     /// sets the `local_size_*` and provides access to invocation ids/sizes.
-    /// 
-    /// produces the following glsl: 
+    ///
+    /// produces the following glsl:
     /// ```text
     /// layout(local_size_x = X​, local_size_y = Y​, local_size_z = Z​) in;
     /// ```
     /// where `[X, Y, Z] = workgroup_size`
-    /// 
+    ///
     pub fn work_group(self, workgroup_size: [usize; 3]) -> Ids {
         Context::with(|ctx| {
             let mut shader = ctx.shader_mut();
@@ -463,7 +463,7 @@ impl Ids {
     /// ```text
     ///   gl_LocalInvocationIndex =
     ///       gl_LocalInvocationID.z * gl_WorkGroupSize.x * gl_WorkGroupSize.y +
-    ///       gl_LocalInvocationID.y * gl_WorkGroupSize.x + 
+    ///       gl_LocalInvocationID.y * gl_WorkGroupSize.x +
     ///       gl_LocalInvocationID.x;
     /// ```
     pub fn local(&self) -> uint {
@@ -471,7 +471,7 @@ impl Ids {
     }
 
     /// glsl: `gl_GlobalInvocationID`
-    /// 
+    ///
     /// `gl_GlobalInvocationID = gl_WorkGroupID * gl_WorkGroupSize + gl_LocalInvocationID`
     pub fn global3(&self) -> uint3 {
         Any::c_global_invocation_id().downcast(Stage::Uniform)

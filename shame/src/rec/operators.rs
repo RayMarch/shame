@@ -12,7 +12,7 @@ macro_rules! impl_add_sub_div_operators {
     ) => {
         $(//ops unroll
             //impl for all Ten types and all Rhs possibilities
-            impl<LhsS: $shape_restrict, Rhs: AsTen> $Add<Rhs> for Ten<LhsS, Rhs::D> 
+            impl<LhsS: $shape_restrict, Rhs: AsTen> $Add<Rhs> for Ten<LhsS, Rhs::D>
             where (LhsS, Rhs::S): ScalarOrSame {
                 type Output = Ten<<(LhsS, Rhs::S) as ScalarOrSame>::Widest, Rhs::D>;
 
@@ -22,7 +22,7 @@ macro_rules! impl_add_sub_div_operators {
             }
 
             //impl for all Rhs possibilities
-            impl<S: $shape_restrict, T: AsTen> $AddAssign<T> for Ten<S, T::D> 
+            impl<S: $shape_restrict, T: AsTen> $AddAssign<T> for Ten<S, T::D>
             where T::S: IsScalarOr<S> {
                 fn $add_assign(&mut self, rhs: T) {
                     self.binary_assign_op(rhs, Operator:: $AddAssignOp);
@@ -67,22 +67,22 @@ impl<S: IsShapeScalarOrVec> Not for Ten<S, bool> {
         match S::SHAPE {
             Scalar => self.into_any().not(),
             Vec(_) => self.into_any().not_each(),
-            Mat(_, _) => 
+            Mat(_, _) =>
             unreachable!("calling `not` operator on matrix Ten type"),
         }
         .downcast(self.stage())
     }
 }
 
-impl<LhsS: Shape, Rhs: AsTen> MulAssign<Rhs> for Ten<LhsS, Rhs::D> 
+impl<LhsS: Shape, Rhs: AsTen> MulAssign<Rhs> for Ten<LhsS, Rhs::D>
 where (LhsS, Rhs::S): CanBeMultiplied {
-    
+
     fn mul_assign(&mut self, rhs: Rhs) {
         self.binary_assign_op(rhs, Operator::MulAssign)
     }
 }
 
-impl<LhsS: Shape, Rhs: AsTen> Mul<Rhs> for Ten<LhsS, Rhs::D> 
+impl<LhsS: Shape, Rhs: AsTen> Mul<Rhs> for Ten<LhsS, Rhs::D>
 where (LhsS, Rhs::S): CanBeMultiplied {
     type Output = Ten<<(LhsS, Rhs::S) as CanBeMultiplied>::Output, Rhs::D>;
 
@@ -93,7 +93,7 @@ where (LhsS, Rhs::S): CanBeMultiplied {
 
 macro_rules! impl_lhs_rust_primitive_type_mul {
     ($(Ten<_, $dtype: ty> * $fXX: ident,)*) => {$(
-        impl<RhsS: Shape> Mul<Ten<RhsS, $dtype>> for $fXX 
+        impl<RhsS: Shape> Mul<Ten<RhsS, $dtype>> for $fXX
         where {
             type Output = Ten<RhsS, $dtype>;
 
@@ -105,7 +105,7 @@ macro_rules! impl_lhs_rust_primitive_type_mul {
     )*};
 }
 impl_lhs_rust_primitive_type_mul!(
-    Ten<_, f32> * f32, 
+    Ten<_, f32> * f32,
     Ten<_, i32> * i32,
     Ten<_, u32> * u32,
 );
@@ -121,14 +121,14 @@ impl<S: Shape, D: DType> Ten<S, D> {
     }
 
     /// records an assignment `=` operator in the shader. This is necessary
-    /// because rust does not support overloading of the `=` operator itself. 
+    /// because rust does not support overloading of the `=` operator itself.
     pub fn set(&mut self, val: impl AsTen<S=S, D=D>) {
         self.binary_assign_op(val, Operator::Assign);
     }
 
     /// records an assignment `=` operator in the shader. This is necessary
-    /// because rust does not support overloading of the `=` operator itself. 
-    /// 
+    /// because rust does not support overloading of the `=` operator itself.
+    ///
     /// this function does the same as `set`, i couldn't settle on a naming yet
     pub fn assign(&mut self, val: impl AsTen<S=S, D=D>) {
         self.set(val);
@@ -137,9 +137,9 @@ impl<S: Shape, D: DType> Ten<S, D> {
     /// create a copy of `self` in the shader.
     /// This will most likely be realized in the shader by declaring a new
     /// variable and assigning the value to it, then returning that new variable
-    /// 
-    /// Not to be confused with the behavior of the `Clone` or `Copy` traits, 
-    /// which would merely clone the recording reference and have no effect on 
+    ///
+    /// Not to be confused with the behavior of the `Clone` or `Copy` traits,
+    /// which would merely clone the recording reference and have no effect on
     /// the resulting shader
     pub fn copy(&self) -> Self {
         self.into_any().copy().downcast(self.stage)

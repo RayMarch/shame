@@ -90,7 +90,7 @@ use Associativity::*;
 
 enum_properties! {
 
-    /// see https://www.khronos.org/registry/OpenGL/specs/gl/GLSLangSpec.4.60.pdf 
+    /// see https://www.khronos.org/registry/OpenGL/specs/gl/GLSLangSpec.4.60.pdf
     /// chapter 5.1 operators
     #[derive(Debug, Clone)]
     pub enum Operator: OperatorProps {
@@ -169,9 +169,9 @@ enum_properties! {
         Dfdx        {glsl_str: "dFdx"},
         Dfdy        {glsl_str: "dFdy"},
         DfdxCoarse  {glsl_str: "dFdxCoarse"},
-        DfdyCoarse  {glsl_str: "dFdyCoarse"},      
+        DfdyCoarse  {glsl_str: "dFdyCoarse"},
         DfdxFine    {glsl_str: "dFdxFine"},
-        DfdyFine    {glsl_str: "dFdyFine"},  
+        DfdyFine    {glsl_str: "dFdyFine"},
         Round       {glsl_str: "round"},
         Ceil        {glsl_str: "ceil"},
         Floor       {glsl_str: "floor"},

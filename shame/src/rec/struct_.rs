@@ -4,13 +4,13 @@ use shame_graph::{Any, Ty, TyKind, Named};
 use super::{Stage, Rec, IntoRec, fields::Fields, narrow_stages_or_push_error};
 
 #[derive(Clone, Copy)]
-// FIXME: the T within structs can be accessed mutably, which is fine for 
+// FIXME: the T within structs can be accessed mutably, which is fine for
 // operators like `+=` etc, but might result in unexpected behavior when using `=`
-// to overwrite the member recording-reference (instead of overwriting its value). 
-// This can be made less surprising if T is RefCell'd and recreated/validated on 
-// Deref::deref and Deref::deref_mut. That way a "wrong" later access after modification 
+// to overwrite the member recording-reference (instead of overwriting its value).
+// This can be made less surprising if T is RefCell'd and recreated/validated on
+// Deref::deref and Deref::deref_mut. That way a "wrong" later access after modification
 // of members can be detected and an error can be pushed
-/// A struct [`Rec`] recording type that uses `T`'s fields as the struct's 
+/// A struct [`Rec`] recording type that uses `T`'s fields as the struct's
 /// fields.
 pub struct Struct<T: Fields> {
     t: T,
@@ -49,7 +49,7 @@ impl<T: Fields> Struct<T> {
         let stages = fields.iter().map(|(_, stage)| *stage);
 
         let any = Any::struct_initializer(
-            Self::get_or_declare_struct(), 
+            Self::get_or_declare_struct(),
             &anys
         );
 
@@ -62,8 +62,8 @@ impl<T: Fields> Struct<T> {
     pub fn set(&mut self, val: &Self) {
         // decided to take a ref as first argument because Self might not impl copy, and a clone() by the user is unnecessary
         let stage = narrow_stages_or_push_error([self.stage, val.stage]);
-        let mut any = self.any; 
-        any.assign(val.any); 
+        let mut any = self.any;
+        any.assign(val.any);
         // `assign` may overwrite `any` if `val` is NA,
         // therefore we must downcast `any` to get the new `self` struct
         *self = Self::from_downcast(any, stage);
@@ -79,8 +79,8 @@ impl<T: Fields> Struct<T> {
         })
     }
 
-    /// records creation of a copy of this struct. 
-    /// 
+    /// records creation of a copy of this struct.
+    ///
     /// Not to be confused with the behavior of the `Clone` or `Copy` traits, which the
     /// user may define on their `T: Fields` (and thus derive on `Struct<T>` aka `Self`), which
     /// would merely clone the recording reference and have no effect on the resulting shader
@@ -123,7 +123,7 @@ pub fn prepare_field_selects<T: Fields>(parent: (Any, Stage), s: shame_graph::St
             Some(x) => p_any.field_select(x),
             None => Any::not_available(),
         };
-        
+
         (any, p_stage)
     });
 
@@ -134,7 +134,7 @@ pub fn prepare_field_selects<T: Fields>(parent: (Any, Stage), s: shame_graph::St
             ))
         })
     }
-    
+
     t
 }
 
@@ -147,8 +147,8 @@ impl<T: Fields> DerefMut for Struct<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {&mut self.t}
 }
 
-impl<T: Fields + Default> Default for Struct<T> 
-where T: IntoRec<Rec=Self> //always the case 
+impl<T: Fields + Default> Default for Struct<T>
+where T: IntoRec<Rec=Self> //always the case
 {
     fn default() -> Self {
         T::default().rec()

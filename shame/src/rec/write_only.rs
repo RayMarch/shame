@@ -14,7 +14,7 @@ impl<S: Shape, D: DType> WriteOnly<S, D> {
     pub fn new(any: Any, stage: Stage) -> Self {
         let any = any.ty_via_thread_ctx().map(|ty| {
             assert::assert_string(
-                ty.access == Access::WriteOnly, 
+                ty.access == Access::WriteOnly,
                 format!("cannot downcast {ty} to WriteOnly type")
             ).unwrap_or(any)
         }).unwrap_or(Any::not_available());
@@ -38,7 +38,7 @@ impl<S: Shape, D: DType> WriteOnly<S, D> {
     }
 
     /// assign `val` to `self`
-    /// 
+    ///
     /// alternative naming to `write`
     pub fn set(&mut self, val: impl AsTen<S=S, D=D>) {
         let val = val.as_ten();
@@ -46,7 +46,7 @@ impl<S: Shape, D: DType> WriteOnly<S, D> {
     }
 
     /// assign `val` to `self`
-    /// 
+    ///
     /// alternative naming to `set`
     pub fn write(&mut self, val: impl AsTen<S=S, D=D>) {
         self.set(val)

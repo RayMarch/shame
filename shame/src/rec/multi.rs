@@ -124,7 +124,7 @@ impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType, DS: Shape
 pub trait MinMaxTuple {
     /// output tuple of `impl`[`Rec`] types
     type Output;
-    
+
     /// returns the minimum of all tuple members
     fn min(self) -> Self::Output;
     /// returns the maximum of all tuple members
@@ -135,7 +135,7 @@ macro_rules! impl_MinMaxTuple {
     ($A: ident $(, $Tail: ident)*) => {
         impl<$A: AsFloat, $($Tail: AsFloat),*> MinMaxTuple for ($A, $($Tail),*) {
             type Output = float;
-        
+
             fn min(self) -> Self::Output {
                 #[allow(non_snake_case)] let ($A, $($Tail),*) = self;
                 #[allow(non_snake_case)] let ($A, $($Tail),*) = ($A.as_ten(), $($Tail.as_ten()),*);
@@ -145,7 +145,7 @@ macro_rules! impl_MinMaxTuple {
                 )*
                 val
             }
-        
+
             fn max(self) -> Self::Output {
                 #[allow(non_snake_case)] let ($A, $($Tail),*) = self;
                 #[allow(non_snake_case)] let ($A, $($Tail),*) = ($A.as_ten(), $($Tail.as_ten()),*);

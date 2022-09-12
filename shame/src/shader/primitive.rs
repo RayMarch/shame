@@ -26,7 +26,7 @@ impl Primitive<'_> {
 
     /// flat interpolation (see `TerpKind` or glsl "flat")
     pub fn flat<T: Terpable>(&self, value: T) -> T::Output {self.terp(value, TerpKind::Flat)}
-    
+
 }
 
 /// kind of interpolation
@@ -35,7 +35,7 @@ pub enum TerpKind { //TODO: get rid of this enum and use shame_graph version ins
     /// glsl "noperspective", linear interpolation (aka Barycentric Interpolation)
     Linear,
     /// glsl "smooth", divides linear result by homogenous "w" component from rasterizer position
-    LinearPerpectiveDivide, 
+    LinearPerpectiveDivide,
     /// glsl "flat", no transition, just one value across the primitive. see glsl documentation to know which one
     Flat,
 }
@@ -64,7 +64,7 @@ impl<S: Shape, D: IsDTypeNumber> Terpable for &Ten<S, D> {
     fn terp(self, kind: TerpKind, _p: &Primitive) -> Self::Output {
 
         assert::assert_string(
-            !Context::with(|ctx| ctx.inside_branch().is_some()), 
+            !Context::with(|ctx| ctx.inside_branch().is_some()),
             "interpolation functions cannot be called from within conditional blocks such as if-then/if-then-else/for/while."
         );
 
