@@ -1,0 +1,5 @@
+unstable_features = true
+force_multiline_blocks = false
+format_macro_bodies = false
+fn_single_line = true
+max_width = 120
