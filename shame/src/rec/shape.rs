@@ -225,7 +225,7 @@ macro_rules! impl_can_be_multiplied_mat_times_mat {
     }
 }
 
-impl_can_be_multiplied_mat_times_mat!(
+impl_can_be_multiplied_mat_times_mat!{
     (mat2, * //⠃⠃
         (mat2   => mat2  ), //⠃⠃ * ⠃⠃   =  ⠃⠃
         (mat3x2 => mat3x2), //⠃⠃ * ⠃⠃⠃  =  ⠃⠃⠃
@@ -271,4 +271,4 @@ impl_can_be_multiplied_mat_times_mat!(
         (mat3x4 => mat3x4), //⡇⡇⡇⡇ * ⡇⡇⡇  =  ⡇⡇⡇
         (mat4   => mat4  ), //⡇⡇⡇⡇ * ⡇⡇⡇⡇ =  ⡇⡇⡇⡇
     ),
-);
+}

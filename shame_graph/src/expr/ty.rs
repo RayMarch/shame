@@ -154,7 +154,7 @@ impl Ty {
     pub fn as_lvalue    (&self) -> Ty {Self {kind: self.kind.clone(), access: Access::LValue     }}
 
     //calls the Tensor constructors with default mutability
-    define_ty_tensor_init!(
+    define_ty_tensor_init!{
         float, double,
         int, uint,
         bool,
@@ -169,7 +169,7 @@ impl Ty {
         dmat2  , dmat2x3, dmat2x4,
         dmat3x2, dmat3  , dmat3x4,
         dmat4x2, dmat4x3, dmat4
-    );
+    }
 
 }
 

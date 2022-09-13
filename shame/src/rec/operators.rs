@@ -104,11 +104,11 @@ macro_rules! impl_lhs_rust_primitive_type_mul {
         }
     )*};
 }
-impl_lhs_rust_primitive_type_mul!(
+impl_lhs_rust_primitive_type_mul!{
     Ten<_, f32> * f32,
     Ten<_, i32> * i32,
     Ten<_, u32> * u32,
-);
+}
 
 impl<S: Shape, D: DType> Ten<S, D> {
 
