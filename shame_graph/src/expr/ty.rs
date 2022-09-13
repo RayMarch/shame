@@ -1,6 +1,5 @@
-
-use std::{fmt::Display, rc::Rc};
 use crate::{Context, Error};
+use std::{fmt::Display, rc::Rc};
 
 use super::*;
 
@@ -15,7 +14,10 @@ pub struct TexDtypeDimensionality(pub DType, pub TexDimensionality);
 
 impl TexDtypeDimensionality {
     pub fn new(dtype: DType, kind: TexDimensionality) -> Self {
-        assert!([DType::I32, DType::U32, DType::F32].contains(&dtype), "glsl only supports i32, u32 or f32 sampler types");
+        assert!(
+            [DType::I32, DType::U32, DType::F32].contains(&dtype),
+            "glsl only supports i32, u32 or f32 sampler types"
+        );
         Self(dtype, kind)
     }
 }
@@ -24,10 +26,10 @@ impl TexDtypeDimensionality {
 pub enum OpaqueTy {
     TextureCombinedSampler(TexDtypeDimensionality), //glsl samplerND, see glsl spec 5.4.5. Texture-Combined Sampler Constructors
     ShadowSampler(ShadowSamplerKind),
-    Sampler, //glsl sampler, wgpu bindingtype sampler
+    Sampler,                         //glsl sampler, wgpu bindingtype sampler
     Texture(TexDtypeDimensionality), //glsl textureND, wgpu bindingtype texture
-    Image(TexDtypeDimensionality), //not implemented yet //glsl image, wgpu bindingtype storage texture
-    AtomicCounter(()), //Not Implemented Yet
+    Image(TexDtypeDimensionality),   //not implemented yet //glsl image, wgpu bindingtype storage texture
+    AtomicCounter(()),               //Not Implemented Yet
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,7 +61,7 @@ pub enum Access {
 }
 
 impl Default for Access {
-    fn default() -> Self {Self::CopyOnWrite}
+    fn default() -> Self { Self::CopyOnWrite }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,19 +73,18 @@ pub struct Ty {
 macro_rules! define_ty_tensor_init {
     ($($name: ident),*) => {
         $(pub const fn $name() -> Self {Self{access: Access::CopyOnWrite, kind: TyKind::Tensor(Tensor::$name())}})*
-    }
+    };
 }
 
 impl Ty {
-    pub fn new(kind: TyKind) -> Self {Self {
-        kind,
-        access: Access::default(),
-    }}
+    pub fn new(kind: TyKind) -> Self {
+        Self {
+            kind,
+            access: Access::default(),
+        }
+    }
 
-    pub fn new_access(kind: TyKind, access: Access) -> Self {Self {
-        kind,
-        access,
-    }}
+    pub fn new_access(kind: TyKind, access: Access) -> Self { Self { kind, access } }
 
     pub fn tensor(shape: Shape, dtype: DType) -> Self {
         Self {
@@ -104,15 +105,13 @@ impl Ty {
         // this is even considering invalid types, such as Array<UnsizedType>
         match &self.kind {
             TyKind::Tensor(_) => true,
-            TyKind::Struct(Struct(Named(fields, _))) => {
-                fields.iter().find(|Named(ty, _)| !ty.is_sized()).is_none()
-            },
+            TyKind::Struct(Struct(Named(fields, _))) => fields.iter().find(|Named(ty, _)| !ty.is_sized()).is_none(),
             TyKind::Array(Array(ty, size)) => ty.is_sized() && size.is_some(),
-            TyKind::Void |
-            TyKind::Callable(_) |
-            TyKind::Opaque(_) |
-            TyKind::ArrayOfOpaque(_) |
-            TyKind::InterfaceBlock(_) => true
+            TyKind::Void
+            | TyKind::Callable(_)
+            | TyKind::Opaque(_)
+            | TyKind::ArrayOfOpaque(_)
+            | TyKind::InterfaceBlock(_) => true,
         }
     }
 
@@ -122,14 +121,18 @@ impl Ty {
             TyKind::Struct(_) => todo!(),
             TyKind::Array(_) => todo!(),
             TyKind::InterfaceBlock(_) => todo!(),
-            _ => panic!("unable to get attribute location width of type {:?}", self)
+            _ => panic!("unable to get attribute location width of type {:?}", self),
         }
     }
 
-    pub fn texture_combined_sampler(dtype: DType, dims: TexDimensionality) -> Self {Self {
-        kind: TyKind::Opaque(OpaqueTy::TextureCombinedSampler(TexDtypeDimensionality::new(dtype, dims))),
-        access: Access::Const, //opaque types need to be const
-    }}
+    pub fn texture_combined_sampler(dtype: DType, dims: TexDimensionality) -> Self {
+        Self {
+            kind: TyKind::Opaque(OpaqueTy::TextureCombinedSampler(TexDtypeDimensionality::new(
+                dtype, dims,
+            ))),
+            access: Access::Const, //opaque types need to be const
+        }
+    }
 
     pub fn try_as_tensor(&self) -> Option<Tensor> {
         match self.kind {
@@ -138,23 +141,39 @@ impl Ty {
         }
     }
 
-    pub fn void() -> Ty {
-        Ty::new(TyKind::Void)
-    }
+    pub fn void() -> Ty { Ty::new(TyKind::Void) }
 
-    pub fn eq_ignore_access(&self, rhs: &Ty) -> bool {
-        self.kind == rhs.kind
-    }
+    pub fn eq_ignore_access(&self, rhs: &Ty) -> bool { self.kind == rhs.kind }
 
-    pub fn into_access(self, access: Access) -> Ty {Self::new_access(self.kind, access)}
+    pub fn into_access(self, access: Access) -> Ty { Self::new_access(self.kind, access) }
     //TODO: turn as_const into "into_const" bc most of the time we can consume the type anyways
-    pub fn as_const     (&self) -> Ty {Self {kind: self.kind.clone(), access: Access::Const      }}
-    pub fn as_write_only(&self) -> Ty {Self {kind: self.kind.clone(), access: Access::WriteOnly  }}
-    pub fn as_cow       (&self) -> Ty {Self {kind: self.kind.clone(), access: Access::CopyOnWrite}}
-    pub fn as_lvalue    (&self) -> Ty {Self {kind: self.kind.clone(), access: Access::LValue     }}
+    pub fn as_const(&self) -> Ty {
+        Self {
+            kind: self.kind.clone(),
+            access: Access::Const,
+        }
+    }
+    pub fn as_write_only(&self) -> Ty {
+        Self {
+            kind: self.kind.clone(),
+            access: Access::WriteOnly,
+        }
+    }
+    pub fn as_cow(&self) -> Ty {
+        Self {
+            kind: self.kind.clone(),
+            access: Access::CopyOnWrite,
+        }
+    }
+    pub fn as_lvalue(&self) -> Ty {
+        Self {
+            kind: self.kind.clone(),
+            access: Access::LValue,
+        }
+    }
 
     //calls the Tensor constructors with default mutability
-    define_ty_tensor_init!{
+    define_ty_tensor_init! {
         float, double,
         int, uint,
         bool,
@@ -170,13 +189,10 @@ impl Ty {
         dmat3x2, dmat3  , dmat3x4,
         dmat4x2, dmat4x3, dmat4
     }
-
 }
 
 impl From<Tensor> for Ty {
-    fn from(t: Tensor) -> Self {
-        Self::new(TyKind::Tensor(t))
-    }
+    fn from(t: Tensor) -> Self { Self::new(TyKind::Tensor(t)) }
 }
 
 impl Display for Access {
@@ -245,7 +261,7 @@ impl Display for Array {
         let elem_ty_kind = &elem_ty.kind;
         match maybe_len {
             Some(len) => f.write_fmt(format_args!("array<{elem_ty_kind}, {len}>")),
-            None      => f.write_fmt(format_args!("array_unsized<{elem_ty_kind}>")),
+            None => f.write_fmt(format_args!("array_unsized<{elem_ty_kind}>")),
         }
     }
 }
@@ -256,13 +272,13 @@ impl Display for Struct {
         Context::with(|ctx| {
             let idents = ctx.idents();
 
-            let fields_string = fields.iter().map(|Named(ty, ident)| {
-
-                let ident_string = idents[**ident].clone().unwrap_or_else(|| "_".to_string());
-                format!("    {ident_string}: {ty},\n")
-
-            })
-            .collect::<String>();
+            let fields_string = fields
+                .iter()
+                .map(|Named(ty, ident)| {
+                    let ident_string = idents[**ident].clone().unwrap_or_else(|| "_".to_string());
+                    format!("    {ident_string}: {ty},\n")
+                })
+                .collect::<String>();
 
             let struct_name = idents[**ident].to_owned().unwrap_or_else(|| "<anonymous>".to_string());
 
@@ -272,7 +288,6 @@ impl Display for Struct {
 }
 
 impl Struct {
-
     pub fn from_name_fields(ctx: &crate::Context, name: &str, fields: &[(&str, Ty)]) -> Self {
         let mut idents = ctx.idents_mut();
 
@@ -296,28 +311,24 @@ impl Struct {
     pub fn eq_name_fields(&self, name: &str, fields: &[(&str, Ty)]) -> bool {
         let &Struct(Named(fields_, name_)) = &self;
 
-        name_.eq_str(name) &&
-        fields.iter().zip(fields_.iter()).all(|((name, ty), Named(ty_, name_))| {
-            name_.eq_str(name) &&
-            ty_.eq_ignore_access(ty)
-        })
+        name_.eq_str(name)
+            && fields
+                .iter()
+                .zip(fields_.iter())
+                .all(|((name, ty), Named(ty_, name_))| name_.eq_str(name) && ty_.eq_ignore_access(ty))
     }
 
     pub fn find_field_ident(&self, field_name: &str) -> Option<IdentSlot> {
         let &Struct(Named(fields, _)) = &self;
 
-        fields.iter().find_map(|Named(_, ident)|
-            ident.eq_str(field_name).then(|| ident.clone())
-        )
+        fields
+            .iter()
+            .find_map(|Named(_, ident)| ident.eq_str(field_name).then(|| ident.clone()))
     }
 }
 
 impl Array {
-    pub fn new(element_ty: Ty, maybe_len: Option<usize>) -> Self {
-        Array(Rc::new(element_ty), maybe_len)
-    }
+    pub fn new(element_ty: Ty, maybe_len: Option<usize>) -> Self { Array(Rc::new(element_ty), maybe_len) }
 
-    pub fn new_sized(element_ty: Ty, len: usize) -> Self {
-        Self::new(element_ty, Some(len))
-    }
+    pub fn new_sized(element_ty: Ty, len: usize) -> Self { Self::new(element_ty, Some(len)) }
 }

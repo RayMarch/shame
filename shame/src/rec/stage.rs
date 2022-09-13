@@ -2,10 +2,10 @@
 //! is available (per-vertex, per-fragment, uniform).
 
 use super::*;
-use shame_graph::Any;
-use shame_graph::Ty;
-use shame_graph::Error;
 use crate::assert;
+use shame_graph::Any;
+use shame_graph::Error;
+use shame_graph::Ty;
 
 /// runtime type annotation for [`Rec`] types, used to tag "per-vertex",
 /// "per-fragment" or unrestricted "uniform" values.
@@ -66,9 +66,9 @@ impl std::ops::BitAnd for Stage {
             (NotAvailable, _) => NotAvailable,
             (_, NotAvailable) => NotAvailable,
 
-            (Vertex,   Fragment) => NotAvailable,
-            (Fragment, Vertex  ) => NotAvailable,
-            (Vertex,   Vertex  ) => Vertex,
+            (Vertex, Fragment) => NotAvailable,
+            (Fragment, Vertex) => NotAvailable,
+            (Vertex, Vertex) => Vertex,
             (Fragment, Fragment) => Fragment,
         }
     }
@@ -126,12 +126,11 @@ fn check_any_type_and_stage<S: Shape, D: DType>(mut any: Any, mut stage: Stage) 
     use shame_graph::ShaderKind as Shader;
     shame_graph::Context::with(|ctx| {
         if let Some(any_ty) = any.ty_via_ctx(ctx) {
-
             let static_type = Ty::tensor(S::SHAPE, D::DTYPE);
             if !static_type.eq_ignore_access(&any_ty) {
-                assert::rec_error(Error::TypeError(
-                    format!("cannot downcast a dynamic {any_ty} to a static {static_type}")
-                ));
+                assert::rec_error(Error::TypeError(format!(
+                    "cannot downcast a dynamic {any_ty} to a static {static_type}"
+                )));
                 stage = Stage::NotAvailable;
                 any = Any::not_available();
             }
@@ -163,11 +162,14 @@ fn check_any_type_and_stage<S: Shape, D: DType>(mut any: Any, mut stage: Stage) 
 /// obtain the dominant stage of multiple provided stages, or
 /// push an error to the [`Context`] and return [`Stage::NotAvailable`].
 #[track_caller]
-pub fn narrow_stages_or_push_error(stages: impl IntoIterator<Item=Stage>) -> Stage {
+pub fn narrow_stages_or_push_error(stages: impl IntoIterator<Item = Stage>) -> Stage {
     stages.into_iter().fold(Stage::Uniform, |acc, x| {
         let narrowed = acc & x;
         if let Stage::NotAvailable = narrowed {
-            assert::rec_error(Error::AssertionFailed(format!("trying to use a {:?} shader expression together with a {:?} shader expression", acc, x))); //TODO: improve error message (e.g. by adding arg types)
+            assert::rec_error(Error::AssertionFailed(format!(
+                "trying to use a {:?} shader expression together with a {:?} shader expression",
+                acc, x
+            ))); //TODO: improve error message (e.g. by adding arg types)
         }
         narrowed
     })
@@ -184,9 +186,7 @@ pub trait HasCommonStage {
 
 impl HasCommonStage for [Stage] {
     #[track_caller]
-    fn narrow_or_push_error(&self) -> Stage {
-        narrow_stages_or_push_error(self.iter().map(|x| *x))
-    }
+    fn narrow_or_push_error(&self) -> Stage { narrow_stages_or_push_error(self.iter().map(|x| *x)) }
 }
 
 macro_rules! impl_has_common_stage_for_intorec_tuple {

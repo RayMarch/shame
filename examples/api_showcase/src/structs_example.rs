@@ -1,8 +1,6 @@
-
 use shame::*;
 
 pub fn structs_example(mut feat: shame::RenderFeatures) {
-
     #[derive(shame::Fields)]
     struct Foo {
         first: float4,
@@ -44,7 +42,8 @@ pub fn structs_example(mut feat: shame::RenderFeatures) {
         first: float4::one(),
         second: float3::one(),
         third: float2::one(),
-    }.rec();
+    }
+    .rec();
 
     //alternative, more explicit way of creating a shame::Struct<Foo>.
     //identical to the example above, but will yield better error messages when done wrong.
@@ -87,7 +86,8 @@ pub fn structs_example(mut feat: shame::RenderFeatures) {
     let interleaved: PositionUvAnd<PositionUvAnd<float4>> = feat.io.vertex_buffer();
 
     // (calling rasterizer just so that this is a valid render pipeline)
-    feat.raster.rasterize_indexless(float4::default(), Default::default(), Default::default());
+    feat.raster
+        .rasterize_indexless(float4::default(), Default::default(), Default::default());
 }
 
 pub fn main() {

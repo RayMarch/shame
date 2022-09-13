@@ -6,7 +6,6 @@ use crate::rec::Rec;
 pub struct UnsafeAccess<T>(T);
 
 impl<T> UnsafeAccess<T> {
-
     #[cfg(feature = "enable_unsafe_features")]
     /// obtain mutable access to the inner `T`
     ///
@@ -17,7 +16,7 @@ impl<T> UnsafeAccess<T> {
     ///
     /// This code has no risk of creating any unsoundness at all in the usual
     /// sense, as it is not using any `unsafe` features.
-    pub unsafe fn access_mut(&mut self) -> &mut T {&mut self.0}
+    pub unsafe fn access_mut(&mut self) -> &mut T { &mut self.0 }
 
     #[cfg(feature = "enable_unsafe_features")]
     /// obtain access to the inner `T`
@@ -29,18 +28,14 @@ impl<T> UnsafeAccess<T> {
     ///
     /// This code has no risk of creating any unsoundness at all in the usual
     /// sense, as it is not using any `unsafe` features.
-    pub unsafe fn access(&self) -> &T {&self.0}
+    pub unsafe fn access(&self) -> &T { &self.0 }
 
     /// wrap `t` to be only accessible via an unsafe block
-    pub fn new(t: T) -> Self {
-        Self(t)
-    }
+    pub fn new(t: T) -> Self { Self(t) }
 }
 
 impl<T: Rec> UnsafeAccess<T> {
     /// assign an identifier to the contained `T` value, which will be used if
     /// it shows up in the generated shader code (if possible)
-    pub fn aka(&self, name: &str) {
-        self.0.as_any().aka(name);
-    }
+    pub fn aka(&self, name: &str) { self.0.as_any().aka(name); }
 }

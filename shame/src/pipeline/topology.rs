@@ -1,15 +1,19 @@
 //! Index buffer configuration types
-use std::marker::PhantomData;
-use crate::{shader::RenderIO, int, rec::AnyDowncast};
 use crate::rec::Stage;
+use crate::{int, rec::AnyDowncast, shader::RenderIO};
+use std::marker::PhantomData;
 
 /// datatypes representing the individual indices of index buffers
 pub trait IndexFormat {
     /// enum version of `Self`
     const INDEX_DTYPE: IndexDType;
 }
-impl IndexFormat for u32 {const INDEX_DTYPE: IndexDType = IndexDType::U32;}
-impl IndexFormat for u16 {const INDEX_DTYPE: IndexDType = IndexDType::U16;}
+impl IndexFormat for u32 {
+    const INDEX_DTYPE: IndexDType = IndexDType::U32;
+}
+impl IndexFormat for u16 {
+    const INDEX_DTYPE: IndexDType = IndexDType::U16;
+}
 
 /// datatypes representing the individual indices of index buffers
 #[allow(missing_docs)]
@@ -30,9 +34,7 @@ pub enum PrimitiveTopology {
 }
 
 impl Default for PrimitiveTopology {
-    fn default() -> Self {
-        PrimitiveTopology::TriangleList
-    }
+    fn default() -> Self { PrimitiveTopology::TriangleList }
 }
 
 /// layout of the index buffer
@@ -49,9 +51,7 @@ pub trait PrimitiveIndex {
 
     /// glsl: `gl_VertexID`
     /// returns a per-vertex variable
-    fn vertex_index(&self) -> int {
-        shame_graph::Any::v_vertex_id_vk().downcast(Stage::Vertex)
-    }
+    fn vertex_index(&self) -> int { shame_graph::Any::v_vertex_id_vk().downcast(Stage::Vertex) }
 }
 
 /// Indices that form triangles: {1, 2, 3} {4, 5, 6} {7, 8, 9} ...
@@ -63,9 +63,7 @@ impl<T: IndexFormat> PrimitiveIndex for TriangleList<T> {
     type Format = T;
     const TOPOLOGY: PrimitiveTopology = PrimitiveTopology::TriangleList;
 
-    fn new(_io: &mut RenderIO) -> Self {
-        Self {t: PhantomData}
-    }
+    fn new(_io: &mut RenderIO) -> Self { Self { t: PhantomData } }
 }
 
 /// Indices that form triangles: {1, 2, 3} {3, 2, 4} {3, 4, 5} ...
@@ -75,9 +73,7 @@ pub struct TriangleStrip<T: IndexFormat> {
 
 impl<T: IndexFormat> PrimitiveIndex for TriangleStrip<T> {
     type Format = T;
-    const TOPOLOGY: PrimitiveTopology  = PrimitiveTopology::TriangleStrip;
+    const TOPOLOGY: PrimitiveTopology = PrimitiveTopology::TriangleStrip;
 
-    fn new(_io: &mut RenderIO) -> Self {
-        Self {t: PhantomData}
-    }
+    fn new(_io: &mut RenderIO) -> Self { Self { t: PhantomData } }
 }

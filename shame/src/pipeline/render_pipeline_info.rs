@@ -1,11 +1,11 @@
 //! pipeline info for creating render pipeline layouts
 
-use super::BindingInfo;
-use super::topology::{IndexDType, PrimitiveTopology};
-use super::pixel_format::{ColorFormat, DepthFormat};
-use super::target::DepthTest;
 use super::blending::Blend;
 use super::culling::Cull;
+use super::pixel_format::{ColorFormat, DepthFormat};
+use super::target::DepthTest;
+use super::topology::{IndexDType, PrimitiveTopology};
+use super::BindingInfo;
 use super::StageFlags;
 use std::fmt::Display;
 use std::mem::take;
@@ -42,7 +42,7 @@ impl Display for RenderPipelineInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.push_constant {
             None => f.write_str("no push constant\n")?,
-            Some(x) => f.write_fmt(format_args!("push constant: {x}\n"))?
+            Some(x) => f.write_fmt(format_args!("push constant: {x}\n"))?,
         }
         match &self.bind_groups[..] {
             [] => f.write_str("no bind groups\n")?,
@@ -81,37 +81,36 @@ impl Display for RenderPipelineInfo {
                             Some(x) => {
                                 f.write_fmt(format_args!("  {i} => rgb = {}\n", x.rgb))?;
                                 f.write_fmt(format_args!("         a = {}\n", x.a))?;
-                            },
-                            None    => f.write_fmt(format_args!("  {i} => Opaque\n"))?,
+                            }
+                            None => f.write_fmt(format_args!("  {i} => Opaque\n"))?,
                         }
                     }
                 }
             }
-        }
-        else {
+        } else {
             f.write_str("no render targets\n")?;
         }
 
         match &self.depth_test {
             Some(x) => f.write_fmt(format_args!("depth-test: {x:?}\n"))?,
-            None    => f.write_fmt(format_args!("depth-test: ?\n"))?,
+            None => f.write_fmt(format_args!("depth-test: ?\n"))?,
         }
         match &self.depth_write {
             Some(x) => f.write_fmt(format_args!("depth-write: {x}\n"))?,
-            None    => f.write_fmt(format_args!("depth-write: ?\n"))?,
+            None => f.write_fmt(format_args!("depth-write: ?\n"))?,
         }
         match &self.primitive_topology {
             Some(x) => f.write_fmt(format_args!("primitive topology: {x:?}\n"))?,
-            None    => f.write_fmt(format_args!("primitive topology: ?\n"))?,
+            None => f.write_fmt(format_args!("primitive topology: ?\n"))?,
         }
         match &self.index_dtype {
             Some(x) => f.write_fmt(format_args!("index type: {x:?}\n"))?,
-            None    => f.write_fmt(format_args!("index type: ?\n"))?,
+            None => f.write_fmt(format_args!("index type: ?\n"))?,
         }
         match &self.cull {
             Some(Cull::Off) => f.write_fmt(format_args!("face culling: disabled\n"))?,
             Some(x) => f.write_fmt(format_args!("face culling: {x:?}\n"))?,
-            None    => f.write_fmt(format_args!("face culling: ?\n"))?,
+            None => f.write_fmt(format_args!("face culling: ?\n"))?,
         }
         Ok(())
     }
@@ -176,7 +175,8 @@ impl Display for VertexBufferInfo {
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BindGroupInfo { //TODO: this belongs in a different module doesn't it?
+pub struct BindGroupInfo {
+    //TODO: this belongs in a different module doesn't it?
     /// group index (`layout(set = index)` in glsl)
     pub index: u32,
     /// types and indices of bindings in this bind group
@@ -196,7 +196,8 @@ impl Display for BindGroupInfo {
 /// layout of push constant in the recorded pipeline
 /// currently only a single tensor push constant is supported.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PushConstantInfo { //TODO: this belongs in a different module doesn't it?
+pub struct PushConstantInfo {
+    //TODO: this belongs in a different module doesn't it?
     /// datatype of the push constant
     pub type_: shame_graph::Tensor,
     /// which shader stages the push constants are used by
@@ -211,16 +212,21 @@ impl Display for PushConstantInfo {
 }
 
 impl RenderPipelineInfo {
-
-    pub(crate) fn merge_individual_stage_recordings(mut v: RenderPipelineInfo, mut f: RenderPipelineInfo) -> RenderPipelineInfo {
+    pub(crate) fn merge_individual_stage_recordings(
+        mut v: RenderPipelineInfo,
+        mut f: RenderPipelineInfo,
+    ) -> RenderPipelineInfo {
         //TODO: this is also a spot where i should do a different kind of error handling in the future maybe
         //first we move out the parts we expect to be different...
-        let vertex_buffer        = (take(&mut v.vertex_buffers), take(&mut f.vertex_buffers));
-        let color_target         = (take(&mut v.color_targets), take(&mut f.color_targets));
+        let vertex_buffer = (take(&mut v.vertex_buffers), take(&mut f.vertex_buffers));
+        let color_target = (take(&mut v.color_targets), take(&mut f.color_targets));
         let depth_stencil_target = (take(&mut v.depth_stencil_target), take(&mut f.depth_stencil_target));
 
         //then we compare the rest and assert on its equality
-        assert!(v == f, "pipeline info was recorded differently in vertex vs fragment shader");
+        assert!(
+            v == f,
+            "pipeline info was recorded differently in vertex vs fragment shader"
+        );
 
         let mut merged = v;
         merged.vertex_buffers = vertex_buffer.0;

@@ -1,8 +1,13 @@
 //! compute pipeline features for recording compute shaders and pipeline info
-use std::{ops::RangeFrom, fmt::Display, marker::PhantomData};
+use std::{fmt::Display, marker::PhantomData, ops::RangeFrom};
 
-use crate::{record_compute_shader, rec::{Shape, DType}, Ten, shader::Ids};
 use super::{instantiate_push_constant, with_thread_compute_pipeline_info_mut};
+use crate::{
+    rec::{DType, Shape},
+    record_compute_shader,
+    shader::Ids,
+    Ten,
+};
 
 use super::compute_pipeline_info::ComputePipelineInfo;
 
@@ -30,29 +35,27 @@ pub struct WorkGroupSetup<'a> {
 }
 
 impl WorkGroupSetup<'_> {
-
-    /*priv*/ fn new() -> Self {
+    /*priv*/
+    fn new() -> Self {
         Self {
-            inner: crate::shader::WorkGroupSetup {_phantom: PhantomData},
+            inner: crate::shader::WorkGroupSetup { _phantom: PhantomData },
         }
     }
 
     /// specify the dimensions of workgroups in the current compute pipeline
     /// and access various invocation related ids.
     pub fn work_group(self, work_group_size: [usize; 3]) -> Ids {
-        with_thread_compute_pipeline_info_mut(|c| {
-            c.work_group_size = Some(work_group_size)
-        });
+        with_thread_compute_pipeline_info_mut(|c| c.work_group_size = Some(work_group_size));
         self.inner.work_group(work_group_size)
     }
-
 }
 
 impl IO<'_> {
     /// creates access to a new bind group, which can then be used to access
     ///bindings such as textures, buffer bindings, samplers, ...
-    pub fn group(&mut self) -> crate::shader::Group<RangeFrom<u32>>{
-        self.inner.group(self.group_counter.next().expect("rangefrom iterator terminated"), 0..)
+    pub fn group(&mut self) -> crate::shader::Group<RangeFrom<u32>> {
+        self.inner
+            .group(self.group_counter.next().expect("rangefrom iterator terminated"), 0..)
     }
 
     /// access the push constant as a tensor of given `S` `D`.
@@ -61,9 +64,7 @@ impl IO<'_> {
     /// ```text
     /// let p: float4 = io.push_constant();
     /// ```
-    pub fn push_constant<S: Shape, D: DType>(&mut self) -> Ten<S, D> {
-        instantiate_push_constant()
-    }
+    pub fn push_constant<S: Shape, D: DType>(&mut self) -> Ten<S, D> { instantiate_push_constant() }
 }
 
 /// results of successfully recording a compute pipeline
@@ -85,11 +86,9 @@ impl Display for ComputePipelineRecording {
 /// turn a rust compute pipeline function into a shader + pipeline info by
 /// executing it.
 pub fn record_compute_pipeline(f: impl FnOnce(ComputeFeatures)) -> ComputePipelineRecording {
-
     let mut info = ComputePipelineInfo::default();
 
     let shader_glsl = record_compute_shader(|feat| {
-
         shame_graph::Context::with(|ctx| {
             //store render pipeline info in misc
             *ctx.misc_mut() = Box::new(ComputePipelineInfo::default())
@@ -108,8 +107,5 @@ pub fn record_compute_pipeline(f: impl FnOnce(ComputeFeatures)) -> ComputePipeli
         info = with_thread_compute_pipeline_info_mut(|c| std::mem::take(c));
     });
 
-    ComputePipelineRecording {
-        shader_glsl,
-        info,
-    }
+    ComputePipelineRecording { shader_glsl, info }
 }

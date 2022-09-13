@@ -2,5 +2,5 @@
 //! pipeline
 pub use crate::*;
 
-pub use crate::rec::aliases::*;
 pub use crate::pipeline::pixel_format::*;
+pub use crate::rec::aliases::*;

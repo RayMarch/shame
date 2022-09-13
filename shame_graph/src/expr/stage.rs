@@ -1,4 +1,3 @@
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 /// FIXME: this is a quick and dirty addition to make error detection in conditional blocks
 /// easier before the `Stage` information becomes fully available in `shame_graph`
@@ -21,9 +20,9 @@ impl std::ops::BitAnd for Stage {
             (NotAvailable, _) => NotAvailable,
             (_, NotAvailable) => NotAvailable,
 
-            (Vertex,   Fragment) => NotAvailable,
-            (Fragment, Vertex  ) => NotAvailable,
-            (Vertex,   Vertex  ) => Vertex,
+            (Vertex, Fragment) => NotAvailable,
+            (Fragment, Vertex) => NotAvailable,
+            (Vertex, Vertex) => Vertex,
             (Fragment, Fragment) => Fragment,
         }
     }

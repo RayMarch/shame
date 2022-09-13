@@ -80,13 +80,9 @@ impl<A: IntoRec> IntoRecsTuple for std::ops::Range<A> {
     type Output = (A::Rec, A::Rec);
     type OutputAnys = [Any; 2];
 
-    fn into_recs(self) -> Self::Output {
-        (self.start.rec(), self.end.rec())
-    }
+    fn into_recs(self) -> Self::Output { (self.start.rec(), self.end.rec()) }
 
-    fn into_anys(self) -> Self::OutputAnys {
-        [self.start.into_any(), self.end.into_any()]
-    }
+    fn into_anys(self) -> Self::OutputAnys { [self.start.into_any(), self.end.into_any()] }
 }
 
 /// downcast tuples of [`Any`] to tuples of `impl`[`Rec`] types
@@ -100,22 +96,32 @@ pub trait FromAnys {
 
 impl<AS: Shape, AD: DType, BS: Shape, BD: DType> FromAnys for (Ten<AS, AD>, Ten<BS, BD>) {
     type Input = [Any; 2];
-    #[track_caller] fn from_downcast([a, b]: &Self::Input, stage: Stage) -> Self {
-        (a.downcast(stage), b.downcast(stage))
-    }
+    #[track_caller]
+    fn from_downcast([a, b]: &Self::Input, stage: Stage) -> Self { (a.downcast(stage), b.downcast(stage)) }
 }
 
-impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType> FromAnys for (Ten<AS, AD>, Ten<BS, BD>, Ten<CS, CD>) {
+impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType> FromAnys
+    for (Ten<AS, AD>, Ten<BS, BD>, Ten<CS, CD>)
+{
     type Input = [Any; 3];
-    #[track_caller] fn from_downcast([a, b, c]: &Self::Input, stage: Stage) -> Self {
+    #[track_caller]
+    fn from_downcast([a, b, c]: &Self::Input, stage: Stage) -> Self {
         (a.downcast(stage), b.downcast(stage), c.downcast(stage))
     }
 }
 
-impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType, DS: Shape, DD: DType> FromAnys for (Ten<AS, AD>, Ten<BS, BD>, Ten<CS, CD>, Ten<DS, DD>) {
+impl<AS: Shape, AD: DType, BS: Shape, BD: DType, CS: Shape, CD: DType, DS: Shape, DD: DType> FromAnys
+    for (Ten<AS, AD>, Ten<BS, BD>, Ten<CS, CD>, Ten<DS, DD>)
+{
     type Input = [Any; 4];
-    #[track_caller] fn from_downcast([a, b, c, d]: &Self::Input, stage: Stage) -> Self {
-        (a.downcast(stage), b.downcast(stage), c.downcast(stage), d.downcast(stage))
+    #[track_caller]
+    fn from_downcast([a, b, c, d]: &Self::Input, stage: Stage) -> Self {
+        (
+            a.downcast(stage),
+            b.downcast(stage),
+            c.downcast(stage),
+            d.downcast(stage),
+        )
     }
 }
 
@@ -164,4 +170,3 @@ impl_MinMaxTuple!(A, B, C);
 impl_MinMaxTuple!(A, B, C, D);
 impl_MinMaxTuple!(A, B, C, D, E);
 impl_MinMaxTuple!(A, B, C, D, E, F);
-

@@ -1,21 +1,25 @@
 use proc_macro2::Span;
-use syn::{*, spanned::Spanned};
+use syn::{spanned::Spanned, *};
 use syn::{DataStruct, DeriveInput, FieldsNamed};
 
 #[allow(unused)]
-pub fn map_fields<'a, R>(fields: &'a FieldsNamed, mut func: impl 'a + FnMut(Span, &Option<Ident>, &Type) -> R)
--> impl Iterator<Item=R> + 'a {
-    fields.named.iter().map(move |f| {
-        func(f.span(), &f.ident, &f.ty)
-    })
+pub fn map_fields<'a, R>(
+    fields: &'a FieldsNamed,
+    mut func: impl 'a + FnMut(Span, &Option<Ident>, &Type) -> R,
+) -> impl Iterator<Item = R> + 'a {
+    fields.named.iter().map(move |f| func(f.span(), &f.ident, &f.ty))
 }
 
 #[allow(unused)]
-pub fn map_fields_enumerate<'a, R>(fields: &'a FieldsNamed, mut func: impl 'a + FnMut(usize, Span, &Option<Ident>, &Type) -> R)
--> impl Iterator<Item=R> + 'a {
-    fields.named.iter().enumerate().map(move |(i, f)| {
-        func(i, f.span(), &f.ident, &f.ty)
-    })
+pub fn map_fields_enumerate<'a, R>(
+    fields: &'a FieldsNamed,
+    mut func: impl 'a + FnMut(usize, Span, &Option<Ident>, &Type) -> R,
+) -> impl Iterator<Item = R> + 'a {
+    fields
+        .named
+        .iter()
+        .enumerate()
+        .map(move |(i, f)| func(i, f.span(), &f.ident, &f.ty))
 }
 
 pub enum DeriveData<'a> {
@@ -43,14 +47,12 @@ pub enum VariantData<'a> {
     Unit(/*index*/ usize, &'a Variant),
 }
 
-pub fn parse(input: & DeriveInput) -> DeriveData {
+pub fn parse(input: &DeriveInput) -> DeriveData {
     match &input.data {
-        Data::Struct(s) => {
-            match &s.fields {
-                Fields::Named(n) => DeriveData::Struct(input, s, n),
-                Fields::Unnamed(u) => DeriveData::Tuple(input, s, u),
-                Fields::Unit => DeriveData::Unit(input, s),
-            }
+        Data::Struct(s) => match &s.fields {
+            Fields::Named(n) => DeriveData::Struct(input, s, n),
+            Fields::Unnamed(u) => DeriveData::Tuple(input, s, u),
+            Fields::Unit => DeriveData::Unit(input, s),
         },
         Data::Enum(e) => DeriveData::Enum(input, e),
         Data::Union(u) => DeriveData::Union(input, u),
@@ -58,13 +60,20 @@ pub fn parse(input: & DeriveInput) -> DeriveData {
 }
 
 #[allow(unused)]
-pub fn parse_variants(input: &DataEnum) -> impl Iterator<Item=VariantData> {
-    input.variants.iter().enumerate().map(|(index, variant)| {
-        match variant {
-            Variant { discriminant: Some((_, expression)), .. } => VariantData::Discriminant(index, variant, expression),
-            Variant { fields: Fields::Named(named), .. } => VariantData::NamedFields(index, variant, named),
-            Variant { fields: Fields::Unnamed(unnamed), ..} => VariantData::UnnamedFields(index, variant, unnamed),
-            variant => VariantData::Unit(index, variant),
-        }
+pub fn parse_variants(input: &DataEnum) -> impl Iterator<Item = VariantData> {
+    input.variants.iter().enumerate().map(|(index, variant)| match variant {
+        Variant {
+            discriminant: Some((_, expression)),
+            ..
+        } => VariantData::Discriminant(index, variant, expression),
+        Variant {
+            fields: Fields::Named(named),
+            ..
+        } => VariantData::NamedFields(index, variant, named),
+        Variant {
+            fields: Fields::Unnamed(unnamed),
+            ..
+        } => VariantData::UnnamedFields(index, variant, unnamed),
+        variant => VariantData::Unit(index, variant),
     })
 }

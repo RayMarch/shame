@@ -1,6 +1,5 @@
-
-use shame::prettify::syntax_highlight_glsl;
 use shame::prelude::*;
+use shame::prettify::syntax_highlight_glsl;
 
 fn my_render_pipeline(mut f: RenderFeatures) {
     // use `f` to build your shader
@@ -26,9 +25,7 @@ fn my_render_pipeline(mut f: RenderFeatures) {
     let clip_xyzw = matrix * (vert.pos, 1.0);
 
     // rasterize triangles at clip space positions with clockwise culling
-    let polygon = f.raster.rasterize(
-        clip_xyzw, Cull::CW, topology,
-    );
+    let polygon = f.raster.rasterize(clip_xyzw, Cull::CW, topology);
 
     // vertex -> fragment interpolation
     let mut frag_color = polygon.lerp(vert.color);
@@ -39,10 +36,7 @@ fn my_render_pipeline(mut f: RenderFeatures) {
 
     // write to an sRGB render-target with alpha.
     // use alpha blending with frag_color as src color
-    f.io.color::<RGBA_8888_sRGB>().blend(
-        Blend::alpha(),
-        frag_color
-    );
+    f.io.color::<RGBA_8888_sRGB>().blend(Blend::alpha(), frag_color);
 }
 
 pub fn main() {

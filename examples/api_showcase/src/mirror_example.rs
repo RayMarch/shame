@@ -14,7 +14,6 @@ use std::marker::PhantomData;
 ///
 /// [Pod][https://docs.rs/bytemuck/latest/bytemuck/trait.Pod.html]
 pub fn main() {
-
     // first we need to do some preparations:
 
     // call the `define_mirror_module` macro with the desired name of the module at the desired place
@@ -38,21 +37,21 @@ pub fn main() {
     impl my_mirror_mod::Host for f32 {
         type Device = shame::float;
 
-        fn as_bytes(&self) ->  &[u8] {bytemuck::cast_slice(std::slice::from_ref(self))}
+        fn as_bytes(&self) -> &[u8] { bytemuck::cast_slice(std::slice::from_ref(self)) }
     }
 
     // u32 => shame::uint
     impl my_mirror_mod::Host for u32 {
         type Device = shame::uint;
 
-        fn as_bytes(&self) ->  &[u8] {bytemuck::cast_slice(std::slice::from_ref(self))}
+        fn as_bytes(&self) -> &[u8] { bytemuck::cast_slice(std::slice::from_ref(self)) }
     }
 
     // [f32; 4] => shame::float4
     impl my_mirror_mod::Host for [f32; 4] {
         type Device = shame::float4;
 
-        fn as_bytes(&self) ->  &[u8] {bytemuck::cast_slice(std::slice::from_ref(self))}
+        fn as_bytes(&self) -> &[u8] { bytemuck::cast_slice(std::slice::from_ref(self)) }
     }
 
     // now that the preparations are done, we can use the mirror feature's "host" macro
@@ -76,7 +75,7 @@ pub fn main() {
     }
 
     //now we can use FooCpu and FooGpu
-    let foo_cpu = FooCpu {a: 0.0, b: 0,};
+    let foo_cpu = FooCpu { a: 0.0, b: 0 };
 
     let _ = shame::record_compute_pipeline(|mut f| {
         let foo_gpu: FooGpu = f.io.group().uniform_block();
@@ -90,7 +89,7 @@ pub fn main() {
         b: u32,
     }
 
-    let baz_cpu = Baz {a: 0.0, b: 0,};
+    let baz_cpu = Baz { a: 0.0, b: 0 };
 
     let _ = shame::record_compute_pipeline(|mut f| {
         let baz_gpu: BazGpu = f.io.group().uniform_block();
@@ -107,7 +106,7 @@ pub fn main() {
             io.next_group().storage() //just an example
         }
 
-        fn new() -> Self {Self(PhantomData)}
+        fn new() -> Self { Self(PhantomData) }
     }
 
     let thing = MyCrossCpuGpuAbstraction::<FooCpu>::new();
@@ -135,10 +134,9 @@ pub fn main() {
         b: shame::uint,
     }
 
-    let qux_cpu = QuxCpu {a: 0.0, b: 0,};
+    let qux_cpu = QuxCpu { a: 0.0, b: 0 };
 
     let _ = shame::record_compute_pipeline(|mut f| {
         let qux_gpu: QuxGpu = f.io.group().uniform_block();
     });
-
 }

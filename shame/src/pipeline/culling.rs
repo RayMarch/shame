@@ -19,5 +19,5 @@ pub enum Cull {
 
 impl Default for Cull {
     /// cull faces with clockwise winding order, which are usually considered to be a "back face" by default
-    fn default() -> Self {Cull::CW}
+    fn default() -> Self { Cull::CW }
 }

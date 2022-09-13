@@ -1,8 +1,8 @@
 //! [`Ten`] (short for "Tensor") is a shader type representing scalars, vectors
 //! up to size 4 and matrices of up to size 4x4.
-use std::marker::PhantomData;
-use super::{*, fields::Fields};
+use super::{fields::Fields, *};
 use shame_graph::{Any, Ty};
+use std::marker::PhantomData;
 
 #[derive(Clone, Copy)]
 /// [`Ten`] (short for "Tensor") is a shader type representing scalars, vectors
@@ -29,20 +29,22 @@ pub struct Ten<S: Shape, D: DType> {
 }
 
 impl<S: Shape, D: DType> Rec for Ten<S, D> {
-    fn as_any(&self) -> Any {self.any}
+    fn as_any(&self) -> Any { self.any }
 
-    fn ty() -> Ty {Ty::tensor(S::SHAPE, D::DTYPE)}
+    fn ty() -> Ty { Ty::tensor(S::SHAPE, D::DTYPE) }
 
     fn from_downcast(any: Any, stage: Stage) -> Self {
-        Self{phantom: PhantomData, any, stage, swizzle: <_>::new_empty()}
+        Self {
+            phantom: PhantomData,
+            any,
+            stage,
+            swizzle: <_>::new_empty(),
+        }
     }
 }
 
 impl<S: Shape, D: DType> Ten<S, D> {
-
-    pub(crate) fn tensor() -> shame_graph::Tensor {
-        shame_graph::Tensor::new(S::SHAPE, D::DTYPE)
-    }
+    pub(crate) fn tensor() -> shame_graph::Tensor { shame_graph::Tensor::new(S::SHAPE, D::DTYPE) }
 
     /// upcasts, calls f, and immediately downcasts, assuming the same stage
     pub fn with_any(&self, f: impl FnOnce(Any) -> Any) -> Self {
@@ -58,47 +60,42 @@ impl<S: Shape, D: DType> Ten<S, D> {
     }
 
     /// amount of scalar components in the tensor, e.g. 3 for `float3`, 16 for `int4x4`
-    pub fn components_len(&self) -> usize {
-        S::NUM_COMPONENTS
-    }
+    pub fn components_len(&self) -> usize { S::NUM_COMPONENTS }
 
     /// iterate over the components of the tensor
     pub fn components(&self) -> std::vec::IntoIter<Ten<scal, D>> {
         let n = self.components_len() as u8;
         match n {
-            1..=4 => (0..n).map(|i| {
-                let access = match (i, n) {
-                    (0, 1) => self.any, // float.x is not possible
-                    _ => self.any.vector_index(i),
-                };
-                Ten::from_downcast(access, self.stage)
-            }).collect::<Vec<_>>(),
-            _ => unreachable!("{}-component tensor", n)
-        }.into_iter()
+            1..=4 => (0..n)
+                .map(|i| {
+                    let access = match (i, n) {
+                        (0, 1) => self.any, // float.x is not possible
+                        _ => self.any.vector_index(i),
+                    };
+                    Ten::from_downcast(access, self.stage)
+                })
+                .collect::<Vec<_>>(),
+            _ => unreachable!("{}-component tensor", n),
+        }
+        .into_iter()
     }
 
     /// iterate over the components of the tensor
-    pub fn iter(&self) -> std::vec::IntoIter<Ten<scal, D>> {
-        self.components()
-    }
+    pub fn iter(&self) -> std::vec::IntoIter<Ten<scal, D>> { self.components() }
 }
 
 impl<S: Shape, D: DType> IntoIterator for Ten<S, D> {
     type Item = Ten<scal, D>;
     type IntoIter = std::vec::IntoIter<Ten<scal, D>>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.components()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.components() }
 }
 
 impl<S: Shape, D: DType> std::iter::Sum for Ten<S, D> {
     fn sum<I: Iterator<Item = Self>>(mut iter: I) -> Self {
         match iter.next() {
             None => Self::zero(),
-            Some(first) => iter.fold(first, |acc, x| {
-                acc + x
-            }),
+            Some(first) => iter.fold(first, |acc, x| acc + x),
         }
     }
 }
@@ -107,9 +104,7 @@ impl<'a, S: Shape, D: DType> std::iter::Sum<&'a Self> for Ten<S, D> {
     fn sum<I: Iterator<Item = &'a Self>>(mut iter: I) -> Self {
         match iter.next() {
             None => Self::zero(),
-            Some(first) => iter.fold(*first, |acc, x| {
-                acc + *x
-            }),
+            Some(first) => iter.fold(*first, |acc, x| acc + *x),
         }
     }
 }
@@ -125,7 +120,7 @@ impl<'a, S: Shape, D: DType> std::iter::Sum<&'a Self> for Ten<S, D> {
 /// `(f32, float2)` -> `Ten<vec3, f32>` aka `float3`
 ///
 /// `((bool, bool), bool2)` -> `Ten<vec4, bool>` aka `bool4`
-pub trait AsTen: IntoRec<Rec=Ten<Self::S, Self::D>> + Copy {
+pub trait AsTen: IntoRec<Rec = Ten<Self::S, Self::D>> + Copy {
     /// shape of `Self` when converted to a tensor
     type S: Shape;
     /// dtype of `Self` when converted to a tensor
@@ -145,39 +140,34 @@ pub trait AsTen: IntoRec<Rec=Ten<Self::S, Self::D>> + Copy {
         match src_tensor == dst_tensor {
             true => self.into_any(),
             false => Any::new_tensor(dst_tensor, &[self.into_any()]),
-        }.downcast(self.stage())
+        }
+        .downcast(self.stage())
     }
 }
 
 impl<S: Shape, D: DType> AsTen for Ten<S, D> {
-    type S=S;
-    type D=D;
+    type S = S;
+    type D = D;
 
-    fn as_ten(&self) -> Ten<S, D> {*self}
+    fn as_ten(&self) -> Ten<S, D> { *self }
 }
 
 impl<S: Shape, D: DType> IntoRec for Ten<S, D> {
     type Rec = Self;
-    fn rec(self) -> Self::Rec {self}
-    fn into_any(self) -> Any {self.any}
-    fn stage(&self) -> Stage {self.stage}
+    fn rec(self) -> Self::Rec { self }
+    fn into_any(self) -> Any { self.any }
+    fn stage(&self) -> Stage { self.stage }
 }
 
 impl<S: Shape, D: DType> Fields for Ten<S, D> {
-
-    fn parent_type_name() -> Option<&'static str> {
-        None
-    }
+    fn parent_type_name() -> Option<&'static str> { None }
 
     fn from_fields_downcast(name: Option<&'static str>, f: &mut impl FnMut(Ty, &'static str) -> (Any, Stage)) -> Self {
         let (any, stage) = f(Self::ty(), name.unwrap_or("val"));
         Self::from_downcast(any, stage)
     }
 
-    fn collect_fields(&self) -> Vec<(Any, Stage)> {
-        vec![(self.any, self.stage)]
-    }
-
+    fn collect_fields(&self) -> Vec<(Any, Stage)> { vec![(self.any, self.stage)] }
 }
 
 impl<S: Shape, D: DType> Default for Ten<S, D> {

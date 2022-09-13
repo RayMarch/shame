@@ -1,7 +1,7 @@
 //! pipeline io traits to wrap [render_pipeline::IO] and [compute_pipeline::IO]
-use std::ops::RangeFrom;
 use super::*;
 use crate::shader::Group;
+use std::ops::RangeFrom;
 
 /// a trait to wrap [render_pipeline::IO] and [compute_pipeline::IO]
 pub trait GenericPipelineIO {
@@ -13,21 +13,13 @@ pub trait GenericPipelineIO {
 }
 
 impl GenericPipelineIO for compute_pipeline::IO<'_> {
-    fn next_group(&mut self) -> Group<RangeFrom<u32>> {
-        self.group()
-    }
+    fn next_group(&mut self) -> Group<RangeFrom<u32>> { self.group() }
 
-    fn push_constant<S: Shape, D: DType>(&mut self) -> Ten<S, D> {
-        self.push_constant()
-    }
+    fn push_constant<S: Shape, D: DType>(&mut self) -> Ten<S, D> { self.push_constant() }
 }
 
 impl GenericPipelineIO for render_pipeline::IO<'_> {
-    fn next_group(&mut self) -> Group<RangeFrom<u32>> {
-        self.group()
-    }
+    fn next_group(&mut self) -> Group<RangeFrom<u32>> { self.group() }
 
-    fn push_constant<S: Shape, D: DType>(&mut self) -> Ten<S, D> {
-        self.push_constant()
-    }
+    fn push_constant<S: Shape, D: DType>(&mut self) -> Ten<S, D> { self.push_constant() }
 }

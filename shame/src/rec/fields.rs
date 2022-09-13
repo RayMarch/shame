@@ -2,7 +2,7 @@
 
 use shame_graph::{Any, Ty};
 
-use super::{Stage, IntoRec};
+use super::{IntoRec, Stage};
 
 /// implemented on structs via `#[derive(Fields)]`.
 /// This trait provides a way to make rust structs conveniently work with shader
@@ -21,7 +21,6 @@ use super::{Stage, IntoRec};
 /// above. Users should use the `RenderFeatures` or `ComputeFeatures` objects
 /// provided in the shader recording to create those inputs.
 pub trait Fields: IntoRec + Sized {
-
     /// name of the type containing the fields, returns None if Fields is
     /// implemented for a single recording type element
     fn parent_type_name() -> Option<&'static str>;
@@ -47,7 +46,10 @@ pub trait Fields: IntoRec + Sized {
     }
 
     /// visit each field in `Self` with `f`
-    fn for_each_field(mut f: impl FnMut(Ty, &'static str)) where Self: Sized {
+    fn for_each_field(mut f: impl FnMut(Ty, &'static str))
+    where
+        Self: Sized,
+    {
         // implemented through `from_fields_downcast` in order to reduce the amount of things
         // that need to happen in the proc macro that derives this trait
         Self::from_fields_downcast(None, &mut |ty, field_name| {
@@ -56,4 +58,3 @@ pub trait Fields: IntoRec + Sized {
         });
     }
 }
-

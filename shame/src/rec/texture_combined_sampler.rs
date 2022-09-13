@@ -20,10 +20,22 @@ pub trait TexCoordType {
     /// type erases the texture coordinates
     fn tex_coord_any(&self) -> (Any, Stage);
 }
-impl TexCoordType for float   { const DIM: TexDimensionality = TexDimensionality::Tex1d;      fn tex_coord_any(&self) -> (Any, Stage) {(self.any, self.stage)} }
-impl TexCoordType for float2  { const DIM: TexDimensionality = TexDimensionality::Tex2d;      fn tex_coord_any(&self) -> (Any, Stage) {(self.any, self.stage)} }
-impl TexCoordType for float3  { const DIM: TexDimensionality = TexDimensionality::Tex3d;      fn tex_coord_any(&self) -> (Any, Stage) {(self.any, self.stage)} }
-impl TexCoordType for CubeDir { const DIM: TexDimensionality = TexDimensionality::TexCubeMap; fn tex_coord_any(&self) -> (Any, Stage) {(self.0.any, self.0.stage)} }
+impl TexCoordType for float {
+    const DIM: TexDimensionality = TexDimensionality::Tex1d;
+    fn tex_coord_any(&self) -> (Any, Stage) { (self.any, self.stage) }
+}
+impl TexCoordType for float2 {
+    const DIM: TexDimensionality = TexDimensionality::Tex2d;
+    fn tex_coord_any(&self) -> (Any, Stage) { (self.any, self.stage) }
+}
+impl TexCoordType for float3 {
+    const DIM: TexDimensionality = TexDimensionality::Tex3d;
+    fn tex_coord_any(&self) -> (Any, Stage) { (self.any, self.stage) }
+}
+impl TexCoordType for CubeDir {
+    const DIM: TexDimensionality = TexDimensionality::TexCubeMap;
+    fn tex_coord_any(&self) -> (Any, Stage) { (self.0.any, self.0.stage) }
+}
 
 /// cube direction
 /// using this as the `TexCoord` generic argument of `Texture` means the texture is considered a cube map.
@@ -36,11 +48,11 @@ pub struct CubeDir(pub float3);
 /// alias for texture/sampler pairs that return a `float4` when sampled
 pub type CombineSamplerRGBA<In = float2> = CombineSampler<float4, In>;
 /// alias for texture/sampler pairs that return a `float3` when sampled
-pub type CombineSamplerRGB <In = float2> = CombineSampler<float3, In>;
+pub type CombineSamplerRGB<In = float2> = CombineSampler<float3, In>;
 /// alias for texture/sampler pairs that return a `float2` when sampled
-pub type CombineSamplerRG  <In = float2> = CombineSampler<float2, In>;
+pub type CombineSamplerRG<In = float2> = CombineSampler<float2, In>;
 /// alias for texture/sampler pairs that return a `float` when sampled
-pub type CombineSamplerR   <In = float2> = CombineSampler<float , In>;
+pub type CombineSamplerR<In = float2> = CombineSampler<float, In>;
 
 /// a sampler and texture together.
 /// glsl calls this a "texture combined sampler".
@@ -48,7 +60,6 @@ pub struct CombineSampler<Out: TexSampleType, In: TexCoordType = float2> {
     any: Any,
     _phantom: PhantomData<(Out, In)>,
 }
-
 
 impl<Out: TexSampleType, In: TexCoordType> CombineSampler<Out, In> {
     pub(crate) fn new() -> Self {
@@ -58,9 +69,7 @@ impl<Out: TexSampleType, In: TexCoordType> CombineSampler<Out, In> {
         }
     }
 
-    pub(crate) fn stage(&self) -> Stage {
-        Stage::Uniform
-    }
+    pub(crate) fn stage(&self) -> Stage { Stage::Uniform }
 
     /// samples at the coordinates `coords` in their respective stage.
     ///
@@ -74,7 +83,8 @@ impl<Out: TexSampleType, In: TexCoordType> CombineSampler<Out, In> {
     /// uniform-stage value. The sample will be taken in both vertex and
     /// fragment stage (keep in mind that unused samples will most likely just
     /// be optimized away by your shader compiler though.)
-    pub fn sample(&self, tex_coords: In) -> Ten<Out::S, Out::D> { //TODO: remove duplication with the other sample functions
+    pub fn sample(&self, tex_coords: In) -> Ten<Out::S, Out::D> {
+        //TODO: remove duplication with the other sample functions
         let tcsampler = self.any;
 
         let (tex_coords_any, tex_coords_stage) = tex_coords.tex_coord_any();
@@ -83,28 +93,22 @@ impl<Out: TexSampleType, In: TexCoordType> CombineSampler<Out, In> {
         use shame_graph::Shape::*;
         //apply output shape by using the tensor constructor if necessary
         let channels = match Out::S::SHAPE {
-            Scalar |
-            Vec(2) |
-            Vec(3) => {
+            Scalar | Vec(2) | Vec(3) => {
                 let dst_tensor = shame_graph::Tensor::new(Out::S::SHAPE, Out::D::DTYPE);
                 Any::new_tensor(dst_tensor, &[sample])
-            },
+            }
             Vec(4) => sample, //no need for conversion
-            s => panic!("invalid shape for texture channels: {}", s)
+            s => panic!("invalid shape for texture channels: {}", s),
         };
 
         channels.downcast(narrow_stages_or_push_error([self.stage(), tex_coords_stage]))
     }
 
     /// type erased recording type of this [`CombineSampler`]
-    pub fn any(&self) -> Any {
-        self.any
-    }
+    pub fn any(&self) -> Any { self.any }
 
     /// runtime type struct of `Self`
-    pub fn ty() -> shame_graph::Ty {
-        shame_graph::Ty::new(shame_graph::TyKind::Opaque(Self::opaque_ty())).as_const()
-    }
+    pub fn ty() -> shame_graph::Ty { shame_graph::Ty::new(shame_graph::TyKind::Opaque(Self::opaque_ty())).as_const() }
 
     pub(crate) fn opaque_ty() -> shame_graph::OpaqueTy {
         let dtype_dim = TexDtypeDimensionality(shame_graph::DType::F32, In::DIM);

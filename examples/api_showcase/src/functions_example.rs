@@ -1,13 +1,11 @@
-
 use shame;
 use shame::aliases::*; // `float4` etc
-use shame::rec::IntoRec as _; // `.rec()`
 use shame::functions::*;
+use shame::rec::IntoRec as _; // `.rec()`
 // alternatively just use
 // use shame::prelude::*;
 
 pub fn functions_example(mut feat: shame::ComputeFeatures) {
-
     // generic zero-to-one range for different tensor shapes (scalar, vec2, vec3, vec4)
     let zto1: std::ops::Range<float3> = zero_to_one();
 
@@ -33,7 +31,4 @@ pub fn functions_example(mut feat: shame::ComputeFeatures) {
 
     let x = alpha.clamp(0.0, 1.0);
     let x = alpha.limit(0.0..1.0);
-
 }
-
-

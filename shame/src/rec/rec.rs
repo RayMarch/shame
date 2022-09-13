@@ -1,6 +1,6 @@
 //! Traits that are implemented by recording types and types that can be turned
 //! into recording types.
-use super::{*};
+use super::*;
 use shame_graph::{Any, Ty};
 
 /// Implemented by "recording types" such as `Array<T>` for arrays,

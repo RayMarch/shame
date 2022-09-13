@@ -8,7 +8,7 @@ pub fn simplify_code(s: &str) -> String {
     s.trim().chars().fold('\n', |prev, c| {
         match (prev, c) {
             ('\n', '\n') | ('\n', ' ') | (' ', ' ') => (), //skip
-            _ => out.push(c)
+            _ => out.push(c),
         }
         c
     });

@@ -8,38 +8,58 @@ use shame_graph::Tensor;
 /// e.g. `(float, float2, f32) => float4`
 pub trait VecCtor: AsTen + Sized {
     /// create a large tensor that contains all the components from `self`
-    fn vec(self) -> Ten<Self::S, Self::D> {self.as_ten()}
+    fn vec(self) -> Ten<Self::S, Self::D> { self.as_ten() }
 }
 
-impl<S: IsShapeVec, T: AsTen<S=S>> VecCtor for T {}
+impl<S: IsShapeVec, T: AsTen<S = S>> VecCtor for T {}
 
-impl<DT: DType, A: AsTen<S=scal, D=DT>, B: AsTen<S=scal, D=DT>, C: AsTen<S=scal, D=DT>, D: AsTen<S=scal, D=DT>> IntoRec for (A, B, C, D) {
+impl<
+        DT: DType,
+        A: AsTen<S = scal, D = DT>,
+        B: AsTen<S = scal, D = DT>,
+        C: AsTen<S = scal, D = DT>,
+        D: AsTen<S = scal, D = DT>,
+    > IntoRec for (A, B, C, D)
+{
     type Rec = Ten<vec4, DT>;
 
-    fn rec(self) -> Self::Rec {Any::new_tensor(Self::Rec::tensor(), &self.into_anys()).downcast(self.narrow_or_push_error())}
-    fn into_any(self) -> Any {self.as_ten().any}
-    fn stage(&self) -> Stage {self.narrow_or_push_error()}
+    fn rec(self) -> Self::Rec {
+        Any::new_tensor(Self::Rec::tensor(), &self.into_anys()).downcast(self.narrow_or_push_error())
+    }
+    fn into_any(self) -> Any { self.as_ten().any }
+    fn stage(&self) -> Stage { self.narrow_or_push_error() }
 }
 
-impl<DT: DType, A: AsTen<D=DT>, B: AsTen<D=DT>, C: AsTen<D=DT>> IntoRec for (A, B, C)
-where (A::S, B::S, C::S): VecCtorShapes {
+impl<DT: DType, A: AsTen<D = DT>, B: AsTen<D = DT>, C: AsTen<D = DT>> IntoRec for (A, B, C)
+where
+    (A::S, B::S, C::S): VecCtorShapes,
+{
     type Rec = Ten<<(A::S, B::S, C::S) as VecCtorShapes>::Output, DT>;
 
-    fn rec(self) -> Self::Rec {Any::new_tensor(Self::Rec::tensor(), &self.into_anys()).downcast(self.stage())}
-    fn into_any(self) -> Any {self.as_ten().any}
-    fn stage(&self) -> Stage {self.narrow_or_push_error()}
+    fn rec(self) -> Self::Rec { Any::new_tensor(Self::Rec::tensor(), &self.into_anys()).downcast(self.stage()) }
+    fn into_any(self) -> Any { self.as_ten().any }
+    fn stage(&self) -> Stage { self.narrow_or_push_error() }
 }
 
-impl<DT: DType, A: AsTen<D=DT>, B: AsTen<D=DT>> IntoRec for (A, B)
-where (A::S, B::S): VecCtorShapes {
+impl<DT: DType, A: AsTen<D = DT>, B: AsTen<D = DT>> IntoRec for (A, B)
+where
+    (A::S, B::S): VecCtorShapes,
+{
     type Rec = Ten<<(A::S, B::S) as VecCtorShapes>::Output, DT>;
 
-    fn rec(self) -> Self::Rec {Any::new_tensor(Self::Rec::tensor(), &self.into_anys()).downcast(self.stage())}
-    fn into_any(self) -> Any {self.as_ten().any}
-    fn stage(&self) -> Stage {self.narrow_or_push_error()}
+    fn rec(self) -> Self::Rec { Any::new_tensor(Self::Rec::tensor(), &self.into_anys()).downcast(self.stage()) }
+    fn into_any(self) -> Any { self.as_ten().any }
+    fn stage(&self) -> Stage { self.narrow_or_push_error() }
 }
 
-impl<DT: DType, A: AsTen<S=scal, D=DT>, B: AsTen<S=scal, D=DT>, C: AsTen<S=scal, D=DT>, D: AsTen<S=scal, D=DT>> AsTen for (A, B, C, D) {
+impl<
+        DT: DType,
+        A: AsTen<S = scal, D = DT>,
+        B: AsTen<S = scal, D = DT>,
+        C: AsTen<S = scal, D = DT>,
+        D: AsTen<S = scal, D = DT>,
+    > AsTen for (A, B, C, D)
+{
     type S = vec4;
     type D = DT;
 
@@ -49,8 +69,10 @@ impl<DT: DType, A: AsTen<S=scal, D=DT>, B: AsTen<S=scal, D=DT>, C: AsTen<S=scal,
     }
 }
 
-impl<DT: DType, A: AsTen<D=DT>, B: AsTen<D=DT>, C: AsTen<D=DT>> AsTen for (A, B, C)
-where (A::S, B::S, C::S): VecCtorShapes {
+impl<DT: DType, A: AsTen<D = DT>, B: AsTen<D = DT>, C: AsTen<D = DT>> AsTen for (A, B, C)
+where
+    (A::S, B::S, C::S): VecCtorShapes,
+{
     type S = <(A::S, B::S, C::S) as VecCtorShapes>::Output;
     type D = DT;
 
@@ -60,8 +82,10 @@ where (A::S, B::S, C::S): VecCtorShapes {
     }
 }
 
-impl<DT: DType, A: AsTen<D=DT>, B: AsTen<D=DT>> AsTen for (A, B)
-where (A::S, B::S): VecCtorShapes {
+impl<DT: DType, A: AsTen<D = DT>, B: AsTen<D = DT>> AsTen for (A, B)
+where
+    (A::S, B::S): VecCtorShapes,
+{
     type S = <(A::S, B::S) as VecCtorShapes>::Output;
     type D = DT;
 
@@ -89,7 +113,7 @@ macro_rules! impl_vec_ctor_shapes {
     };
 }
 
-impl_vec_ctor_shapes!{
+impl_vec_ctor_shapes! {
     (scal, scal, scal, scal) -> vec4;
     (vec2, scal, scal) -> vec4;
     (scal, vec2, scal) -> vec4;
@@ -144,10 +168,10 @@ macro_rules! impl_mat_ctor_shapes {
             type ColMat = $matCol;
             type RowMat = $matRow;
         }
-    )*}
+    )*};
 }
 
-impl_mat_ctor_shapes!{
+impl_mat_ctor_shapes! {
     (A: vec2, B: vec2) => (mat2  , mat2  );
     (A: vec3, B: vec3) => (mat3x2, mat2x3);
     (A: vec4, B: vec4) => (mat4x2, mat2x4);
@@ -191,7 +215,7 @@ macro_rules! impl_mat_ctors {
     )*};
 }
 
-impl_mat_ctors!{
+impl_mat_ctors! {
     (A, B);
     (A, B, C);
     (A, B, C, D);

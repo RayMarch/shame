@@ -1,6 +1,6 @@
 //! swizzle functionality for tensors. `tensor.xyz()`, `tensor.xyz_mut()` etc.
-use shame_graph::Any;
 use super::*;
+use shame_graph::Any;
 
 // swizzle impls
 const X: u8 = 0;
@@ -12,130 +12,122 @@ impl<S: IsVecOfAtLeast2, D: DType> Ten<S, D> {
     /// mutable lvalue referencing the vector's x component
     ///
     /// `vector.x_mut().set(value)`
-    pub fn x_mut(&mut self) -> &mut Ten<scal, D> {self.swizzle.reset_and_get_mut(self.any.x(), self.stage)}
+    pub fn x_mut(&mut self) -> &mut Ten<scal, D> { self.swizzle.reset_and_get_mut(self.any.x(), self.stage) }
     /// mutable lvalue referencing the vector's y component
     ///
     /// `vector.y_mut().set(value)`
-    pub fn y_mut(&mut self) -> &mut Ten<scal, D> {self.swizzle.reset_and_get_mut(self.any.y(), self.stage)}
+    pub fn y_mut(&mut self) -> &mut Ten<scal, D> { self.swizzle.reset_and_get_mut(self.any.y(), self.stage) }
 
     /// a vector's x component
-    pub fn x(&self) -> Ten<scal, D> {Ten::from_downcast(self.any.x(), self.stage)}
+    pub fn x(&self) -> Ten<scal, D> { Ten::from_downcast(self.any.x(), self.stage) }
     /// a vector's y component
-    pub fn y(&self) -> Ten<scal, D> {Ten::from_downcast(self.any.y(), self.stage)}
+    pub fn y(&self) -> Ten<scal, D> { Ten::from_downcast(self.any.y(), self.stage) }
 
     /// a 2 component vector made up of `self`'s x and y component
-    pub fn xy(&self) -> Ten<vec2, D> {Ten::from_downcast(self.any.swizzle(&[X, Y]), self.stage)}
+    pub fn xy(&self) -> Ten<vec2, D> { Ten::from_downcast(self.any.swizzle(&[X, Y]), self.stage) }
 
     /// a tuple made up of `self`'s x and y component
-    pub fn x_y(&self) -> (Ten<scal, D>, Ten<scal, D>) {
-        (self.x(), self.y())
-    }
+    pub fn x_y(&self) -> (Ten<scal, D>, Ten<scal, D>) { (self.x(), self.y()) }
 
     /// a 3 component vector containing (x, y, 0)
-    pub fn xy0(&self) -> Ten<vec3, D>  {
-        (self.xy(), zero::<scal, D>()).vec()
-    }
+    pub fn xy0(&self) -> Ten<vec3, D> { (self.xy(), zero::<scal, D>()).vec() }
 
     /// a 4 component vector containing (x, y, 0, 0)
-    pub fn xy00(&self) -> Ten<vec4, D> {
-        (self.xy(), zero::<vec2, D>()).vec()
-    }
+    pub fn xy00(&self) -> Ten<vec4, D> { (self.xy(), zero::<vec2, D>()).vec() }
 
     /// a 3 component vector containing (x, y, 1)
-    pub fn xy1(&self) -> Ten<vec3, D> {
-        (self.xy(), one::<scal, D>()).vec()
-    }
+    pub fn xy1(&self) -> Ten<vec3, D> { (self.xy(), one::<scal, D>()).vec() }
 
     /// a 4 component vector containing (x, y, 0, 1)
-    pub fn xy01(&self) -> Ten<vec4, D> {
-        (self.xy(), zero::<scal, D>(), one::<scal, D>()).vec()
-    }
+    pub fn xy01(&self) -> Ten<vec4, D> { (self.xy(), zero::<scal, D>(), one::<scal, D>()).vec() }
 }
 
 impl<S: IsVecOfAtLeast3, D: DType> Ten<S, D> {
     /// mutable lvalue referencing the vector's z component
     ///
     /// `vector.z_mut().set(value)`
-    pub fn z_mut(&mut self) -> &mut Ten<scal, D> {self.swizzle.reset_and_get_mut(self.any.z(), self.stage)}
+    pub fn z_mut(&mut self) -> &mut Ten<scal, D> { self.swizzle.reset_and_get_mut(self.any.z(), self.stage) }
 
     /// a vector's z component
-    pub fn z(&self) -> Ten<scal, D> {Ten::from_downcast(self.any.z(), self.stage)}
+    pub fn z(&self) -> Ten<scal, D> { Ten::from_downcast(self.any.z(), self.stage) }
 
     /// a 2 component vector made up of `self`'s y and z components
-    pub fn yz(&self) -> Ten<vec2, D> {Ten::from_downcast(self.any.swizzle(&[Y, Z]), self.stage)}
+    pub fn yz(&self) -> Ten<vec2, D> { Ten::from_downcast(self.any.swizzle(&[Y, Z]), self.stage) }
     /// a 2 component vector made up of `self`'s x and z components
-    pub fn xz(&self) -> Ten<vec2, D> {Ten::from_downcast(self.any.swizzle(&[X, Z]), self.stage)}
+    pub fn xz(&self) -> Ten<vec2, D> { Ten::from_downcast(self.any.swizzle(&[X, Z]), self.stage) }
 
     /// mutable lvalue referencing the vector's x and y component as a 2 component vector
     ///
     /// `vector.xy_mut().set(value)`
-    pub fn xy_mut(&mut self) -> &mut Ten<vec2, D> {self.swizzle.reset_and_get_mut(self.any.swizzle(&[X, Y]), self.stage)}
+    pub fn xy_mut(&mut self) -> &mut Ten<vec2, D> {
+        self.swizzle.reset_and_get_mut(self.any.swizzle(&[X, Y]), self.stage)
+    }
     /// mutable lvalue referencing the vector's y and z component as a 2 component vector
     ///
     /// `vector.yz_mut().set(value)`
-    pub fn yz_mut(&mut self) -> &mut Ten<vec2, D> {self.swizzle.reset_and_get_mut(self.any.swizzle(&[Y, Z]), self.stage)}
+    pub fn yz_mut(&mut self) -> &mut Ten<vec2, D> {
+        self.swizzle.reset_and_get_mut(self.any.swizzle(&[Y, Z]), self.stage)
+    }
     /// mutable lvalue referencing the vector's x and z component as a 2 component vector
     ///
     /// `vector.xz_mut().set(value)`
-    pub fn xz_mut(&mut self) -> &mut Ten<vec2, D> {self.swizzle.reset_and_get_mut(self.any.swizzle(&[X, Z]), self.stage)}
+    pub fn xz_mut(&mut self) -> &mut Ten<vec2, D> {
+        self.swizzle.reset_and_get_mut(self.any.swizzle(&[X, Z]), self.stage)
+    }
 
     /// a 3 component vector made up of `self`'s x, y, z components
-    pub fn xyz(&self) -> Ten<vec3, D> {Ten::from_downcast(self.any.swizzle(&[X, Y, Z]), self.stage)}
+    pub fn xyz(&self) -> Ten<vec3, D> { Ten::from_downcast(self.any.swizzle(&[X, Y, Z]), self.stage) }
 
     /// shorthand for `(self.x(), self.y(), self.z())`
-    pub fn x_y_z(&self) -> (Ten<scal, D>, Ten<scal, D>, Ten<scal, D>) {
-        (self.x(), self.y(), self.z())
-    }
+    pub fn x_y_z(&self) -> (Ten<scal, D>, Ten<scal, D>, Ten<scal, D>) { (self.x(), self.y(), self.z()) }
 
     /// shorthand for `(self.xy(), self.z())`
-    pub fn xy_z(&self) -> (Ten<vec2, D>, Ten<scal, D>) {
-        (self.xy(), self.z())
-    }
+    pub fn xy_z(&self) -> (Ten<vec2, D>, Ten<scal, D>) { (self.xy(), self.z()) }
 
     /// shorthand for `(self.x(), self.yz())`
-    pub fn x_yz(&self) -> (Ten<scal, D>, Ten<vec2, D>) {
-        (self.x(), self.yz())
-    }
+    pub fn x_yz(&self) -> (Ten<scal, D>, Ten<vec2, D>) { (self.x(), self.yz()) }
 
     /// a 4 component vector containing (x, y, z, 0)
-    pub fn xyz0(&self) -> Ten<vec4, D> {
-        (self.xyz(), zero()).vec()
-    }
+    pub fn xyz0(&self) -> Ten<vec4, D> { (self.xyz(), zero()).vec() }
 
     /// a 4 component vector containing (x, y, z, 1)
-    pub fn xyz1(&self) -> Ten<vec4, D> {
-        (self.xyz(), one()).vec()
-    }
+    pub fn xyz1(&self) -> Ten<vec4, D> { (self.xyz(), one()).vec() }
 }
 
 impl<D: DType> Ten<vec4, D> {
     /// mutable lvalue referencing the vector's w component
     ///
     /// `vector.w_mut().set(value)`
-    pub fn w_mut(&mut self) -> &mut Ten<scal, D> {self.swizzle.reset_and_get_mut(self.any.w(), self.stage)}
+    pub fn w_mut(&mut self) -> &mut Ten<scal, D> { self.swizzle.reset_and_get_mut(self.any.w(), self.stage) }
 
     /// a vector's w component
-    pub fn w(&self) -> Ten<scal, D> {Ten::from_downcast(self.any.w(), self.stage)}
+    pub fn w(&self) -> Ten<scal, D> { Ten::from_downcast(self.any.w(), self.stage) }
 
     /// mutable lvalue referencing the vector's z and w component as a 2 component vector
     ///
     /// `vector.zw_mut().set(value)`
-    pub fn zw_mut(&mut self) -> &mut Ten<vec2, D> {self.swizzle.reset_and_get_mut(self.any.swizzle(&[Z, W]), self.stage)}
+    pub fn zw_mut(&mut self) -> &mut Ten<vec2, D> {
+        self.swizzle.reset_and_get_mut(self.any.swizzle(&[Z, W]), self.stage)
+    }
 
     /// a 2 component vector made up of `self`'s z and w components
-    pub fn zw(&self) -> Ten<vec2, D> {Ten::from_downcast(self.any.swizzle(&[Z, W]), self.stage)}
+    pub fn zw(&self) -> Ten<vec2, D> { Ten::from_downcast(self.any.swizzle(&[Z, W]), self.stage) }
 
     /// mutable lvalue referencing the vector's x, y, z components as a 3 component vector
     ///
     /// `vector.xyz_mut().set(value)`
-    pub fn xyz_mut(&mut self) -> &mut Ten<vec3, D> {self.swizzle.reset_and_get_mut(self.any.swizzle(&[X, Y, Z]), self.stage)}
+    pub fn xyz_mut(&mut self) -> &mut Ten<vec3, D> {
+        self.swizzle.reset_and_get_mut(self.any.swizzle(&[X, Y, Z]), self.stage)
+    }
     /// mutable lvalue referencing the vector's y, z, w components as a 3 component vector
     ///
     /// `vector.yzw_mut().set(value)`
-    pub fn yzw_mut(&mut self) -> &mut Ten<vec3, D> {self.swizzle.reset_and_get_mut(self.any.swizzle(&[Y, Z, W]), self.stage)}
+    pub fn yzw_mut(&mut self) -> &mut Ten<vec3, D> {
+        self.swizzle.reset_and_get_mut(self.any.swizzle(&[Y, Z, W]), self.stage)
+    }
 
     /// a 3 component vector made up of `self`'s y, z, w components
-    pub fn yzw(&self) -> Ten<vec3, D> {Ten::from_downcast(self.any.swizzle(&[Y, Z, W]), self.stage)}
+    pub fn yzw(&self) -> Ten<vec3, D> { Ten::from_downcast(self.any.swizzle(&[Y, Z, W]), self.stage) }
 
     /// shorthand for `(self.x(), self.y(), self.z(), self.w())`
     pub fn x_y_z_w(&self) -> (Ten<scal, D>, Ten<scal, D>, Ten<scal, D>, Ten<scal, D>) {
@@ -143,19 +135,13 @@ impl<D: DType> Ten<vec4, D> {
     }
 
     /// shorthand for `(self.xyz(), self.w())`
-    pub fn xyz_w(&self) -> (Ten<vec3, D>, Ten<scal, D>) {
-        (self.xyz(), self.w())
-    }
+    pub fn xyz_w(&self) -> (Ten<vec3, D>, Ten<scal, D>) { (self.xyz(), self.w()) }
 
     /// shorthand for `(self.x(), self.yzw())`
-    pub fn x_yzw(&self) -> (Ten<scal, D>, Ten<vec3, D>) {
-        (self.x(), self.yzw())
-    }
+    pub fn x_yzw(&self) -> (Ten<scal, D>, Ten<vec3, D>) { (self.x(), self.yzw()) }
 
     /// shorthand for `(self.xy(), self.zw())`
-    pub fn xy_zw(&self) -> (Ten<vec2, D>, Ten<vec2, D>) {
-        (self.xy(), self.zw())
-    }
+    pub fn xy_zw(&self) -> (Ten<vec2, D>, Ten<vec2, D>) { (self.xy(), self.zw()) }
 }
 
 /// every shape - but mainly vecs (e.g. vec3) - define a corresponding
@@ -220,7 +206,7 @@ macro_rules! define_shape_structs {
 }
 
 //see define_shape_structs macro_rules! definition for more info on whats going on here
-define_shape_structs!{
+define_shape_structs! {
   //          col   row
     scal -> (scal | scal) shame_graph::Shape::Scalar, 1, swizzle_scal();
     vec2 -> (vec2 | scal) shame_graph::Shape::Vec(2), 2, swizzle_vec2(scal);
@@ -248,22 +234,24 @@ pub trait IsSwizzleMembers: Copy {
 fn reset_swizzle_member<S: Shape, D: DType>(any: Any, stage: Stage) -> SwizzleTensForShape<S> {
     match D::DTYPE {
         shame_graph::DType::Bool => SwizzleTensForShape::<S>::Bool(Ten::from_downcast(any, stage)),
-        shame_graph::DType::F32  => SwizzleTensForShape::<S>::F32 (Ten::from_downcast(any, stage)),
-        shame_graph::DType::F64  => SwizzleTensForShape::<S>::F64 (Ten::from_downcast(any, stage)),
-        shame_graph::DType::I32  => SwizzleTensForShape::<S>::I32 (Ten::from_downcast(any, stage)),
-        shame_graph::DType::U32  => SwizzleTensForShape::<S>::U32 (Ten::from_downcast(any, stage)),
+        shame_graph::DType::F32 => SwizzleTensForShape::<S>::F32(Ten::from_downcast(any, stage)),
+        shame_graph::DType::F64 => SwizzleTensForShape::<S>::F64(Ten::from_downcast(any, stage)),
+        shame_graph::DType::I32 => SwizzleTensForShape::<S>::I32(Ten::from_downcast(any, stage)),
+        shame_graph::DType::U32 => SwizzleTensForShape::<S>::U32(Ten::from_downcast(any, stage)),
     }
 }
 
-fn get_swizzle_member_mut<S: Shape, S2: Shape, D: DType>(tens_for_shape: &mut SwizzleTensForShape<S2>) -> &mut Ten<S, D> {
+fn get_swizzle_member_mut<S: Shape, S2: Shape, D: DType>(
+    tens_for_shape: &mut SwizzleTensForShape<S2>,
+) -> &mut Ten<S, D> {
     let err = "swizzle type-filter error";
 
     use SwizzleTensForShape as Tens;
     let swizzle = match tens_for_shape {
-        Tens::F32 (ten) => try_same_mut(ten).expect(err),
-        Tens::F64 (ten) => try_same_mut(ten).expect(err),
-        Tens::U32 (ten) => try_same_mut(ten).expect(err),
-        Tens::I32 (ten) => try_same_mut(ten).expect(err),
+        Tens::F32(ten) => try_same_mut(ten).expect(err),
+        Tens::F64(ten) => try_same_mut(ten).expect(err),
+        Tens::U32(ten) => try_same_mut(ten).expect(err),
+        Tens::I32(ten) => try_same_mut(ten).expect(err),
         Tens::Bool(ten) => try_same_mut(ten).expect(err),
     };
     swizzle
@@ -273,10 +261,10 @@ fn get_swizzle_member_mut<S: Shape, S2: Shape, D: DType>(tens_for_shape: &mut Sw
 #[derive(Clone, Copy)]
 #[allow(missing_docs)]
 pub enum SwizzleTensForShape<S: Shape> {
-    F32 (Ten<S, f32 >),
-    F64 (Ten<S, f64 >),
-    U32 (Ten<S, u32 >),
-    I32 (Ten<S, i32 >),
+    F32(Ten<S, f32>),
+    F64(Ten<S, f64>),
+    U32(Ten<S, u32>),
+    I32(Ten<S, i32>),
     Bool(Ten<S, bool>),
 }
 

@@ -1,4 +1,3 @@
-
 /// define the mirror module at macro call site to circumvent the orphan rule
 /// for the declared traits
 #[cfg(feature = "mirror")]
@@ -18,7 +17,8 @@ macro_rules! define_mirror_module {
 /// for the declared traits
 #[cfg(feature = "mirror")]
 #[macro_export]
-macro_rules! define_mirror_traits {() => {
+macro_rules! define_mirror_traits {
+    () => {
 
     pub trait Host {
         type Device: shame::Fields;
@@ -29,4 +29,5 @@ macro_rules! define_mirror_traits {() => {
         type Host: Host + ?Sized;
     }
 
-};}
+};
+}

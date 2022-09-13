@@ -1,9 +1,9 @@
 //! Color and depth target types for writing rendertargets in render shaders
-use std::{marker::PhantomData};
+use std::marker::PhantomData;
 
-use super::{super::rec::*, with_thread_render_pipeline_info_mut};
-use super::{blending::Blend};
+use super::blending::Blend;
 use super::pixel_format::*;
+use super::{super::rec::*, with_thread_render_pipeline_info_mut};
 
 /// color rendertarget (not multisampled)
 pub struct Color<CF: IsColorFormat> {
@@ -13,29 +13,30 @@ pub struct Color<CF: IsColorFormat> {
 }
 
 impl<CF: IsColorFormat> Color<CF> {
-
     /// assign color values to the pixels in this rendertarget
     /// (same as `set`, couldn't decide on a name)
-    pub fn write(mut self, color_value: impl AsTen<S=<CF::Item as AsTen>::S, D=<CF::Item as AsTen>::D>) {
+    pub fn write(mut self, color_value: impl AsTen<S = <CF::Item as AsTen>::S, D = <CF::Item as AsTen>::D>) {
         self.value.write(color_value)
     }
 
     /// assign color values to the pixels in this rendertarget
     /// (same as `write`, couldn't decide on a name)
-    pub fn set(self, color_value: impl AsTen<S=<CF::Item as AsTen>::S, D=<CF::Item as AsTen>::D>) {
+    pub fn set(self, color_value: impl AsTen<S = <CF::Item as AsTen>::S, D = <CF::Item as AsTen>::D>) {
         self.write(color_value)
     }
 
     /// blend color values on top of the existing pixels in this rendertarget
     /// using the blend functions described in `blend`
-    pub fn blend(self, blend: Blend, color_value: impl AsTen<S=<CF::Item as AsTen>::S, D=<CF::Item as AsTen>::D>) {
+    pub fn blend(self, blend: Blend, color_value: impl AsTen<S = <CF::Item as AsTen>::S, D = <CF::Item as AsTen>::D>) {
         with_thread_render_pipeline_info_mut(|r| {
-            let target = r.color_targets.get_mut(self.color_target_index).expect("color target index out of bounds");
+            let target = r
+                .color_targets
+                .get_mut(self.color_target_index)
+                .expect("color target index out of bounds");
             target.blending = Some(blend)
         });
         self.write(color_value);
     }
-
 }
 
 /// multisample color rendertarget
@@ -46,17 +47,16 @@ pub struct ColorMS<CF: IsColorFormat, const SAMPLES: u8> {
 }
 
 impl<CF: IsColorFormat, const SAMPLES: u8> ColorMS<CF, SAMPLES> {
-
     /// assign color values to the samples in this color rendertarget
     /// (same as `set`, couldn't decide on a name)
-    pub fn write(mut self, color_value: impl AsTen<S=<CF::Item as AsTen>::S, D=<CF::Item as AsTen>::D>) {
+    pub fn write(mut self, color_value: impl AsTen<S = <CF::Item as AsTen>::S, D = <CF::Item as AsTen>::D>) {
         narrow_stages_or_push_error([self.value.stage(), color_value.stage()]);
         self.value.write(color_value)
     }
 
     /// assign color values to the samples in this rendertarget
     /// (same as `write`, couldn't decide on a name)
-    pub fn set(self, color_value: impl AsTen<S=<CF::Item as AsTen>::S, D=<CF::Item as AsTen>::D>) {
+    pub fn set(self, color_value: impl AsTen<S = <CF::Item as AsTen>::S, D = <CF::Item as AsTen>::D>) {
         self.write(color_value)
     }
 
@@ -64,7 +64,10 @@ impl<CF: IsColorFormat, const SAMPLES: u8> ColorMS<CF, SAMPLES> {
     /// using the blend functions described in `blend`
     pub fn blend(self, blend: Blend, color_value: Ten<<CF::Item as AsTen>::S, <CF::Item as AsTen>::D>) {
         with_thread_render_pipeline_info_mut(|r| {
-            let target = r.color_targets.get_mut(self.color_target_index).expect("color target index out of bounds");
+            let target = r
+                .color_targets
+                .get_mut(self.color_target_index)
+                .expect("color target index out of bounds");
             target.blending = Some(blend)
         });
         self.write(color_value);
@@ -72,7 +75,8 @@ impl<CF: IsColorFormat, const SAMPLES: u8> ColorMS<CF, SAMPLES> {
 }
 
 /// depth rendertarget
-pub struct Depth<DF: IsDepthFormat> { //TODO: multisampling depth buffer
+pub struct Depth<DF: IsDepthFormat> {
+    //TODO: multisampling depth buffer
     pub(crate) _phantom: PhantomData<DF>,
 }
 
@@ -117,7 +121,6 @@ pub enum DepthWrite {
 }
 
 impl<DF: IsDepthFormat> Depth<DF> {
-
     /// perform a depth test and/or write a value to the depth buffer
     ///
     /// if you don't want to depth-test, use [`DepthTest::Always`]
@@ -130,7 +133,7 @@ impl<DF: IsDepthFormat> Depth<DF> {
                 DepthWrite::Write(value) => {
                     shame_graph::Any::f_frag_depth().set(value.as_any());
                     true
-                },
+                }
                 DepthWrite::PrimitiveZ => true,
                 DepthWrite::Off => false,
             });

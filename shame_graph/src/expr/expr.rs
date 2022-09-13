@@ -1,7 +1,11 @@
-use std::{cell::Cell};
+use std::cell::Cell;
 
-use crate::{context::Context, error::Error, pool::{Key, PoolRef, PoolRefMut}};
 use super::*;
+use crate::{
+    context::Context,
+    error::Error,
+    pool::{Key, PoolRef, PoolRefMut},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RecordTime(u32);
@@ -11,7 +15,7 @@ impl RecordTime {
         thread_local! {static NEXT: Cell<u32> = Cell::new(0);}
         let time = NEXT.with(|x| x.get());
         NEXT.with(|x| x.set(time + 1));
-        Self (time)
+        Self(time)
     }
 }
 
@@ -28,7 +32,7 @@ pub struct Expr {
 #[derive(Debug, Clone, Copy)]
 pub enum IdentRequirement {
     RefCount(u8), //refcount < 2 means we don't need to make this expression a variable (by giving it an identifier and a VariableDef statement)
-    IdentNeeded, //refcount >= 2 and another condition (see update_statement_requirements) means we need an identifier
+    IdentNeeded,  //refcount >= 2 and another condition (see update_statement_requirements) means we need an identifier
 }
 
 /// traverses upward from a given expression until a non-lvalue is found
@@ -36,10 +40,15 @@ pub enum IdentRequirement {
 pub(crate) fn find_closest_ancestor_non_lvalue(exprs: &PoolRef<Expr>, mut key: Key<Expr>) -> Key<Expr> {
     loop {
         let expr = &exprs[key];
-        if expr.ty.access != Access::LValue {break key}
+        if expr.ty.access != Access::LValue {
+            break key;
+        }
         match expr.args.as_slice() {
-            [arg,..] => key = *arg,
-            [] => panic!("trying to traverse upward from lvalue expression {:?} which has no parent arguments", expr.kind)
+            [arg, ..] => key = *arg,
+            [] => panic!(
+                "trying to traverse upward from lvalue expression {:?} which has no parent arguments",
+                expr.kind
+            ),
         }
     }
 }
@@ -57,13 +66,14 @@ fn update_ident_requirements(kind: &ExprKind, block: Key<Block>, args: &[Key<Exp
                 RefCount(0) => RefCount(1), //expr only used once. no identifier needed yet
                 RefCount(1) => IdentNeeded, //would be RefCount(2) => we need an identifier for this argument
                 IdentNeeded => IdentNeeded, //stays the same
-                x => panic!("unexpected enum in update_statement_requirements {:?}", x)
+                x => panic!("unexpected enum in update_statement_requirements {:?}", x),
             });
 
             //we always need an identifier if...
             if block != val.parent_block //...if our expression references an argument across a block boundary
-                || kind.is_mutating_arg_with_index(arg_i) //...if our expression needs the first arg to be an lvalue (e.g. +=, *= etc)
-                {
+                || kind.is_mutating_arg_with_index(arg_i)
+            //...if our expression needs the first arg to be an lvalue (e.g. +=, *= etc)
+            {
                 val.ident_req.set(IdentNeeded);
             }
         }
@@ -81,46 +91,52 @@ fn validate_argument_scope(args: &[Key<Expr>]) {
         //that is present in the current block stack.
         for expr in args.iter().map(|key| &exprs[*key]) {
             if !stack.clone().any(|x| x == expr.parent_block) {
-
-                let ident = expr.ident
-                .and_then(|slot| ctx.idents()[*slot].clone())
-                .map(|s| format!("'{s}' "))
-                .unwrap_or_else(|| "".to_string());
+                let ident = expr
+                    .ident
+                    .and_then(|slot| ctx.idents()[*slot].clone())
+                    .map(|s| format!("'{s}' "))
+                    .unwrap_or_else(|| "".to_string());
 
                 let ty = &expr.ty;
 
-                ctx.push_error(Error::ScopeError(
-                    format!("value {ident}(of type: {ty}) out of scope. This happens if you use a value that was \
+                ctx.push_error(Error::ScopeError(format!(
+                    "value {ident}(of type: {ty}) out of scope. This happens if you use a value that was \
                     created within an if-then/if-then-else/for/while control flow recording closure \
                     outside of that closure. Maybe you have used the `=` operator (which moves the reference) \
                     as opposed to `.set(...)` which performs assignment of the underlying value. \
                     Be careful when using `=` operators in control flow recordings, their usage can sadly \
                     not be supported since rust does not allow overloading/tracing of the `=` operator.\
-                    ")
-                ));
+                    "
+                )));
                 break;
             };
         }
-
     })
 }
 
 impl Expr {
-
-    pub fn new(ident: Option<IdentSlot>, kind: ExprKind, args: Vec<Key<Expr>>, parent_block: Key<Block>) -> Result<Self, Error> {
+    pub fn new(
+        ident: Option<IdentSlot>,
+        kind: ExprKind,
+        args: Vec<Key<Expr>>,
+        parent_block: Key<Block>,
+    ) -> Result<Self, Error> {
         let arg_types = args_as_types(&args);
 
         //error out if we try to write to read-only or read from write-only args
         validate_access(&kind, arg_types.as_slice(), &args).and_then(|_| {
-
-            try_deduce_type(&kind, arg_types.as_slice()).map(|ty| {
-                Self::new_internal(ident, ty, kind, args, parent_block)
-            })
-
+            try_deduce_type(&kind, arg_types.as_slice())
+                .map(|ty| Self::new_internal(ident, ty, kind, args, parent_block))
         })
     }
 
-    fn new_internal(ident: Option<IdentSlot>, ty: Ty, kind: ExprKind, args: Vec<Key<Expr>>, parent_block: Key<Block>) -> Self {
+    fn new_internal(
+        ident: Option<IdentSlot>,
+        ty: Ty,
+        kind: ExprKind,
+        args: Vec<Key<Expr>>,
+        parent_block: Key<Block>,
+    ) -> Self {
         validate_argument_scope(&args);
         update_ident_requirements(&kind, parent_block, &args);
         Self {
@@ -155,13 +171,13 @@ impl Expr {
                 ExprKind::GlobalInterface(_) => false,
                 ExprKind::BuiltinVar(_) => false,
                 // ExprKind::Literal(_) => false,
-                ExprKind::Copy {..} => true,
-                _ => true
-            }
+                ExprKind::Copy { .. } => true,
+                _ => true,
+            },
             _ => match self.kind {
-                ExprKind::Copy {..} => true,
-                _ => false
-            }
+                ExprKind::Copy { .. } => true,
+                _ => false,
+            },
         }
     }
 
@@ -172,8 +188,7 @@ impl Expr {
     pub fn needs_loop_condition_expr_stmt(key: Key<Expr>, expr: &Expr, blocks: &PoolRefMut<Block>) -> bool {
         match blocks[expr.parent_block].kind {
             BlockKind::LoopCondition(Some(cond_key)) => key == cond_key,
-            _ => false
+            _ => false,
         }
     }
-
 }

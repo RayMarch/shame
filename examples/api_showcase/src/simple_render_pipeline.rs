@@ -1,4 +1,3 @@
-
 use shame::*;
 
 pub fn main() {
@@ -8,13 +7,12 @@ pub fn main() {
 
 /// this serves as an overview, for more details, look at [`crate::render_pipeline`]
 fn simple_render_pipeline(mut feat: shame::RenderFeatures) {
-
     // create three individual vertex buffers as inputs for position, normal and uv.
     // Every call to `feat.io.vertex_buffer()` creates a separate vertex buffer.
     // for interleaved vertex attributes within a single buffer, see `structs_example.rs`
     let position: float3 = feat.io.vertex_buffer();
-    let normal  : float3 = feat.io.vertex_buffer();
-    let uv      : float2 = feat.io.vertex_buffer();
+    let normal: float3 = feat.io.vertex_buffer();
+    let uv: float2 = feat.io.vertex_buffer();
 
     // create a new bind group builder
     // bind group indices in shame's render/compute pipeline api count like 0, 1, 2,..
@@ -64,5 +62,4 @@ fn simple_render_pipeline(mut feat: shame::RenderFeatures) {
 
     // perform "less" depth testing and write the new polygon's depth values
     depth_out.test_write(DepthTest::Less, polygon.depth());
-
 }

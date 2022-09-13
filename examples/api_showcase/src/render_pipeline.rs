@@ -1,4 +1,3 @@
-
 use shame::*;
 
 pub fn main() {
@@ -7,7 +6,6 @@ pub fn main() {
 }
 
 fn my_render_pipeline(mut feat: RenderFeatures) {
-
     // vertex inputs consist of vertex attributes, which can be stored
     // interleaved in one buffer, in separate vertex buffers, or in a mixture of
     // both
@@ -24,7 +22,7 @@ fn my_render_pipeline(mut feat: RenderFeatures) {
     // read `Vertex` as interleaved vertex attributes from a
     // common vertex buffer...
     let vertex: Vertex = feat.io.vertex_buffer(); // vertex buffer #0
-    // ...and access individual vertex attributes like this:
+                                                  // ...and access individual vertex attributes like this:
     vertex.pos;
     vertex.nor;
     vertex.uv;
@@ -33,7 +31,7 @@ fn my_render_pipeline(mut feat: RenderFeatures) {
     // do this:
     let v_pos: float3 = feat.io.vertex_buffer(); // vertex buffer #1
     let v_nor: float3 = feat.io.vertex_buffer(); // vertex buffer #2
-    let v_uv : float2 = feat.io.vertex_buffer(); // vertex buffer #3
+    let v_uv: float2 = feat.io.vertex_buffer(); // vertex buffer #3
 
     // the same rules apply to the `instance_buffer` function, which is used
     // to describe per-instance vertex attributes.
@@ -49,8 +47,8 @@ fn my_render_pipeline(mut feat: RenderFeatures) {
     // create bind groups like this:
     let mut group0 = feat.io.group(); // bind group #0
     let mut group1 = feat.io.group(); // bind group #1
-    // you can create bindgroups any time, they don't have to be created in one
-    // block.
+                                      // you can create bindgroups any time, they don't have to be created in one
+                                      // block.
 
     // you can add uniform blocks and read-only storage buffers to a group like
     // so:
@@ -71,7 +69,7 @@ fn my_render_pipeline(mut feat: RenderFeatures) {
 
     // if you want to add an array of structs, it works as follows:
     let tfs2: Array<Struct<Transforms>> = group0.storage(); // bind group #0 binding #3
-    //for more info on Arrays and storage, see the compute pipeline example
+                                                            //for more info on Arrays and storage, see the compute pipeline example
 
     // matrix/vector multiplication works as expected
     let clip_pos = tfs.projection * tfs.view * tfs.world * (vertex.pos, 1.0);
@@ -81,7 +79,7 @@ fn my_render_pipeline(mut feat: RenderFeatures) {
     // see the vec matrix example for more shorthands etc.
 
     let culling = Cull::CW; //choose the winding order of the triangles you want
-    //to cull, or `Cull::Off` for disabling face culling
+                            //to cull, or `Cull::Off` for disabling face culling
 
     let use_index_buffer = true;
 
@@ -107,7 +105,7 @@ fn my_render_pipeline(mut feat: RenderFeatures) {
     let frag_uv = primitive.lerp(v_uv); // linear interpolation
     let frag_uv = primitive.flat(v_uv); // flat interpolation (takes the value of the "provoking" vertex)
     let frag_uv = primitive.plerp(v_uv); // perspective aware interpolation (takes clip_pos.w into account)
-    // of those three, `plerp` is the most commonly used.
+                                         // of those three, `plerp` is the most commonly used.
 
     // read push constants of a certain type (float2 in this case)
     // shame does not support different push constants for vertex and fragment
@@ -185,18 +183,12 @@ fn my_render_pipeline(mut feat: RenderFeatures) {
             // "less or equal" than `frag_nor.x()`
             // pixel, the fragment colors get written, and `frag_nor.x()` gets
             // written to the depth buffer.
-            depth_buffer.test_write(
-                DepthTest::LessOrEqual,
-                DepthWrite::Write(frag_nor.x())
-            );
+            depth_buffer.test_write(DepthTest::LessOrEqual, DepthWrite::Write(frag_nor.x()));
         }
         _ => {
             // Always write `frag_nor.x()` to the depth buffer, as well as
             // the fragment colors to their respective targets
-            depth_buffer.test_write(
-                DepthTest::Always,
-                DepthWrite::Write(frag_nor.x())
-            );
+            depth_buffer.test_write(DepthTest::Always, DepthWrite::Write(frag_nor.x()));
         }
     }
 
@@ -218,15 +210,11 @@ fn my_render_pipeline(mut feat: RenderFeatures) {
     // alpha blend `result` onto an `RGBA_8888_sRGB` color target
     feat.io.color::<RGBA_8888_sRGB>().blend(
         Blend::alpha(), //see the `Blend` type for more blend equations
-        result
+        result,
     ); // color target #3
 
     // `RGBA_Surface` can be used if the surface format is not yet known.
     // It can be replaced after recording.
     // (see `simple_wgpu` example for more details)
     feat.io.color::<RGBA_Surface>().set(result);
-
 }
-
-
-

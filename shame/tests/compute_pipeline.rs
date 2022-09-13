@@ -1,11 +1,8 @@
-
 use shame::*;
 mod common;
 
 #[test]
-fn minimal_compute_pipeline() {
-    record_compute_pipeline(|_| ());
-}
+fn minimal_compute_pipeline() { record_compute_pipeline(|_| ()); }
 
 #[test]
 fn minimal_compute_pipeline_glsl() {
@@ -24,7 +21,6 @@ fn minimal_compute_pipeline_glsl() {
     ";
 
     assert_eq_code!(csh, &out.shader_glsl);
-
 }
 
 #[test]
@@ -46,8 +42,11 @@ fn compute_pipeline_work_group() {
     ";
 
     assert_eq_code!(csh, &out.shader_glsl);
-    assert_eq!(out.info, ComputePipelineInfo {
-        work_group_size: Some([2, 3, 4]),
-        ..Default::default()
-    });
+    assert_eq!(
+        out.info,
+        ComputePipelineInfo {
+            work_group_size: Some([2, 3, 4]),
+            ..Default::default()
+        }
+    );
 }

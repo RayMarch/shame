@@ -1,11 +1,10 @@
 //! control flow functions for recording `if` `while` `for` etc.
-use std::ops::Bound;
 use shame_graph::Context;
+use std::ops::Bound;
 
 use super::*;
 
 impl Ten<scal, bool> {
-
     /// record an `if (self) {then_fn}` branch in the shader.
     ///
     /// note that the `then_fn` will be executed exactly once
@@ -14,9 +13,7 @@ impl Ten<scal, bool> {
     /// any regular rust code that runs in `then_fn` as it is
     /// not conditionally executed at all. It runs either way since
     /// self's value cannot be known when recording the shader.
-    pub fn then(&self, then_fn: impl FnOnce()) {
-        self.as_any().record_then(self.stage().into(), then_fn)
-    }
+    pub fn then(&self, then_fn: impl FnOnce()) { self.as_any().record_then(self.stage().into(), then_fn) }
 
     /// record an `if (self) {then_fn} else {else_fn}` branch in the shader.
     ///
@@ -43,9 +40,6 @@ impl Ten<scal, bool> {
     // shame::while_(|| true, || {});
     // shame::for_range(0..10, |i| {});
     // shame::for_range_step(0..10, 2, |i| {});
-
-
-
 }
 
 fn get_bound<R, T>(bound: &Bound<T>, f: impl FnOnce(&T) -> R) -> Option<R> {
@@ -65,13 +59,10 @@ fn map_bound<R, T>(bound: Bound<T>, f: impl FnOnce(T) -> R) -> Bound<R> {
     }
 }
 
-pub fn for_range<D, Scalar>(
-    range: impl std::ops::RangeBounds<Scalar>,
-    body_fn: impl FnOnce(Scalar::Rec)
-)
+pub fn for_range<D, Scalar>(range: impl std::ops::RangeBounds<Scalar>, body_fn: impl FnOnce(Scalar::Rec))
 where
-    Scalar: AsTen<S=scal, D=D>,
-    D: IsDtypeNonFloatingPoint // reject situations where it matters whether a float is equal to range.end
+    Scalar: AsTen<S = scal, D = D>,
+    D: IsDtypeNonFloatingPoint, // reject situations where it matters whether a float is equal to range.end
 {
     for_range_step(range, || one(), body_fn)
 }
@@ -79,21 +70,16 @@ where
 pub fn for_range_step<D, Scalar, Step>(
     range: impl std::ops::RangeBounds<Scalar>,
     step_fn: impl FnOnce() -> Step,
-    body_fn: impl FnOnce(Scalar::Rec)
-)
-where
+    body_fn: impl FnOnce(Scalar::Rec),
+) where
     D: DType,
-    Scalar: AsTen<S=scal, D=D>,
-    Step: AsTen<S=scal, D=D>
+    Scalar: AsTen<S = scal, D = D>,
+    Step: AsTen<S = scal, D = D>,
 {
     use Bound::*;
     let [start, end] = [range.start_bound(), range.end_bound()];
-    let [start_stage, end_stage] = [start, end].map(
-        |b| get_bound(&b, |t| t.stage()).unwrap_or(Stage::Uniform)
-    );
-    let loop_stage = narrow_stages_or_push_error(
-        [start_stage, end_stage]
-    );
+    let [start_stage, end_stage] = [start, end].map(|b| get_bound(&b, |t| t.stage()).unwrap_or(Stage::Uniform));
+    let loop_stage = narrow_stages_or_push_error([start_stage, end_stage]);
 
     let shader_kind = Context::with(|ctx| ctx.shader_kind());
     let available = Stage::from_shader_kind(shader_kind) != Stage::NotAvailable;
@@ -104,51 +90,57 @@ where
 
     if available {
         Any::record_for_loop(
-            || { // init
+            || {
+                // init
                 let start = map_bound(start, |x| x.into_any().copy_silent().aka("i"));
                 match Any::lower_bound_value(start) {
                     Ok(start) => i.set(Some(start)),
-                    Err(e) => Context::with(|ctx| ctx.push_error(match e {
-                        Unbounded => Error::ArgumentError("for range: cannot use unbounded lower bound".to_string()),
-                        Included(d) => Error::TypeError(format!("for range: cannot use {d} lower bound in inclusive range")),
-                        Excluded(d) => Error::TypeError(format!("for range: cannot use {d} lower bound in inclusive range")),
-                    })),
+                    Err(e) => Context::with(|ctx| {
+                        ctx.push_error(match e {
+                            Unbounded => {
+                                Error::ArgumentError("for range: cannot use unbounded lower bound".to_string())
+                            }
+                            Included(d) => {
+                                Error::TypeError(format!("for range: cannot use {d} lower bound in inclusive range"))
+                            }
+                            Excluded(d) => {
+                                Error::TypeError(format!("for range: cannot use {d} lower bound in inclusive range"))
+                            }
+                        })
+                    }),
                 }
 
                 endval.set(Some(map_bound(end, |x| x.into_any().copy_silent().aka("end"))));
             },
-            || { // condition evaluation
+            || {
+                // condition evaluation
                 let mut i = i.get().unwrap();
                 //let end = map_bound(end, |x| x.into_any());
                 let end = endval.get().unwrap();
                 (i.is_below_upper_bound(end), loop_stage.into())
             },
-            || { // increment
+            || {
+                // increment
                 let mut i = i.get().unwrap();
                 let step = step_fn();
                 i.increment_by(step.into_any())
             },
-            || { // body
+            || {
+                // body
                 let i = i.get().unwrap();
                 let i = i.downcast(start_stage);
                 body_fn(i)
-            }
+            },
         );
     }
 }
 
-pub fn break_if(cond: boolean) {cond.then(|| break_())}
-pub fn continue_if(cond: boolean) {cond.then(|| continue_())}
-pub fn discard_fragment_if(cond: boolean) {cond.then(|| discard_fragment())}
+pub fn break_if(cond: boolean) { cond.then(|| break_()) }
+pub fn continue_if(cond: boolean) { cond.then(|| continue_()) }
+pub fn discard_fragment_if(cond: boolean) { cond.then(|| discard_fragment()) }
 
-pub fn break_() {
-    shame_graph::Stmt::record_break()
-}
+pub fn break_() { shame_graph::Stmt::record_break() }
 
-pub fn continue_() {
-    shame_graph::Stmt::record_continue();
-}
+pub fn continue_() { shame_graph::Stmt::record_continue(); }
 
-pub fn discard_fragment() {
-    shame_graph::Stmt::record_discard();
-}
+pub fn discard_fragment() { shame_graph::Stmt::record_discard(); }

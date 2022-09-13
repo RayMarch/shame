@@ -1,6 +1,8 @@
-
-fn start_listening() -> (std::sync::mpsc::Receiver<String>, std::thread::JoinHandle<std::io::Result<()>>) {
-    use std::{net::TcpListener, io::Read};
+fn start_listening() -> (
+    std::sync::mpsc::Receiver<String>,
+    std::thread::JoinHandle<std::io::Result<()>>,
+) {
+    use std::{io::Read, net::TcpListener};
 
     let (send, recv) = std::sync::mpsc::channel();
 
@@ -11,8 +13,7 @@ fn start_listening() -> (std::sync::mpsc::Receiver<String>, std::thread::JoinHan
         for stream in listener.incoming() {
             let mut string = String::new();
             stream?.read_to_string(&mut string)?;
-            let _ = send.send(string)
-            .map_err(|e| println!("send error: {e}"));
+            let _ = send.send(string).map_err(|e| println!("send error: {e}"));
         }
         println!("no longer listening to incoming shaders.");
         Ok(())

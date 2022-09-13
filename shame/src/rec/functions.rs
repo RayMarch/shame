@@ -7,44 +7,38 @@ use shame_graph::Any;
 
 impl float2 {
     /// return the arc-tangent of `(self.y() / self.x())`
-    pub fn atan2(&self) -> float {
-        Any::atan2(self.into_any().y(), self.into_any().x()).downcast(self.stage())
-    }
+    pub fn atan2(&self) -> float { Any::atan2(self.into_any().y(), self.into_any().x()).downcast(self.stage()) }
 }
 
 impl<S: Shape, D: DType> Ten<S, D> {
-
     fn with_constant_diagonal(val: D) -> Self {
         use shame_graph::Shape::*;
         let literal = val.new_literal().into_any();
         match S::SHAPE {
             Scalar => literal,
-            Vec(_) | Mat(_, _) => Any::new_tensor(
-                shame_graph::Tensor::new(S::SHAPE, D::DTYPE),
-                &[literal]
-            )
+            Vec(_) | Mat(_, _) => Any::new_tensor(shame_graph::Tensor::new(S::SHAPE, D::DTYPE), &[literal]),
         }
         .downcast(Stage::Uniform)
     }
 
     /// tensor filled with zeroes
-    pub fn zero() -> Self {zero()}
+    pub fn zero() -> Self { zero() }
     /// identity tensor wrt to `*` operator
-    pub fn id()   -> Self {id()}
+    pub fn id() -> Self { id() }
     /// tensor filled with ones
-    pub fn one()  -> Self {one()}
+    pub fn one() -> Self { one() }
 }
 
-impl<S: Shape, D: DType> Ten<S, D> where Self: std::ops::Mul<Output=Self> {
+impl<S: Shape, D: DType> Ten<S, D>
+where
+    Self: std::ops::Mul<Output = Self>,
+{
     /// raises `self` to the power of `n` by repeatedly multiplying it by itself.
     /// This actually records `n` multiplications in the shader
-    pub fn pow_unrolled(self, n: u32) -> Self {
-        self.with_any(|any| any.pow_unrolled(n))
-    }
+    pub fn pow_unrolled(self, n: u32) -> Self { self.with_any(|any| any.pow_unrolled(n)) }
 }
 
 impl<S: IsShapeScalarOrVec, D: DType> Ten<S, D> {
-
     /// component wise application of the `sign` function, which returns
     /// - `-1` for negative numbers,
     /// - `+1` for positive numbers,
@@ -72,7 +66,6 @@ impl<S: IsShapeScalarOrVec, D: DType> Ten<S, D> {
 
 // genFType aka genType
 impl<SelfS: IsShapeScalarOrVec> Ten<SelfS, f32> {
-
     /// raises `self` to the power of `exponent`. Applied component wise for
     /// vectors
     ///
@@ -81,7 +74,7 @@ impl<SelfS: IsShapeScalarOrVec> Ten<SelfS, f32> {
     /// fn pow(&self: floatN, exponent: floatN) -> floatN
     /// fn pow(&self: floatN, exponent: float ) -> floatN
     /// ```
-    pub fn pow<S: IsScalarOr<SelfS>>(&self, exponent: impl AsTen<S=S, D=f32>) -> Self {
+    pub fn pow<S: IsScalarOr<SelfS>>(&self, exponent: impl AsTen<S = S, D = f32>) -> Self {
         let any = exponent.into_any();
 
         let matching_exp = if S::SHAPE == SelfS::SHAPE {
@@ -93,7 +86,9 @@ impl<SelfS: IsShapeScalarOrVec> Ten<SelfS, f32> {
             panic!("pow exponent shape is neither scalar nor {:?}", SelfS::SHAPE)
         };
 
-        self.into_any().pow(matching_exp).downcast((*self, exponent).narrow_or_push_error())
+        self.into_any()
+            .pow(matching_exp)
+            .downcast((*self, exponent).narrow_or_push_error())
     }
 
     /// applies the `eerp` function
@@ -101,102 +96,98 @@ impl<SelfS: IsShapeScalarOrVec> Ten<SelfS, f32> {
     ///     eerp(self, x, y) = x^(1-self)*y^(self)
     /// ```
     /// component wise for vectors
-    pub fn eerp<S: IsShapeScalarOrVec>(&self, x: impl AsTen<S=S, D=f32>, y: impl AsTen<S=S, D=f32>)
-    -> Ten<S, f32>
-    where SelfS: IsScalarOr<S> {
+    pub fn eerp<S: IsShapeScalarOrVec>(
+        &self,
+        x: impl AsTen<S = S, D = f32>,
+        y: impl AsTen<S = S, D = f32>,
+    ) -> Ten<S, f32>
+    where
+        SelfS: IsScalarOr<S>,
+    {
         let (x, y, t) = (x.as_ten(), y.as_ten(), *self);
         // eerp(t, x, y) = x * (y/x)^t
-        let result = x.as_any() * (y/x).pow(t).as_any();
+        let result = x.as_any() * (y / x).pow(t).as_any();
         result.downcast((x, y, t).narrow_or_push_error())
     }
 
     /// component wise `sin` function
-    pub fn sin(&self) -> Self {
-        self.into_any().sin().downcast(self.stage())
-    }
+    pub fn sin(&self) -> Self { self.into_any().sin().downcast(self.stage()) }
 
     /// component wise `cos` function
-    pub fn cos(&self) -> Self {
-        self.into_any().cos().downcast(self.stage())
-    }
+    pub fn cos(&self) -> Self { self.into_any().cos().downcast(self.stage()) }
 
     /// component wise `sin` function with its
     /// results remapped to the 0 to 1 range.
-    pub fn sin01(&self) -> Self {
-        self.sin().remap(-1.0..1.0, 0.0..1.0)
-    }
+    pub fn sin01(&self) -> Self { self.sin().remap(-1.0..1.0, 0.0..1.0) }
 
     /// component wise `cos` function with its
     /// results remapped to the 0 to 1 range.
-    pub fn cos01(&self) -> Self {
-        self.cos().remap(-1.0..1.0, 0.0..1.0)
-    }
+    pub fn cos01(&self) -> Self { self.cos().remap(-1.0..1.0, 0.0..1.0) }
 
     /// component wise `tan` function
-    pub fn tan(&self) -> Self {
-        self.into_any().tan().downcast(self.stage())
-    }
+    pub fn tan(&self) -> Self { self.into_any().tan().downcast(self.stage()) }
 
     /// partial derivative of `self`'s `component`th component wrt neighboring
     /// fragments
     fn partial_derivative(&self, component: u8, precision: shame_graph::DerivativePrecision) -> Self {
-        assert_string(matches!(self.stage, Stage::Fragment | Stage::Uniform),
-            "calling partial derivative function `dx`/`dy`/`dxy` on value that is neither uniform or fragment stage"
+        assert_string(
+            matches!(self.stage, Stage::Fragment | Stage::Uniform),
+            "calling partial derivative function `dx`/`dy`/`dxy` on value that is neither uniform or fragment stage",
         );
 
-        self.into_any().partial_derivative(component, precision).downcast(narrow_stages_or_push_error([self.stage, Stage::Fragment]))
+        self.into_any()
+            .partial_derivative(component, precision)
+            .downcast(narrow_stages_or_push_error([self.stage, Stage::Fragment]))
     }
 
     /// partial derivative of `self` wrt to the neighboring fragment in
     /// `x`-direction
-    pub fn dx      (&self) -> Self {self.partial_derivative(0, shame_graph::DerivativePrecision::DontCare)}
+    pub fn dx(&self) -> Self { self.partial_derivative(0, shame_graph::DerivativePrecision::DontCare) }
     /// derivative of `self` wrt to the neighboring fragment in `y`-direction
-    pub fn dy      (&self) -> Self {self.partial_derivative(1, shame_graph::DerivativePrecision::DontCare)}
+    pub fn dy(&self) -> Self { self.partial_derivative(1, shame_graph::DerivativePrecision::DontCare) }
     /// coarse-precision partial derivative of `self` wrt the neighboring fragment
     /// in `x`-direction
-    pub fn dx_coarse(&self) -> Self {self.partial_derivative(0, shame_graph::DerivativePrecision::Coarse)}
+    pub fn dx_coarse(&self) -> Self { self.partial_derivative(0, shame_graph::DerivativePrecision::Coarse) }
     /// coarse-precision partial derivative of `self` wrt the neighboring fragment
     /// in `y`-direction
-    pub fn dy_coarse(&self) -> Self {self.partial_derivative(1, shame_graph::DerivativePrecision::Coarse)}
+    pub fn dy_coarse(&self) -> Self { self.partial_derivative(1, shame_graph::DerivativePrecision::Coarse) }
     /// fine-precision partial derivative of `self` wrt the neighboring fragment
     /// in `x`-direction
-    pub fn dx_fine  (&self) -> Self {self.partial_derivative(0, shame_graph::DerivativePrecision::Fine)}
+    pub fn dx_fine(&self) -> Self { self.partial_derivative(0, shame_graph::DerivativePrecision::Fine) }
     /// fine-precision partial derivative of `self` wrt the neighboring fragment
     /// in `y`-direction
-    pub fn dy_fine  (&self) -> Self {self.partial_derivative(1, shame_graph::DerivativePrecision::Fine)}
+    pub fn dy_fine(&self) -> Self { self.partial_derivative(1, shame_graph::DerivativePrecision::Fine) }
 
     /// partial derivatives of `self` wrt to the neighboring fragments in
     /// `x`-direction and `y`-direction
-    pub fn dxy       (&self) -> (Self, Self) {(self.dx()       , self.dy())}
+    pub fn dxy(&self) -> (Self, Self) { (self.dx(), self.dy()) }
     /// coarse-precision partial derivatives of `self` wrt to the neighboring
     /// fragments in `x`-direction and `y`-direction
-    pub fn dxy_coarse(&self) -> (Self, Self) {(self.dx_coarse(), self.dy_coarse())}
+    pub fn dxy_coarse(&self) -> (Self, Self) { (self.dx_coarse(), self.dy_coarse()) }
     /// fine-precision partial derivatives of `self` wrt to the neighboring
     /// fragments in `x`-direction and `y`-direction
-    pub fn dxy_fine  (&self) -> (Self, Self) {(self.dx_fine()  , self.dy_fine())}
+    pub fn dxy_fine(&self) -> (Self, Self) { (self.dx_fine(), self.dy_fine()) }
 }
 
 impl<SelfD: IsDTypeFloatingPoint> Ten<vec3, SelfD> {
-
     /// this signature might be easier to read:
     /// ```ignore
     /// fn cross(&self: floating3, val: floating3) -> floating
     /// ```
     /// the cross product of `self` and `val`
-    pub fn cross(&self, val: impl AsTen<S=vec3, D=SelfD>) -> Ten<vec3, SelfD> {
-        self.into_any().cross(val.into_any()).downcast((*self, val).narrow_or_push_error())
+    pub fn cross(&self, val: impl AsTen<S = vec3, D = SelfD>) -> Ten<vec3, SelfD> {
+        self.into_any()
+            .cross(val.into_any())
+            .downcast((*self, val).narrow_or_push_error())
     }
 }
 
 impl<SelfS: Shape, SelfD: IsDTypeNumber> Ten<SelfS, SelfD> {
     /// the sum of `self`'s components
-    pub fn sum(&self) -> Ten<scal, SelfD> {
-        self.components().sum()
-    }
+    pub fn sum(&self) -> Ten<scal, SelfD> { self.components().sum() }
 }
 
 impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeNumber> Ten<SelfS, SelfD> {
-
     /// these signatures might be easier to read:
     /// ```ignore
     /// fn clamp(&self: numberN, min: number , max: number ) -> numberN
@@ -209,9 +200,13 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeNumber> Ten<SelfS, SelfD> {
     /// - `self` otherwise
     ///
     /// applied component wise to vectors
-    pub fn clamp<S: Shape>(&self, min: impl AsTen<S=S,D=SelfD>, max: impl AsTen<S=S,D=SelfD>) -> Self
-    where S: IsScalarOr<SelfS> {
-        self.into_any().clamp(min.into_any(), max.into_any()).downcast((*self, min, max).narrow_or_push_error())
+    pub fn clamp<S: Shape>(&self, min: impl AsTen<S = S, D = SelfD>, max: impl AsTen<S = S, D = SelfD>) -> Self
+    where
+        S: IsScalarOr<SelfS>,
+    {
+        self.into_any()
+            .clamp(min.into_any(), max.into_any())
+            .downcast((*self, min, max).narrow_or_push_error())
     }
 
     /// these signatures might be easier to read:
@@ -224,14 +219,20 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeNumber> Ten<SelfS, SelfD> {
     /// - `self` otherwise
     ///
     /// applied component wise to vectors
-    pub fn min<T: AsTen<D=SelfD>>(&self, other: T) -> Self
-    where T::S: IsScalarOr<SelfS> {
-        self.into_any().min(other.into_any()).downcast((*self, other).narrow_or_push_error())
+    pub fn min<T: AsTen<D = SelfD>>(&self, other: T) -> Self
+    where
+        T::S: IsScalarOr<SelfS>,
+    {
+        self.into_any()
+            .min(other.into_any())
+            .downcast((*self, other).narrow_or_push_error())
     }
 
     /// performs `self.set(self.min(other))`
-    pub fn min_assign<T: AsTen<D=SelfD>>(&mut self, other: T)
-    where T::S: IsScalarOr<SelfS> {
+    pub fn min_assign<T: AsTen<D = SelfD>>(&mut self, other: T)
+    where
+        T::S: IsScalarOr<SelfS>,
+    {
         self.set(self.min(other))
     }
 
@@ -245,19 +246,25 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeNumber> Ten<SelfS, SelfD> {
     /// - `self` otherwise
     ///
     /// applied component wise to vectors
-    pub fn max<T: AsTen<D=SelfD>>(&self, other: T) -> Self
-    where T::S: IsScalarOr<SelfS> {
-        self.into_any().max(other.into_any()).downcast((*self, other).narrow_or_push_error())
+    pub fn max<T: AsTen<D = SelfD>>(&self, other: T) -> Self
+    where
+        T::S: IsScalarOr<SelfS>,
+    {
+        self.into_any()
+            .max(other.into_any())
+            .downcast((*self, other).narrow_or_push_error())
     }
 
     /// performs `self.set(self.max(other))`
-    pub fn max_assign<T: AsTen<D=SelfD>>(&mut self, other: T)
-    where T::S: IsScalarOr<SelfS> {
+    pub fn max_assign<T: AsTen<D = SelfD>>(&mut self, other: T)
+    where
+        T::S: IsScalarOr<SelfS>,
+    {
         self.set(self.max(other))
     }
 
-    fn compare(&self, kind: shame_graph::CompareKind, rhs: &impl AsTen<S=SelfS, D=SelfD>) -> Ten<SelfS, bool> {
-        use shame_graph::{Shape::*, DType::*};
+    fn compare(&self, kind: shame_graph::CompareKind, rhs: &impl AsTen<S = SelfS, D = SelfD>) -> Ten<SelfS, bool> {
+        use shame_graph::{DType::*, Shape::*};
         if let (Vec(_), F64) = (SelfS::SHAPE, SelfD::DTYPE) {
             todo!("{:?} not yet implemented for {}<{}>", kind, SelfS::SHAPE, SelfD::DTYPE);
         }
@@ -265,51 +272,52 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeNumber> Ten<SelfS, SelfD> {
             Scalar => self.into_any().scalar_comparison(kind, rhs.into_any()),
             Vec(_) => self.into_any().vector_comparison(kind, rhs.into_any()),
             Mat(_, _) => unreachable!("running `compare` with matrix arguments"),
-        }.downcast((*self, *rhs).narrow_or_push_error())
+        }
+        .downcast((*self, *rhs).narrow_or_push_error())
     }
 
     /// component wise comparison of `self` with `rhs` using `==`
-    pub fn eq(&self, rhs: &impl AsTen<S=SelfS, D=SelfD>) -> Ten<SelfS, bool> {
+    pub fn eq(&self, rhs: &impl AsTen<S = SelfS, D = SelfD>) -> Ten<SelfS, bool> {
         self.compare(shame_graph::CompareKind::Equal, rhs)
     }
 
     /// component wise comparison of `self` with `rhs` using `!=`
-    pub fn ne(&self, rhs: &impl AsTen<S=SelfS, D=SelfD>) -> Ten<SelfS, bool> {
+    pub fn ne(&self, rhs: &impl AsTen<S = SelfS, D = SelfD>) -> Ten<SelfS, bool> {
         self.compare(shame_graph::CompareKind::NotEqual, rhs)
     }
 
     /// component wise comparison of `self` with `rhs` using `<`
-    pub fn lt(&self, rhs: &impl AsTen<S=SelfS, D=SelfD>) -> Ten<SelfS, bool> {
+    pub fn lt(&self, rhs: &impl AsTen<S = SelfS, D = SelfD>) -> Ten<SelfS, bool> {
         self.compare(shame_graph::CompareKind::Less, rhs)
     }
 
     /// component wise comparison of `self` with `rhs` using `<=`
-    pub fn le(&self, rhs: &impl AsTen<S=SelfS, D=SelfD>) -> Ten<SelfS, bool> {
+    pub fn le(&self, rhs: &impl AsTen<S = SelfS, D = SelfD>) -> Ten<SelfS, bool> {
         self.compare(shame_graph::CompareKind::LessEqual, rhs)
     }
 
     /// component wise comparison of `self` with `rhs` using `>`
-    pub fn gt(&self, rhs: &impl AsTen<S=SelfS, D=SelfD>) -> Ten<SelfS, bool> {
+    pub fn gt(&self, rhs: &impl AsTen<S = SelfS, D = SelfD>) -> Ten<SelfS, bool> {
         self.compare(shame_graph::CompareKind::Greater, rhs)
     }
 
     /// component wise comparison of `self` with `rhs` using `>=`
-    pub fn ge(&self, rhs: &impl AsTen<S=SelfS, D=SelfD>) -> Ten<SelfS, bool> {
+    pub fn ge(&self, rhs: &impl AsTen<S = SelfS, D = SelfD>) -> Ten<SelfS, bool> {
         self.compare(shame_graph::CompareKind::GreaterEqual, rhs)
     }
-
 }
 
 impl<SelfS: IsShapeScalarOrVec> Ten<SelfS, bool> {
-
     /// glsl equivalent: `mix` with `bool` alpha.
     ///
     /// this signature might be easier to read:
     /// ```ignore
     /// fn select(&self: boolN, x: anyN, y: anyN) -> anyN
     /// ```
-    pub fn select<D: DType>(&self, x: impl AsTen<S=SelfS, D=D>, y: impl AsTen<S=SelfS, D=D>) -> Ten<SelfS, D> {
-        self.into_any().mix(x.into_any()..y.into_any()).downcast((*self, x, y).narrow_or_push_error())
+    pub fn select<D: DType>(&self, x: impl AsTen<S = SelfS, D = D>, y: impl AsTen<S = SelfS, D = D>) -> Ten<SelfS, D> {
+        self.into_any()
+            .mix(x.into_any()..y.into_any())
+            .downcast((*self, x, y).narrow_or_push_error())
     }
 }
 
@@ -321,9 +329,17 @@ impl<SelfS: Shape, SelfD: IsDTypeFloatingPoint> Ten<SelfS, SelfD> {
     /// ```
     ///
     /// linear interpolation or `lerp` from `x` to `y` with mix value `self`
-    pub fn mix<S: IsShapeScalarOrVec>(&self, x: impl AsTen<S=S, D=SelfD>, y: impl AsTen<S=S, D=SelfD>) -> Ten<S, SelfD>
-    where SelfS: IsScalarOr<S> {
-        self.into_any().mix(x.into_any()..y.into_any()).downcast((*self, x, y).narrow_or_push_error())
+    pub fn mix<S: IsShapeScalarOrVec>(
+        &self,
+        x: impl AsTen<S = S, D = SelfD>,
+        y: impl AsTen<S = S, D = SelfD>,
+    ) -> Ten<S, SelfD>
+    where
+        SelfS: IsScalarOr<S>,
+    {
+        self.into_any()
+            .mix(x.into_any()..y.into_any())
+            .downcast((*self, x, y).narrow_or_push_error())
     }
 
     /// linear interpolation from `x` to `y` with mix value `self`.
@@ -334,67 +350,60 @@ impl<SelfS: Shape, SelfD: IsDTypeFloatingPoint> Ten<SelfS, SelfD> {
     /// fn mix(&self: floatingN, x: floating , y: floating )
     /// fn mix(&self: floatingN, x: floatingN, y: floatingN)
     /// ```
-    pub fn lerp<S: IsShapeScalarOrVec>(&self, x: impl AsTen<S=S, D=SelfD>, y: impl AsTen<S=S, D=SelfD>) -> Ten<S, SelfD>
-    where SelfS: IsScalarOr<S> {
+    pub fn lerp<S: IsShapeScalarOrVec>(
+        &self,
+        x: impl AsTen<S = S, D = SelfD>,
+        y: impl AsTen<S = S, D = SelfD>,
+    ) -> Ten<S, SelfD>
+    where
+        SelfS: IsScalarOr<S>,
+    {
         self.mix(x, y)
     }
 
     /// component wise `floor` rounding of `self`
-    pub fn floor(&self) -> Self {self.as_any().floor().downcast(self.stage)}
+    pub fn floor(&self) -> Self { self.as_any().floor().downcast(self.stage) }
     /// component wise `ceil` rounding of `self`
-    pub fn ceil (&self) -> Self {self.as_any().ceil ().downcast(self.stage)}
+    pub fn ceil(&self) -> Self { self.as_any().ceil().downcast(self.stage) }
     /// component wise rounding of `self` to the closest integer.
     /// returns the same type as `self`
     ///
     /// whether values like `0.5` round up or down is implementation defined
-    pub fn round(&self) -> Self {self.as_any().round().downcast(self.stage)}
+    pub fn round(&self) -> Self { self.as_any().round().downcast(self.stage) }
 
     /// arithmetic mean of all the components
     /// ```ignore
     /// // e.g. for v: float4
     /// (v.x + v.y + v.z) / 3.0
     /// ```
-    pub fn avg(&self) -> Ten<scal, SelfD> {
-        self.sum() / (self.components_len() as u32).cast::<SelfD>()
-    }
+    pub fn avg(&self) -> Ten<scal, SelfD> { self.sum() / (self.components_len() as u32).cast::<SelfD>() }
 }
 
-
-
 impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeFloatingPoint> Ten<SelfS, SelfD> {
-
     /// square root of self
-    pub fn sqrt(&self) -> Self {
-        self.into_any().sqrt().downcast(self.stage())
-    }
+    pub fn sqrt(&self) -> Self { self.into_any().sqrt().downcast(self.stage()) }
 
     /// returns self - self.floor()
-    pub fn fract(&self) -> Self {
-        self.into_any().fract().downcast(self.stage())
-    }
+    pub fn fract(&self) -> Self { self.into_any().fract().downcast(self.stage()) }
 
     /// euclidean length of the vector
     ///
     /// note: if you need the amount of components in vector instead, use
     /// `ten.components_len()`
-    pub fn length(&self) -> Ten<scal, SelfD> {
-        self.into_any().length().downcast(self.stage())
-    }
+    pub fn length(&self) -> Ten<scal, SelfD> { self.into_any().length().downcast(self.stage()) }
 
     /// returns the dot product of self with itself
-    pub fn square_length(&self) -> Ten<scal, SelfD> {
-        self.dot(*self)
-    }
+    pub fn square_length(&self) -> Ten<scal, SelfD> { self.dot(*self) }
 
     /// returns a vector in the same direction as x but with a length of 1,
     /// i.e. self / self.length()
-    pub fn normalize(&self) -> Self {
-        self.into_any().normalize().downcast(self.stage())
-    }
+    pub fn normalize(&self) -> Self { self.into_any().normalize().downcast(self.stage()) }
 
     /// the dot product of `self` with `val`
-    pub fn dot(&self, val: impl AsTen<S=SelfS, D=SelfD>) -> Ten<scal, SelfD> {
-        self.into_any().dot(val.into_any()).downcast((*self, val).narrow_or_push_error())
+    pub fn dot(&self, val: impl AsTen<S = SelfS, D = SelfD>) -> Ten<scal, SelfD> {
+        self.into_any()
+            .dot(val.into_any())
+            .downcast((*self, val).narrow_or_push_error())
     }
 
     /// these signatures might be easier to read:
@@ -410,11 +419,13 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeFloatingPoint> Ten<SelfS, SelfD> {
     /// ```text
     /// let normal = sampler.sample(uv).remap(0..1, -1..1);
     /// ```
-    pub fn remap<S: IsScalarOr<SelfS>>(&self,
-            from: std::ops::Range<impl AsTen<S=S>>,
-              to: std::ops::Range<impl AsTen<S=S>>) -> Self {
+    pub fn remap<S: IsScalarOr<SelfS>>(
+        &self,
+        from: std::ops::Range<impl AsTen<S = S>>,
+        to: std::ops::Range<impl AsTen<S = S>>,
+    ) -> Self {
         let a = from.into_recs();
-        let b =   to.into_recs();
+        let b = to.into_recs();
 
         let [a0, a1] = [a.0.cast::<SelfD>().as_any(), a.1.cast::<SelfD>().as_any()];
         let [b0, b1] = [b.0.cast::<SelfD>().as_any(), b.1.cast::<SelfD>().as_any()];
@@ -444,8 +455,10 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeFloatingPoint> Ten<SelfS, SelfD> {
     /// x.limit(..top)    --> x.min(top)
     /// x.limit(btm..top) --> x.clamp(btm, top)
     /// ```
-    pub fn limit<S: Shape, Limit: AsTen<S=S, D=SelfD>>(&self, bounds: impl std::ops::RangeBounds<Limit>) -> Self
-    where S: IsScalarOr<SelfS> {
+    pub fn limit<S: Shape, Limit: AsTen<S = S, D = SelfD>>(&self, bounds: impl std::ops::RangeBounds<Limit>) -> Self
+    where
+        S: IsScalarOr<SelfS>,
+    {
         use std::ops::Bound::*;
         match (bounds.start_bound(), bounds.end_bound()) {
 
@@ -468,9 +481,17 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeFloatingPoint> Ten<SelfS, SelfD> {
     /// let t = ((x - edge0) / (edge1 - edge0)).clamp(0, 1);
     /// return t * t * (3 - 2 * t);
     /// ```
-    pub fn smoothstep<EdgeS>(&self, edge0: impl AsTen<S=EdgeS, D=SelfD>, edge1: impl AsTen<S=EdgeS, D=SelfD>) -> Self
-    where EdgeS: IsScalarOr<SelfS> {
-        self.into_any().smoothstep(edge0.into_any()..edge1.into_any()).downcast((*self, edge0, edge1).narrow_or_push_error())
+    pub fn smoothstep<EdgeS>(
+        &self,
+        edge0: impl AsTen<S = EdgeS, D = SelfD>,
+        edge1: impl AsTen<S = EdgeS, D = SelfD>,
+    ) -> Self
+    where
+        EdgeS: IsScalarOr<SelfS>,
+    {
+        self.into_any()
+            .smoothstep(edge0.into_any()..edge1.into_any())
+            .downcast((*self, edge0, edge1).narrow_or_push_error())
     }
 
     /// same as smoothstep, but with a `std::ops::Range` argument which can be more convenient
@@ -478,10 +499,14 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeFloatingPoint> Ten<SelfS, SelfD> {
     /// val.smoothrange(0..1);
     /// val.smoothrange(0.5.plus_minus(0.1)); //same as 0.4..0.6
     /// ```
-    pub fn smoothrange<S: IsShapeScalarOrVec>(&self, range: std::ops::Range<impl AsTen<S=S, D=SelfD>>) -> Self
-    where S: IsScalarOr<SelfS> {
+    pub fn smoothrange<S: IsShapeScalarOrVec>(&self, range: std::ops::Range<impl AsTen<S = S, D = SelfD>>) -> Self
+    where
+        S: IsScalarOr<SelfS>,
+    {
         let (s, e) = (range.start.rec(), range.end.rec());
-        self.into_any().smoothstep(s.as_any()..e.as_any()).downcast((*self, s, e).narrow_or_push_error())
+        self.into_any()
+            .smoothstep(s.as_any()..e.as_any())
+            .downcast((*self, s, e).narrow_or_push_error())
     }
 
     /// generalized smoothstep function of order `order`.
@@ -491,15 +516,23 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeFloatingPoint> Ten<SelfS, SelfD> {
     /// `order = 1` records the builtin shader function `smoothstep`.
     ///
     /// `order > 1` calculates the generalized smoothstep with arithmetic expressed in the shader
-    pub fn smoothstep_n<S: IsShapeScalarOrVec>(&self, order: u32, range: std::ops::Range<impl AsTen<S=S, D=SelfD>>) -> Self
-    where S: IsScalarOr<SelfS>,
-    SelfS: IsScalarOr<SelfS> {
+    pub fn smoothstep_n<S: IsShapeScalarOrVec>(
+        &self,
+        order: u32,
+        range: std::ops::Range<impl AsTen<S = S, D = SelfD>>,
+    ) -> Self
+    where
+        S: IsScalarOr<SelfS>,
+        SelfS: IsScalarOr<SelfS>,
+    {
         //todo!("the remapping of this function is still wrong");
         let (s, e) = (range.start.as_ten(), range.end.as_ten());
         match order {
             0 => self.clamp(s, e).remap(range, zero_to_one::<S, SelfD>()),
             1 => self.smoothstep(s, e),
-            _ => self.generalized_smoothstep(order).remap(range, zero_to_one::<S, SelfD>()),
+            _ => self
+                .generalized_smoothstep(order)
+                .remap(range, zero_to_one::<S, SelfD>()),
         }
     }
 
@@ -520,43 +553,29 @@ impl<SelfS: IsShapeScalarOrVec, SelfD: IsDTypeFloatingPoint> Ten<SelfS, SelfD> {
 }
 
 impl<S: IsShapeVec> Ten<S, bool> {
-
     /// the glsl `bool all(bvec)` function, name was changed to prevent confusion
-    pub fn fold_or(&self) -> Ten<scal, bool> {
-        self.into_any().all().downcast(self.stage)
-    }
+    pub fn fold_or(&self) -> Ten<scal, bool> { self.into_any().all().downcast(self.stage) }
 
     /// the glsl `bool any(bvec)` function, name was changed to prevent confusion
-    pub fn fold_and(&self) -> Ten<scal, bool> {
-        self.into_any().any_is().downcast(self.stage)
-    }
+    pub fn fold_and(&self) -> Ten<scal, bool> { self.into_any().any_is().downcast(self.stage) }
 
     /// the glsl `bool all(bvec)` function
     /// fold_or/fold_and may offer a better naming scheme, use whatever you like better
     #[inline]
-    pub fn all(&self) -> Ten<scal, bool> {
-        self.fold_or()
-    }
+    pub fn all(&self) -> Ten<scal, bool> { self.fold_or() }
 
     /// the glsl `bool any(bvec)` function, name was changed to prevent confusion with the `Rec` function that returns the `Any` type.
     /// fold_or/fold_and may offer a better naming scheme, use whatever you like better
     #[inline]
-    pub fn any_is(&self) -> Ten<scal, bool> {
-        self.fold_and()
-    }
-
+    pub fn any_is(&self) -> Ten<scal, bool> { self.fold_and() }
 }
 
 impl float2 {
-
     /// rotate `self` around the origin by the angle `radians`
     pub fn rotate_2d(&self, radians: impl AsFloat) -> float2 {
         let ang = radians.as_ten();
         let (x, y) = self.x_y();
-        (
-            x * ang.cos() - y * ang.sin(),
-            x * ang.sin() + y * ang.cos(),
-        ).vec()
+        (x * ang.cos() - y * ang.sin(), x * ang.sin() + y * ang.cos()).vec()
     }
 
     /// rotate `self` around `pivot` by the angle `radians`
@@ -566,21 +585,15 @@ impl float2 {
         let (x, y) = rel.x_y();
 
         let ang = radians.as_ten();
-        let rotated = (
-            x * ang.cos() - y * ang.sin(),
-            x * ang.sin() + y * ang.cos(),
-        ).vec();
+        let rotated = (x * ang.cos() - y * ang.sin(), x * ang.sin() + y * ang.cos()).vec();
         rotated + pivot
     }
-
 }
 
 /// returns a tensor with all components set to zero of any tensor type.
 ///
 /// If you have trouble with type deduction you can use e.g. `float4::zero()`, `int3::zero()` etc.
-pub fn zero<S: Shape, D: DType>() -> Ten<S, D> {
-    Ten::with_constant_diagonal(D::from_f32(0.0))
-}
+pub fn zero<S: Shape, D: DType>() -> Ten<S, D> { Ten::with_constant_diagonal(D::from_f32(0.0)) }
 
 /// multiplicative identity of `Ten<S, D>`
 ///
@@ -589,9 +602,7 @@ pub fn zero<S: Shape, D: DType>() -> Ten<S, D> {
 /// returns 1 for scalars,
 ///
 /// returns identity matrix with 1 at diagonal for matrix types (rest of components are set to zero)
-pub fn id<S: Shape, D: DType>() -> Ten<S, D> {
-    Ten::with_constant_diagonal(D::from_f32(1.0))
-}
+pub fn id<S: Shape, D: DType>() -> Ten<S, D> { Ten::with_constant_diagonal(D::from_f32(1.0)) }
 
 /// returns a tensor with all components set to one (even for matrices. use `id()` if you want only the diagonal of the matrix to be set)
 ///
@@ -604,36 +615,30 @@ pub fn one<S: Shape, D: DType>() -> Ten<S, D> {
         Mat(_, _) => {
             assert!(S::NUM_COMPONENTS <= 16);
             let ones = [(); 16].map(|_| D::from_f32(1.0).new_literal_any());
-            Any::new_tensor(Tensor::new(S::SHAPE, D::DTYPE), &ones[..S::NUM_COMPONENTS])
-            .downcast(Stage::Uniform)
-        },
+            Any::new_tensor(Tensor::new(S::SHAPE, D::DTYPE), &ones[..S::NUM_COMPONENTS]).downcast(Stage::Uniform)
+        }
     }
 }
 
 /// generalized 0 to 1 range for any tensor [`DType`] and [`Shape`]
-pub fn zero_to_one<S: Shape, D: DType>() -> std::ops::Range<Ten<S, D>> {
-    zero::<S, D>()..one::<S, D>()
-}
+pub fn zero_to_one<S: Shape, D: DType>() -> std::ops::Range<Ten<S, D>> { zero::<S, D>()..one::<S, D>() }
 
 /// generalized -1 to +1 range for any tensor [`DType`] and [`Shape`]
-pub fn minus_one_to_one<S: Shape, D: DType>() -> std::ops::Range<Ten<S, D>> {
-    (-one::<S, D>())..one::<S, D>()
-}
+pub fn minus_one_to_one<S: Shape, D: DType>() -> std::ops::Range<Ten<S, D>> { (-one::<S, D>())..one::<S, D>() }
 
 /// convenience trait for calculating ranges around a center
-pub trait PlusMinus<Rhs=Self> {
+pub trait PlusMinus<Rhs = Self> {
     /// output range type. mostly `std::ops::Range<Self>`
     type Output;
     /// returns `(self - rhs)..(self + rhs)`
     fn plus_minus(&self, rhs: Rhs) -> Self::Output;
 }
 
-impl<Rhs: AsTen<D=f32>> PlusMinus<Rhs> for Ten<Rhs::S, f32> {
+impl<Rhs: AsTen<D = f32>> PlusMinus<Rhs> for Ten<Rhs::S, f32> {
     type Output = std::ops::Range<Self>;
     fn plus_minus(&self, rhs: Rhs) -> Self::Output {
         (self.into_any() - rhs.into_any()).downcast((*self, rhs).narrow_or_push_error())
-        ..
-        (self.into_any() + rhs.into_any()).downcast((*self, rhs).narrow_or_push_error())
+            ..(self.into_any() + rhs.into_any()).downcast((*self, rhs).narrow_or_push_error())
     }
 }
 
@@ -641,7 +646,6 @@ impl<Rhs: AsFloat> PlusMinus<Rhs> for f32 {
     type Output = std::ops::Range<float>;
     fn plus_minus(&self, rhs: Rhs) -> Self::Output {
         (self.into_any() - rhs.into_any()).downcast((*self, rhs).narrow_or_push_error())
-        ..
-        (self.into_any() + rhs.into_any()).downcast((*self, rhs).narrow_or_push_error())
+            ..(self.into_any() + rhs.into_any()).downcast((*self, rhs).narrow_or_push_error())
     }
 }

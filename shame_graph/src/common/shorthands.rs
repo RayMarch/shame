@@ -14,8 +14,10 @@ impl CellNonZeroU32Ext for Cell<NonZeroU32> {
 }
 
 impl<I: Iterator> IteratorExt for I {}
-pub trait IteratorExt: Iterator where Self: Sized {
-
+pub trait IteratorExt: Iterator
+where
+    Self: Sized,
+{
     ///applies f to all elements in the iterator, if f's return values
     ///all compare equal to the first one, returns Some(f(first)), otherwise None.
     ///Returns None also for empty iterators.
@@ -36,31 +38,43 @@ pub trait IteratorExt: Iterator where Self: Sized {
     }
 
     fn all_unique(self) -> bool
-    where Self: Clone, Self::Item: Eq {
+    where
+        Self: Clone,
+        Self::Item: Eq,
+    {
         self.all_unique_by(|x, y| x == y)
     }
 
     ///does not require is_same to be transitive
     fn all_unique_by(mut self, mut is_same: impl FnMut(&Self::Item, &Self::Item) -> bool) -> bool
-    where Self: Clone {
-        loop {match self.next() {
-            Some(x) => if self.clone().any(|y| is_same(&x, &y)) {break false;}
-            _ => break true
-        }}
+    where
+        Self: Clone,
+    {
+        loop {
+            match self.next() {
+                Some(x) => {
+                    if self.clone().any(|y| is_same(&x, &y)) {
+                        break false;
+                    }
+                }
+                _ => break true,
+            }
+        }
     }
 
     fn find_pair<R>(mut self, mut f: impl FnMut(&Self::Item, &Self::Item) -> Option<R>) -> Option<R>
-    where Self: Clone {
+    where
+        Self: Clone,
+    {
         while let Some(x) = self.next() {
             for y in self.clone() {
                 if let Some(r) = f(&x, &y) {
-                    return Some(r)
+                    return Some(r);
                 }
             }
         }
         None
     }
-
 }
 
 pub enum Either<L, R> {
@@ -70,12 +84,10 @@ pub enum Either<L, R> {
 
 pub struct Deferred<F: FnOnce()>(Option<F>);
 
-pub fn defer(f: impl FnOnce()) -> impl Drop {
-    Deferred(Some(f))
-}
+pub fn defer(f: impl FnOnce()) -> impl Drop { Deferred(Some(f)) }
 
 impl<F: FnOnce()> Drop for Deferred<F> {
-    fn drop(&mut self) {self.0.take().unwrap()()}
+    fn drop(&mut self) { self.0.take().unwrap()() }
 }
 
 #[macro_export]
@@ -89,9 +101,14 @@ macro_rules! unwrap_variant {
 }
 
 pub fn ranges_overlap<T>(a: &std::ops::Range<T>, b: &std::ops::Range<T>) -> bool
-where T: Into<i64> + Clone {
-    let (a, b): ((i64, i64), (i64, i64)) = ((a.start.clone().into(), a.end.clone().into()), (b.start.clone().into(), b.end.clone().into()));
-    a.0.max(b.0) <= (a.1-1).min(b.1-1)
+where
+    T: Into<i64> + Clone,
+{
+    let (a, b): ((i64, i64), (i64, i64)) = (
+        (a.start.clone().into(), a.end.clone().into()),
+        (b.start.clone().into(), b.end.clone().into()),
+    );
+    a.0.max(b.0) <= (a.1 - 1).min(b.1 - 1)
 }
 
 #[cfg(test)]
@@ -137,11 +154,13 @@ impl<T: Copy, F: FnMut(T) -> Option<T>> Iterator for StartIterFrom<T, F> {
 }
 
 pub fn start_iter_from<T: Copy, F>(from: Option<T>, next_fn: F) -> StartIterFrom<T, F>
-where F: FnMut(T) -> Option<T> {
+where
+    F: FnMut(T) -> Option<T>,
+{
     StartIterFrom {
         first: from,
         current: from,
-        next_fn
+        next_fn,
     }
 }
 

@@ -10,25 +10,36 @@ pub struct Pool<T> {
     generation: NonZeroU32,
 }
 
-pub struct PoolRefMut<'a, T>{generation: NonZeroU32, store: RefMut<'a, Vec<T>>}
-pub struct PoolRef   <'a, T>{generation: NonZeroU32, store: Ref   <'a, Vec<T>>}
+pub struct PoolRefMut<'a, T> {
+    generation: NonZeroU32,
+    store: RefMut<'a, Vec<T>>,
+}
+pub struct PoolRef<'a, T> {
+    generation: NonZeroU32,
+    store: Ref<'a, Vec<T>>,
+}
 
 impl<T> Pool<T> {
     pub fn new(generation: NonZeroU32) -> Pool<T> {
-        Pool{
+        Pool {
             store: Default::default(),
-            generation
+            generation,
         }
     }
 
     pub fn borrow_mut(&self) -> PoolRefMut<'_, T> {
-        PoolRefMut{generation: self.generation, store: self.store.borrow_mut()}
+        PoolRefMut {
+            generation: self.generation,
+            store: self.store.borrow_mut(),
+        }
     }
 
     pub fn borrow(&self) -> PoolRef<'_, T> {
-        PoolRef{generation: self.generation, store: self.store.borrow()}
+        PoolRef {
+            generation: self.generation,
+            store: self.store.borrow(),
+        }
     }
-
 }
 
 impl<T> PoolRefMut<'_, T> {
@@ -51,7 +62,6 @@ impl<T> Index<Key<T>> for PoolRefMut<'_, T> {
 }
 
 impl<T> IndexMut<Key<T>> for PoolRefMut<'_, T> {
-
     fn index_mut(&mut self, key: Key<T>) -> &mut Self::Output {
         assert!(key.generation == self.generation);
         &mut self.store[key.index]
@@ -70,23 +80,17 @@ impl<T> Index<Key<T>> for PoolRef<'_, T> {
 impl<'a, T> Deref for PoolRefMut<'a, T> {
     type Target = RefMut<'a, Vec<T>>;
 
-    fn deref(&self) -> &Self::Target {
-        &self.store
-    }
+    fn deref(&self) -> &Self::Target { &self.store }
 }
 
 impl<'a, T> DerefMut for PoolRefMut<'a, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.store
-    }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.store }
 }
 
 impl<'a, T> Deref for PoolRef<'a, T> {
     type Target = Ref<'a, Vec<T>>;
 
-    fn deref(&self) -> &Self::Target {
-        &self.store
-    }
+    fn deref(&self) -> &Self::Target { &self.store }
 }
 
 #[derive(Eq)]
@@ -118,7 +122,7 @@ impl<T> Clone for Key<T> {
         Self {
             generation: self.generation,
             index: self.index,
-            phantom: PhantomData
+            phantom: PhantomData,
         }
     }
 }
@@ -130,34 +134,26 @@ impl<T> Key<T> {
         Self {
             generation,
             index,
-            phantom: PhantomData
+            phantom: PhantomData,
         }
     }
 
-    pub(crate) fn index(&self) -> usize {
-        self.index
-    }
+    pub(crate) fn index(&self) -> usize { self.index }
 }
 
 impl<T> PoolRef<'_, T> {
-
     #[allow(unused)]
-    pub fn enumerate(&self) -> impl Iterator<Item=(Key<T>, &T)> {
+    pub fn enumerate(&self) -> impl Iterator<Item = (Key<T>, &T)> {
         let generation = self.generation;
-        self.iter().enumerate().map(move |(i, t)| {
-            (Key::new(i, generation), t)
-        })
+        self.iter().enumerate().map(move |(i, t)| (Key::new(i, generation), t))
     }
-
 }
 
 impl<T> PoolRefMut<'_, T> {
-
-    pub fn enumerate(&mut self) -> impl Iterator<Item=(Key<T>, &mut T)> {
+    pub fn enumerate(&mut self) -> impl Iterator<Item = (Key<T>, &mut T)> {
         let generation = self.generation;
-        self.iter_mut().enumerate().map(move |(i, t)| {
-            (Key::new(i, generation), t)
-        })
+        self.iter_mut()
+            .enumerate()
+            .map(move |(i, t)| (Key::new(i, generation), t))
     }
-
 }

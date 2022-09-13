@@ -2,15 +2,18 @@
 
 pub use shame_graph::prettify::*;
 
-use crate::{RenderPipelineRecording, RenderPipelineInfo, ComputePipelineInfo, ComputePipelineRecording};
+use crate::{ComputePipelineInfo, ComputePipelineRecording, RenderPipelineInfo, RenderPipelineRecording};
 
 fn colorize_pipeline_info_string(out: &mut String, string: &str) {
     use Highlight::*;
     fn write(out: &mut String, [l, m, r]: [&str; 3], colors: [Highlight; 3]) {
         let [a, b, c] = colors.map(|h| Some(h.get_color()));
-        set_color(out, a, true); *out += l;
-        set_color(out, b, true); *out += m;
-        set_color(out, c, true); *out += r;
+        set_color(out, a, true);
+        *out += l;
+        set_color(out, b, true);
+        *out += m;
+        set_color(out, c, true);
+        *out += r;
     }
     for line in string.lines() {
         if let Some((l, r)) = line.split_once(':') {
@@ -51,7 +54,7 @@ impl RenderPipelineRecording {
         let mut out = String::new();
         let title_color = Highlight::Preprocessor.get_color();
         set_color(&mut out, Some(title_color), true);
-        out +=     "~~~ vertex shader ~~~\n";
+        out += "~~~ vertex shader ~~~\n";
         out += &syntax_highlight_glsl(&vert);
 
         set_color(&mut out, Some(title_color), true);
@@ -72,7 +75,7 @@ impl ComputePipelineRecording {
         let mut out = String::new();
         let title_color = "#A26C79";
         set_color(&mut out, Some(title_color), true);
-        out +=     "~~~ compute shader ~~~\n";
+        out += "~~~ compute shader ~~~\n";
         out += &syntax_highlight_glsl(&self.shader_glsl);
 
         set_color(&mut out, Some(title_color), true);

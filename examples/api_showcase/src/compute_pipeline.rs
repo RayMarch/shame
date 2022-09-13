@@ -1,4 +1,3 @@
-
 use shame::prelude::*;
 use shame::prettify::syntax_highlight_glsl;
 
@@ -7,9 +6,7 @@ pub fn main() {
     println!("{}", out.to_string_colored());
 }
 
-
 pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
-
     //in order to access thread IDs of different kinds, first set the workgroup size
     let ids = feat.dispatch.work_group([64, 64, 1]);
 
@@ -25,7 +22,7 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
     // (not to be confused with work groups! Bind groups are called `sets` in glsl)
     let mut group0 = feat.io.group(); // bind group #0
     let mut group1 = feat.io.group(); //bind group #1
-    // you can create bindgroups any time, they don't have to be created in one block.
+                                      // you can create bindgroups any time, they don't have to be created in one block.
 
     // you can add uniform blocks and read-only storage buffers like this
     let matrix: float4x4 = group0.uniform_block(); //group #0 binding #0
@@ -67,7 +64,8 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
         a: (1.0, 2.0, 3.0, 4.0).rec(),
         b: (5.0, 6.0).rec(),
         c: zero(),
-    }.rec(); //<-- this .rec() turns the Foo into a `shame::Struct<Foo>`
+    }
+    .rec(); //<-- this .rec() turns the Foo into a `shame::Struct<Foo>`
 
     // alternatively you can explicitly call `shame::Struct::new`
     let foo2 = Struct::new(Foo {
@@ -101,7 +99,7 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
     // runtime-sized types can only be used in storage buffer bindings, not in uniform block bindings
     let bar0: Bar = group1.storage(); // group #1 binding #0
     let bar1: UnsafeAccess<Bar> = group1.storage_mut(); // group #1 binding #1
-    //let bar2: Bar = group1.uniform_block(); //error
+                                                        //let bar2: Bar = group1.uniform_block(); //error
 
     // runtime-sized array bindings don't need to be declared as rust structs
     // their type can be described right in the binding call
@@ -124,7 +122,7 @@ pub fn simple_compute_pipeline(mut feat: shame::ComputeFeatures) {
 
     for i in 0..128 {
         bar0.sized_array.at_const(i); // this generates 128 subscript operations in the shader
-        // or in other words, the loop gets unrolled.
+                                      // or in other words, the loop gets unrolled.
     }
 
     // if the behavior of unrolling feels unintuitive to you, you can always double check your

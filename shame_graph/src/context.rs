@@ -1,26 +1,25 @@
-
+use crate::*;
 use std::fmt::Display;
 use std::{
-    cell::{Cell, RefCell, Ref, RefMut},
+    cell::{Cell, Ref, RefCell, RefMut},
     num::NonZeroU32,
 };
-use crate::*;
 
 thread_local!(static CONTEXT: RefCell<Option<Context>> = RefCell::new(None));
 thread_local!(static GENERATION: Cell<NonZeroU32> = Cell::new(NonZeroU32::new(999 /*arbitrary number*/).unwrap()));
 
-pub(super) fn increment_thread_generation() -> NonZeroU32 {GENERATION.with(|g| g.increment_by(1))}
+pub(super) fn increment_thread_generation() -> NonZeroU32 { GENERATION.with(|g| g.increment_by(1)) }
 #[allow(unused)]
-pub(super) fn   current_thread_generation() -> NonZeroU32 {GENERATION.with(|g| g.get())}
+pub(super) fn current_thread_generation() -> NonZeroU32 { GENERATION.with(|g| g.get()) }
 
 pub struct Context {
-    exprs : Pool<Expr>,
+    exprs: Pool<Expr>,
     blocks: Pool<Block>,
-    items : Pool<Item>,
+    items: Pool<Item>,
     idents: Pool<Option<String>>,
 
     warnings: RefCell<Vec<Warning>>,
-    errors:   RefCell<Vec<Error>>,
+    errors: RefCell<Vec<Error>>,
 
     shader: RefCell<Shader>,
     misc: RefCell<Box<dyn std::any::Any>>,
@@ -48,54 +47,69 @@ pub enum ErrorBehavior {
 }
 
 impl Context {
+    #[track_caller]
+    pub(crate) fn exprs_mut(&self) -> PoolRefMut<Expr> { self.exprs.borrow_mut() }
+    #[track_caller]
+    pub(crate) fn exprs(&self) -> PoolRef<Expr> { self.exprs.borrow() }
 
-    #[track_caller] pub(crate) fn exprs_mut(&self) -> PoolRefMut<Expr> {self.exprs.borrow_mut()}
-    #[track_caller] pub(crate) fn exprs  (&self) -> PoolRef   <Expr> {self.exprs.borrow  ()}
+    #[track_caller]
+    pub(crate) fn blocks_mut(&self) -> PoolRefMut<Block> { self.blocks.borrow_mut() }
+    #[track_caller]
+    pub(crate) fn blocks(&self) -> PoolRef<Block> { self.blocks.borrow() }
 
-    #[track_caller] pub(crate) fn blocks_mut(&self) -> PoolRefMut<Block> {self.blocks.borrow_mut()}
-    #[track_caller] pub(crate) fn blocks  (&self) -> PoolRef   <Block> {self.blocks.borrow  ()}
+    #[track_caller]
+    pub(crate) fn items_mut(&self) -> PoolRefMut<Item> { self.items.borrow_mut() }
+    #[track_caller]
+    pub(crate) fn items(&self) -> PoolRef<Item> { self.items.borrow() }
 
-    #[track_caller] pub(crate) fn items_mut(&self) -> PoolRefMut<Item> {self.items.borrow_mut()}
-    #[track_caller] pub(crate) fn items  (&self) -> PoolRef   <Item> {self.items.borrow  ()}
+    #[track_caller]
+    pub(crate) fn idents_mut(&self) -> PoolRefMut<Option<String>> { self.idents.borrow_mut() }
+    #[track_caller]
+    pub(crate) fn idents(&self) -> PoolRef<Option<String>> { self.idents.borrow() }
 
-    #[track_caller] pub(crate) fn idents_mut(&self) -> PoolRefMut<Option<String>> {self.idents.borrow_mut()}
-    #[track_caller] pub(crate) fn idents  (&self) -> PoolRef   <Option<String>> {self.idents.borrow  ()}
+    #[track_caller]
+    pub fn shader_mut(&self) -> RefMut<Shader> { self.shader.borrow_mut() }
+    #[track_caller]
+    pub fn shader(&self) -> Ref<Shader> { self.shader.borrow() }
 
-    #[track_caller] pub fn shader_mut(&self) -> RefMut<Shader> {self.shader.borrow_mut()}
-    #[track_caller] pub fn shader  (&self) -> Ref   <Shader> {self.shader.borrow  ()}
+    #[track_caller]
+    pub fn misc_mut(&self) -> RefMut<Box<dyn std::any::Any>> { self.misc.borrow_mut() }
+    #[track_caller]
+    pub fn misc(&self) -> Ref<Box<dyn std::any::Any>> { self.misc.borrow() }
 
-    #[track_caller] pub fn misc_mut(&self) -> RefMut<Box<dyn std::any::Any>> {self.misc.borrow_mut()}
-    #[track_caller] pub fn misc  (&self) -> Ref   <Box<dyn std::any::Any>> {self.misc.borrow  ()}
+    #[track_caller]
+    pub(crate) fn errors_mut(&self) -> RefMut<Vec<Error>> { self.errors.borrow_mut() }
+    #[allow(unused)]
+    #[track_caller]
+    pub(crate) fn errors(&self) -> Ref<Vec<Error>> { self.errors.borrow() }
 
-    #[track_caller] pub(crate) fn errors_mut(&self) -> RefMut<Vec<Error>> {self.errors.borrow_mut()}
-    #[allow(unused)] #[track_caller] pub(crate) fn errors(&self) -> Ref<Vec<Error>> {self.errors.borrow  ()}
+    #[allow(unused)]
+    #[track_caller]
+    pub(crate) fn warnings_mut(&self) -> RefMut<Vec<Warning>> { self.warnings.borrow_mut() }
+    #[allow(unused)]
+    #[track_caller]
+    pub(crate) fn warnings(&self) -> Ref<Vec<Warning>> { self.warnings.borrow() }
 
-    #[allow(unused)] #[track_caller] pub(crate) fn warnings_mut(&self) -> RefMut<Vec<Warning>> {self.warnings.borrow_mut()}
-    #[allow(unused)] #[track_caller] pub(crate) fn warnings  (&self) -> Ref   <Vec<Warning>> {self.warnings.borrow  ()}
-
-    #[track_caller] pub fn shader_kind(&self) -> ShaderKind {
-        self.shader_kind
-    }
+    #[track_caller]
+    pub fn shader_kind(&self) -> ShaderKind { self.shader_kind }
 
     pub(crate) fn new(generation: NonZeroU32, shader_kind: ShaderKind, error_behavior: ErrorBehavior) -> Self {
         Self {
-            exprs:  Pool::new(generation),
+            exprs: Pool::new(generation),
             blocks: Pool::new(generation),
-            items:  Pool::new(generation),
+            items: Pool::new(generation),
             idents: Pool::new(generation),
             warnings: RefCell::new(Vec::new()),
-            errors:   RefCell::new(Vec::new()),
-            shader:   RefCell::new(Shader::new(shader_kind)),
-            misc:     RefCell::new(Box::new(())),
+            errors: RefCell::new(Vec::new()),
+            shader: RefCell::new(Shader::new(shader_kind)),
+            misc: RefCell::new(Box::new(())),
             current_block: Cell::new(None),
             shader_kind,
             error_behavior,
         }
     }
 
-    pub fn push_warning(&mut self, w: Warning) {
-        self.warnings.borrow_mut().push(w)
-    }
+    pub fn push_warning(&mut self, w: Warning) { self.warnings.borrow_mut().push(w) }
 
     #[track_caller]
     pub fn push_error(&self, e: Error) {
@@ -105,12 +119,19 @@ impl Context {
         }
     }
 
-    pub fn with_thread_local_context_enabled(shader_kind: ShaderKind, error_behavior: ErrorBehavior, f: impl FnOnce()) -> Context {
+    pub fn with_thread_local_context_enabled(
+        shader_kind: ShaderKind,
+        error_behavior: ErrorBehavior,
+        f: impl FnOnce(),
+    ) -> Context {
         let generation = increment_thread_generation();
         let new_ctx = Context::new(generation, shader_kind, error_behavior);
 
         CONTEXT.with(|thread_ctx| {
-            assert!(thread_ctx.borrow().is_none(), "cannot start a new recording context, another context is still present on this thread");
+            assert!(
+                thread_ctx.borrow().is_none(),
+                "cannot start a new recording context, another context is still present on this thread"
+            );
             *thread_ctx.borrow_mut() = Some(new_ctx);
         });
 
@@ -125,9 +146,7 @@ impl Context {
             }
         });
 
-        CONTEXT.with(|thread_ctx| {
-            thread_ctx.borrow_mut().take().unwrap()
-        })
+        CONTEXT.with(|thread_ctx| thread_ctx.borrow_mut().take().unwrap())
     }
 
     fn post_process(&self) {
@@ -135,11 +154,12 @@ impl Context {
 
         for (key, expr) in self.exprs_mut().enumerate() {
             if expr.needs_variable_def_stmt() {
-                let ident = expr.ident.get_or_insert_with(|| IdentSlot::new_in(None, &mut self.idents_mut()));
+                let ident = expr
+                    .ident
+                    .get_or_insert_with(|| IdentSlot::new_in(None, &mut self.idents_mut()));
                 let stmt = Stmt::new(expr.time, StmtKind::VariableDef(Named(key, *ident)));
                 blocks[expr.parent_block].stmts.push(stmt);
-            }
-            else if expr.needs_expr_stmt() || Expr::needs_loop_condition_expr_stmt(key, expr, &blocks) {
+            } else if expr.needs_expr_stmt() || Expr::needs_loop_condition_expr_stmt(key, expr, &blocks) {
                 let stmt = Stmt::new(expr.time, StmtKind::Expr(key));
                 blocks[expr.parent_block].stmts.push(stmt);
             }
@@ -170,13 +190,9 @@ impl Context {
     }
 
     #[track_caller]
-    pub fn try_with<R>(f: impl FnOnce(&Context) -> R) -> Option<R> {
-        CONTEXT.with(|ctx| ctx.borrow().as_ref().map(f))
-    }
+    pub fn try_with<R>(f: impl FnOnce(&Context) -> R) -> Option<R> { CONTEXT.with(|ctx| ctx.borrow().as_ref().map(f)) }
 
-    pub fn is_currently_recording_on_this_thread() -> bool {
-        CONTEXT.with(|ctx| ctx.borrow().is_some())
-    }
+    pub fn is_currently_recording_on_this_thread() -> bool { CONTEXT.with(|ctx| ctx.borrow().is_some()) }
 }
 
 #[derive(Clone, Copy)]
@@ -186,7 +202,6 @@ pub enum BranchState {
 }
 
 impl Context {
-
     /// whether the recording thread is currently in a closure of a branch recording
     /// such as if-then/if-then-else/for/while
     pub fn inside_branch(&self) -> Option<(BranchState, Stage)> {
@@ -207,11 +222,13 @@ impl Context {
                 (None, None) => None,
                 (None, Some((x, _))) => Some(x),
                 (Some(x), None) => Some(x),
-                (Some(x), Some((y ,_))) => Some(match (x, y) {
+                (Some(x), Some((y, _))) => Some(match (x, y) {
                     (Branch, Branch) => Branch,
                     (Branch, BranchWithConditionNotAvailable) => BranchWithConditionNotAvailable,
                     (BranchWithConditionNotAvailable, Branch) => BranchWithConditionNotAvailable,
-                    (BranchWithConditionNotAvailable, BranchWithConditionNotAvailable) => BranchWithConditionNotAvailable,
+                    (BranchWithConditionNotAvailable, BranchWithConditionNotAvailable) => {
+                        BranchWithConditionNotAvailable
+                    }
                 }),
             }
         });
@@ -225,24 +242,31 @@ impl Context {
         let mut stack = self.stack_blocks(&blocks);
 
         // we are inside a branch if any of the blocks in the stack are part of a branch
-        stack.find(|block_key| {
-            matches!(blocks[*block_key].kind, BlockKind::LoopBody)
-        }).is_some()
+        stack
+            .find(|block_key| matches!(blocks[*block_key].kind, BlockKind::LoopBody))
+            .is_some()
     }
 
-    pub(crate) fn stack_blocks<'a>(&'a self, blocks: &'a PoolRef<Block>) -> impl Iterator<Item=Key<Block>> + Clone + 'a {
+    pub(crate) fn stack_blocks<'a>(
+        &'a self,
+        blocks: &'a PoolRef<Block>,
+    ) -> impl Iterator<Item = Key<Block>> + Clone + 'a {
         start_iter_from(Some(self.current_block_key_unwrap()), move |key| blocks[key].parent)
     }
 
     pub(crate) fn current_block_key_unwrap(&self) -> Key<Block> {
-        self.current_block.get().expect("no current block exists yet to record into")
+        self.current_block
+            .get()
+            .expect("no current block exists yet to record into")
     }
 
     pub fn record_shader_main(&self, f: impl FnOnce()) {
         assert!(self.current_block.get().is_none());
 
         //establish item <-> block link
-        let item  = self.items_mut().push(Item::MainFuncDef {body: Default::default()});
+        let item = self.items_mut().push(Item::MainFuncDef {
+            body: Default::default(),
+        });
         let block = self.blocks_mut().push(Block::new(None, item, None, BlockKind::Body));
         unwrap_variant!(&self.items()[item], Item::MainFuncDef{body} => body.set(Some(block)));
 
@@ -255,7 +279,11 @@ impl Context {
         assert!(self.current_block.get().is_some());
 
         //establish item <-> block link
-        let item  = self.items_mut().push(Item::FuncDef {ident, body: Default::default(), args: Default::default()});
+        let item = self.items_mut().push(Item::FuncDef {
+            ident,
+            body: Default::default(),
+            args: Default::default(),
+        });
 
         let parent = self.current_block.take();
         let block = self.blocks_mut().push(Block::new(parent, item, None, BlockKind::Body));
@@ -271,7 +299,12 @@ impl Context {
         result
     }
 
-    pub(crate) fn record_nested_block<R>(&self, kind: BlockKind, branch_info: Option<(BranchState, Stage)>, f: impl FnOnce() -> R) -> (R, Key<Block>) {
+    pub(crate) fn record_nested_block<R>(
+        &self,
+        kind: BlockKind,
+        branch_info: Option<(BranchState, Stage)>,
+        f: impl FnOnce() -> R,
+    ) -> (R, Key<Block>) {
         assert!(self.current_block.get().is_some());
 
         let mut blocks = self.blocks_mut();
@@ -279,9 +312,10 @@ impl Context {
         //establish item <-> block link
         let parent_block = &blocks[self.current_block_key_unwrap()];
         if !parent_block.kind.may_contain_block_of_kind(kind) {
-            self.push_error(Error::BlockRestrictionsViolated(
-                format!("cannot record nested {kind} block inside a {} block recording", parent_block.kind)
-            ))
+            self.push_error(Error::BlockRestrictionsViolated(format!(
+                "cannot record nested {kind} block inside a {} block recording",
+                parent_block.kind
+            )))
         }
         let item = blocks[self.current_block_key_unwrap()].origin_item;
 
@@ -298,12 +332,11 @@ impl Context {
 
     /// doesn't define a new struct if an identical struct was already recorded
     pub fn get_or_insert_struct(&self, name: &str, fields: &[(&str, Ty)]) -> Struct {
-
         //check if struct matches name and fields without creating a new one
         for item in self.items().iter() {
             if let Item::StructDef(struct_) = item {
                 if struct_.eq_name_fields(name, fields) {
-                    return struct_.clone()
+                    return struct_.clone();
                 }
             }
         }
@@ -315,5 +348,4 @@ impl Context {
 
         new_struct
     }
-
 }

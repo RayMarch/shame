@@ -1,17 +1,17 @@
 //! render pipeline features for recording vertex, fragment shaders and pipeline
 //! info
+use super::culling::Cull;
+use super::pixel_format::{IsColorFormat, IsDepthFormat};
+use super::render_pipeline_info::{AttributeInfo, ColorTargetInfo, VertexBufferInfo, VertexStepMode};
+use super::topology::{IndexFormat, PrimitiveIndex};
+use super::{instantiate_push_constant, target, with_thread_render_pipeline_info_mut};
+use crate::rec::fields::Fields;
+use crate::record_render_shaders;
+use crate::shader::{FragmentOutputsBuilder, Primitive, VertexStreamBuilder};
+use crate::{rec::*, PrimitiveTopology};
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::RangeFrom;
-use super::render_pipeline_info::{AttributeInfo, ColorTargetInfo, VertexBufferInfo, VertexStepMode};
-use super::pixel_format::{IsColorFormat, IsDepthFormat};
-use super::topology::{IndexFormat, PrimitiveIndex};
-use super::{target, with_thread_render_pipeline_info_mut, instantiate_push_constant};
-use super::culling::Cull;
-use crate::{rec::*, PrimitiveTopology};
-use crate::rec::fields::Fields;
-use crate::shader::{FragmentOutputsBuilder, Primitive, VertexStreamBuilder};
-use crate::record_render_shaders;
 
 use super::render_pipeline_info::RenderPipelineInfo;
 
@@ -60,42 +60,30 @@ pub struct IO<'a> {
 
 impl RenderPipelineRecording {
     /// convenience function for turing the struct into nested tuples
-    pub fn unpack(self) -> ((String, String), RenderPipelineInfo) {
-        (self.shaders_glsl, self.info)
-    }
+    pub fn unpack(self) -> ((String, String), RenderPipelineInfo) { (self.shaders_glsl, self.info) }
 }
 
 impl IO<'_> {
-
     /// instantiates T as interleaved attributes from a single vertex buffer
-    pub fn vertex_buffer<T: Fields>(&mut self) -> T {
-        self.vertex_buffer_detailed(VertexStepMode::Vertex)
-    }
+    pub fn vertex_buffer<T: Fields>(&mut self) -> T { self.vertex_buffer_detailed(VertexStepMode::Vertex) }
 
     /// instantiates T as interleaved attributes from a single vertex buffer
     /// which provides values per-instance
-    pub fn instance_buffer<T: Fields>(&mut self) -> T {
-        self.vertex_buffer_detailed(VertexStepMode::Instance)
-    }
+    pub fn instance_buffer<T: Fields>(&mut self) -> T { self.vertex_buffer_detailed(VertexStepMode::Instance) }
 
     fn vertex_buffer_detailed<T: Fields>(&mut self, step_mode: VertexStepMode) -> T {
-
         let (t, details) = self.vertex_stream_builder.attributes_detailed();
 
-        let attributes = details.into_iter().map(|(tensor, loc_range)|
-            AttributeInfo {
+        let attributes = details
+            .into_iter()
+            .map(|(tensor, loc_range)| AttributeInfo {
                 location: loc_range.start,
                 type_: tensor,
-            }
-        ).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
 
         if let shame_graph::ShaderKind::Vertex = crate::current_shader() {
-            with_thread_render_pipeline_info_mut(|r| {
-                r.vertex_buffers.push(VertexBufferInfo {
-                    step_mode,
-                    attributes
-                })
-            });
+            with_thread_render_pipeline_info_mut(|r| r.vertex_buffers.push(VertexBufferInfo { step_mode, attributes }));
         }
 
         t
@@ -111,8 +99,9 @@ impl IO<'_> {
     /// Theres an alternative [`IO::color_ms`] call for multisampled color
     /// targets
     pub fn color<T: IsColorFormat>(&mut self) -> target::Color<T>
-    where <<T>::Item as AsTen>::S: crate::rec::IsShapeScalarOrVec {
-
+    where
+        <<T>::Item as AsTen>::S: crate::rec::IsShapeScalarOrVec,
+    {
         let color_target_index = with_thread_render_pipeline_info_mut(|r| {
             let index = r.color_targets.len();
             r.color_targets.push(ColorTargetInfo {
@@ -123,7 +112,9 @@ impl IO<'_> {
             index
         });
 
-        let value: WriteOnly<<T::Item as AsTen>::S, <T::Item as AsTen>::D> = self.fragment_outputs_builder.color_with_ident::<Ten<<T::Item as AsTen>::S, <T::Item as AsTen>::D>>(Some("color_out".to_string()));
+        let value: WriteOnly<<T::Item as AsTen>::S, <T::Item as AsTen>::D> = self
+            .fragment_outputs_builder
+            .color_with_ident::<Ten<<T::Item as AsTen>::S, <T::Item as AsTen>::D>>(Some("color_out".to_string()));
         target::Color {
             _phantom: PhantomData,
             value,
@@ -134,9 +125,11 @@ impl IO<'_> {
     /// access a depth target of format `T` as the depth buffer used by the
     /// current pipeline
     pub fn depth<T: IsDepthFormat>(&mut self) -> target::Depth<T> {
-
         with_thread_render_pipeline_info_mut(|r| {
-            assert!(r.depth_stencil_target.is_none(), "only one depth stencil target supported per pipeline"); //TODO: this could be handled nicer, maybe calling this consumes self to assure its only called once
+            assert!(
+                r.depth_stencil_target.is_none(),
+                "only one depth stencil target supported per pipeline"
+            ); //TODO: this could be handled nicer, maybe calling this consumes self to assure its only called once
             r.depth_stencil_target = Some(<T as IsDepthFormat>::ENUM);
         });
 
@@ -149,16 +142,20 @@ impl IO<'_> {
     /// ```text
     /// let p: float4 = io.push_constant();
     /// ```
-    pub fn push_constant<S: Shape, D: DType>(&mut self) -> Ten<S, D> {
-        instantiate_push_constant()
-    }
+    pub fn push_constant<S: Shape, D: DType>(&mut self) -> Ten<S, D> { instantiate_push_constant() }
 
     /// access a multisampled color target of format `T` as render pipeline
     /// output. `SAMPLES` must be a valid sample count (2, 4, 8, 16, 32, 64)
     pub fn color_ms<T: IsColorFormat, const SAMPLES: u8>(&mut self) -> target::ColorMS<T, SAMPLES>
-    where <<T>::Item as AsTen>::S: crate::rec::IsShapeScalarOrVec {
+    where
+        <<T>::Item as AsTen>::S: crate::rec::IsShapeScalarOrVec,
+    {
         let valid_sample_counts = [2, 4, 8, 16, 32, 64];
-        assert!(valid_sample_counts.contains(&SAMPLES), "multisampling sample count must be one of {:?}. got {SAMPLES}", valid_sample_counts);
+        assert!(
+            valid_sample_counts.contains(&SAMPLES),
+            "multisampling sample count must be one of {:?}. got {SAMPLES}",
+            valid_sample_counts
+        );
 
         let color_target_index = with_thread_render_pipeline_info_mut(|r| {
             let index = r.color_targets.len();
@@ -170,23 +167,25 @@ impl IO<'_> {
             index
         });
 
-        let value: WriteOnly<<T::Item as AsTen>::S, <T::Item as AsTen>::D> = self.fragment_outputs_builder.color_with_ident::<Ten<<T::Item as AsTen>::S, <T::Item as AsTen>::D>>(Some("color_out".to_string()));
+        let value: WriteOnly<<T::Item as AsTen>::S, <T::Item as AsTen>::D> = self
+            .fragment_outputs_builder
+            .color_with_ident::<Ten<<T::Item as AsTen>::S, <T::Item as AsTen>::D>>(Some("color_out".to_string()));
         target::ColorMS {
             _phantom: PhantomData,
             value,
-            color_target_index
+            color_target_index,
         }
     }
 
     /// creates access to a new bind group, which can then be used to access
     /// bindings such as textures, buffer bindings, samplers, ...
-    pub fn group(&mut self) -> crate::shader::Group<RangeFrom<u32>>{
-        self.inner.group(self.group_counter.next().expect("rangefrom iterator terminated"), 0..)
+    pub fn group(&mut self) -> crate::shader::Group<RangeFrom<u32>> {
+        self.inner
+            .group(self.group_counter.next().expect("rangefrom iterator terminated"), 0..)
     }
 }
 
 impl<'a> Raster<'a> {
-
     /// rasterize primitives at the provided clip_space positions.
     /// The clip space positions are combined to primitives according to the
     /// primitive topology specified in the index buffer.
@@ -194,7 +193,8 @@ impl<'a> Raster<'a> {
     /// `primitive_culling`, the primitive is not rasterized
     /// (see [face culling](https://learnopengl.com/Advanced-OpenGL/Face-culling)
     /// ).
-    pub fn rasterize<P: PrimitiveIndex>(self,
+    pub fn rasterize<P: PrimitiveIndex>(
+        self,
         clip_space_position: impl AsFloat4,
         primitive_culling: Cull,
         _index_buffer: P,
@@ -208,7 +208,8 @@ impl<'a> Raster<'a> {
     }
 
     /// same as `rasterize` except without using an index buffer
-    pub fn rasterize_indexless(self,
+    pub fn rasterize_indexless(
+        self,
         clip_space_position: impl AsFloat4,
         primitive_culling: Cull,
         primitive_topology: PrimitiveTopology,
@@ -227,7 +228,6 @@ impl<'a> Raster<'a> {
 /// The provided function is called multiple times to record different shader
 /// stages.
 pub fn record_render_pipeline(mut f: impl FnMut(RenderFeatures)) -> RenderPipelineRecording {
-
     //in a render pipeline, the provided `f` is recorded twice, which yields
     //two shaders and two pipeline infos. Since the two (vertex and fragment) shaders
     //actually share the pipeline, the two RenderPipelineInfo recordings are later
@@ -235,7 +235,6 @@ pub fn record_render_pipeline(mut f: impl FnMut(RenderFeatures)) -> RenderPipeli
     let mut pipeline_infos = vec![];
 
     let (vert, frag) = record_render_shaders(|feat| {
-
         shame_graph::Context::with(|ctx| {
             //store render pipeline info in misc
             *ctx.misc_mut() = Box::new(RenderPipelineInfo::default())
@@ -244,7 +243,7 @@ pub fn record_render_pipeline(mut f: impl FnMut(RenderFeatures)) -> RenderPipeli
         let pixel_builder = feat.io.pixel(0..);
         let vertex_builder = feat.io.vertex(0..);
         let features = RenderFeatures {
-            raster: Raster {inner: feat.raster},
+            raster: Raster { inner: feat.raster },
             io: IO {
                 inner: feat.io,
                 vertex_stream_builder: vertex_builder,

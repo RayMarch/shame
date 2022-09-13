@@ -58,7 +58,6 @@ macro_rules! define_color_format_types {
             $($format),*
         }
     };
-
 }
 
 macro_rules! define_depth_format_types {

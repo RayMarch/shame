@@ -60,13 +60,10 @@ pub struct Blend {
 }
 
 impl Blend {
-
     /// constructs a new [`Blend`] given two blend equations,
     /// one for the rgb components and one for the alpha components of
     /// source fragment and destination pixel
-    pub fn new(rgb: BlendEquation, a: BlendEquation) -> Self {
-        Self {rgb, a}
-    }
+    pub fn new(rgb: BlendEquation, a: BlendEquation) -> Self { Self { rgb, a } }
 
     /// Convenience constructor for alpha blending
     pub fn alpha() -> Blend {
@@ -99,7 +96,6 @@ impl Blend {
             },
         }
     }
-
 }
 
 impl Display for Blend {
@@ -138,8 +134,8 @@ impl Display for BlendEquation {
 
         use BlendOp::*;
         match self.op {
-            Add             => f.write_fmt(format_args!("{src} + {dst}")),
-            Subtract        => f.write_fmt(format_args!("{src} - {dst}")),
+            Add => f.write_fmt(format_args!("{src} + {dst}")),
+            Subtract => f.write_fmt(format_args!("{src} - {dst}")),
             ReverseSubtract => f.write_fmt(format_args!("-{src} + {dst}")),
             Min => f.write_fmt(format_args!("{dst}.min({src})")),
             Max => f.write_fmt(format_args!("{dst}.max({src})")),

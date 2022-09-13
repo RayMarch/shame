@@ -18,14 +18,11 @@ pub trait DType: Copy + 'static {
     fn new_literal_any(&self) -> shame_graph::Any;
 
     /// turn `Self` into a shader literal
-    fn new_literal(&self) -> Ten<scal, Self> {
-        Ten::from_downcast(self.new_literal_any(), Stage::Uniform)
-    }
+    fn new_literal(&self) -> Ten<scal, Self> { Ten::from_downcast(self.new_literal_any(), Stage::Uniform) }
 
     /// convert a f32 to this type
     fn from_f32(val: f32) -> Self;
 }
-
 
 macro_rules! impl_dtypes {
     ($(($fXX: ident, $dtype_enum: expr) -> as literal: $literal: ident; from f32: $from_f32: expr;)*) => {$(
@@ -44,7 +41,7 @@ macro_rules! impl_dtypes {
     )*};
 }
 
-impl_dtypes!{
+impl_dtypes! {
     (f32 , shame_graph::DType::F32 ) -> as literal: float;  from f32: |x: f32| x as Self;
     (f64 , shame_graph::DType::F64 ) -> as literal: double; from f32: |x: f32| x as Self;
     (i32 , shame_graph::DType::I32 ) -> as literal: int;    from f32: |x: f32| x as Self;
@@ -76,7 +73,7 @@ macro_rules! rust_primitive_types_as_ten {
     )*};
 }
 
-rust_primitive_types_as_ten!{
+rust_primitive_types_as_ten! {
     (f32)  as ten -> float;
     (i32)  as ten -> int;
     (bool) as ten -> boolean;
@@ -85,8 +82,8 @@ rust_primitive_types_as_ten!{
 
 /// implemented for `f64` and `f32`, ensures `IsDTypeNumber`
 pub trait IsDTypeFloatingPoint: IsDTypeNumber {}
-    impl IsDTypeFloatingPoint for f32 {}
-    impl IsDTypeFloatingPoint for f64 {}
+impl IsDTypeFloatingPoint for f32 {}
+impl IsDTypeFloatingPoint for f64 {}
 
 /// implemented for `i32`, `u32`, `bool`,
 pub trait IsDtypeNonFloatingPoint: DType {}
@@ -96,12 +93,12 @@ impl IsDtypeNonFloatingPoint for bool {}
 
 /// implemented for `i32` and `u32`, ensures `IsDTypeNumber`
 pub trait IsDTypeInteger: IsDTypeNumber {}
-    impl IsDTypeInteger for i32 {}
-    impl IsDTypeInteger for u32 {}
+impl IsDTypeInteger for i32 {}
+impl IsDTypeInteger for u32 {}
 
 /// implemented for `f32`, `f64`, `i32`, `u32`. ensures 'DType'
 pub trait IsDTypeNumber: DType {}
-    impl IsDTypeNumber for f32 {}
-    impl IsDTypeNumber for f64 {}
-    impl IsDTypeNumber for i32 {}
-    impl IsDTypeNumber for u32 {}
+impl IsDTypeNumber for f32 {}
+impl IsDTypeNumber for f64 {}
+impl IsDTypeNumber for i32 {}
+impl IsDTypeNumber for u32 {}

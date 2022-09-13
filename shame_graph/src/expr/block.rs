@@ -1,6 +1,5 @@
-
-use crate::{pool::Key, BranchState, Stage};
 use super::*;
+use crate::{pool::Key, BranchState, Stage};
 
 #[derive(Copy, Clone, Debug)]
 pub enum BlockKind {
@@ -67,13 +66,13 @@ impl BlockKind {
     pub fn may_contain_variable_decls_or_defs(&self) -> bool {
         match self {
             Body | LoopBody | LoopInit => true,
-            LoopCondition(_) | LoopIncrement => false
+            LoopCondition(_) | LoopIncrement => false,
         }
     }
 }
 
 impl Default for BlockKind {
-    fn default() -> Self {BlockKind::Body}
+    fn default() -> Self { BlockKind::Body }
 }
 
 /// see [`BlockKind`] for what a block can be.
@@ -100,12 +99,12 @@ pub struct Block {
 }
 
 impl Block {
-
     pub(crate) fn new(
         parent: Option<Key<Block>>,
         origin_item: Key<Item>,
         branch_info: Option<(BranchState, Stage)>,
-        kind: BlockKind) -> Block {
+        kind: BlockKind,
+    ) -> Block {
         Self {
             kind,
             branch_info,
@@ -117,9 +116,7 @@ impl Block {
         }
     }
 
-    pub fn add_stmt(&mut self, stmt: Stmt) {
-        self.stmts.push(stmt)
-    }
+    pub fn add_stmt(&mut self, stmt: Stmt) { self.stmts.push(stmt) }
 
     // pub(crate) fn check_for_not_available_exprs(&self, ctx: &Context) {
     //     let na_amount = self.amount_of_attempts_recording_not_available_exprs;
