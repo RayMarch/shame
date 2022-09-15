@@ -199,7 +199,10 @@ fn expr_kind_to_glsl(ex: &State, expr: &Expr) -> String {
         ExprKind::FieldSelect(x) => field_select_to_glsl(ex, x, &expr.args),
         ExprKind::Operator(x) => operator_to_glsl(ex, x, &expr.args),
         ExprKind::BuiltinFn(x) => format!("{}({})", x.glsl_str, arg_list_to_glsl(ex, &expr.args)),
-        ExprKind::BuiltinVar(x) => x.glsl_str().to_string(),
+        ExprKind::BuiltinVar(x) => match x {
+            #[cfg(feature = "workarounds")] BuiltinVar::VertexVar(VertexVar::gl_VertexIndex) => format!("int({})", x.glsl_str()), //certain versions of naga treat gl_VertexIndex like an `uint`
+            x => x.glsl_str().to_string()
+        },
     }
 }
 
@@ -339,7 +342,8 @@ fn ty_to_glsl(ex: &State, ty: &Ty) -> String {
     }
 }
 
-fn expr_to_glsl(ex: &State, expr: &Expr, ignore_ident: bool) -> String {
+fn expr_to_glsl(ex: &State, expr: &Expr, mut ignore_ident: bool) -> String {
+    ignore_ident |= matches!(expr.kind, ExprKind::BuiltinVar(_)); //builtins cannot be given custom idents in glsl
     match (expr.ident.as_ref(), ignore_ident) {
         (Some(ident), false) => ex.valid_ident(ident.0).to_string(),
         _ => expr_kind_to_glsl(ex, expr)
