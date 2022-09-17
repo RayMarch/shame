@@ -108,7 +108,7 @@ hull/domain shaders | ✖️ | unsupported, not planned
 
 ## Community
 We have a discord server where you can ask questions, give feedback, contribute or show your creations!
-https://discord.gg/Xm5Ck7CCJk
+https://discord.gg/eVkkxXgGcJ
 
 ## you might also like
 
