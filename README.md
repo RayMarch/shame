@@ -1,3 +1,6 @@
+| <img src="https://user-images.githubusercontent.com/20972939/226926834-855b6d21-9241-47a4-8e1f-f6b62b97dac4.png" width="60" height="60" alt="exclamation point sign"/> | *A new major version is in development!* |
+| :---: | --- |
+
 <p align="center">
 <img style="align: center" width="330" src="https://github.com/RayMarch/shame_assets/blob/main/readme/logo_with_bg.png?raw=true#gh-light-mode-only" alt="logo"/>
 <img style="align: center" width="330" src="https://github.com/RayMarch/shame_assets/blob/main/readme/logo_with_bg_dark.png?raw=true#gh-dark-mode-only" alt="logo"/>
