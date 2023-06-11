@@ -122,6 +122,7 @@ https://discord.gg/eVkkxXgGcJ
   - [rasen](https://github.com/leops/rasen): generates SPIR-V bytecode from an operation graph (+ DSL)
   - [shades](https://github.com/phaazon/shades): a different approach of a shader EDSL in rust
   - [rendiation](https://github.com/mikialex/rendiation): Rendiation Rendering Framework
+  - [posh](https://github.com/leod/posh): OpenGL ES 3.0/WebGL 2.0 focused shader EDSL + graphics library
 
 ### license
 
