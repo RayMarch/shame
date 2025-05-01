@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "shame_derive",
+    "shame",
+    "examples/*",
+]
+
+[profile.dev]
+split-debuginfo = "unpacked"
+
+# [profile.dev.package.shame]
+# opt-level = 3

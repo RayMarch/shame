@@ -1,0 +1,29 @@
+[package]
+name = "shame"
+version = "2.0.0-beta.0"
+authors = ["RayMarch <RayMarch@users.noreply.github.com>"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "shame"
+doctest = false # TODO(release) remove, and fix documentation to pass tests
+
+[features]
+default = ["error_excerpt", "shorthand_float_ranges"]
+# removes the 'static bound from control flow closures
+relaxed_control_flow = []
+# makes `0..=1` behave like `0.0..=1.0` in clamp/smoothstep/remap etc.
+shorthand_float_ranges = []
+# enables the `shame::Settings::error_excerpt` setting
+error_excerpt = []
+debug_print = []
+
+[dependencies]
+thiserror = "1.0.47"
+shame_derive = { path = "../shame_derive/" }
+
+[dev-dependencies]
+static_assertions = "1.1.0"
+pretty_assertions = "1.4.1"
+glam = "0.29.0"

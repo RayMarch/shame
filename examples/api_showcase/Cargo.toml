@@ -1,0 +1,8 @@
+[package]
+name = "api_showcase"
+version = "0.1.0"
+authors = ["RayMarch <RayMarch@users.noreply.github.com>"]
+edition = "2024"
+
+[dependencies]
+shame = { path = "../../shame/" }

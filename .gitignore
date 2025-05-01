@@ -1,3 +1,5 @@
-shame.code-workspace
+**.DS_Store
 /target
 Cargo.lock
+build.sh
+.vscode/launch.json
