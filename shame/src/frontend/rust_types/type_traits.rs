@@ -217,3 +217,26 @@ pub trait VertexAttribute: GpuLayout + FromAnys {
     #[doc(hidden)] // runtime api
     fn vertex_attrib_format() -> VertexAttribFormat;
 }
+
+/// Trait that the fields of a derived `GpuLayout` type must implement.
+/// This is used for showing a more helpful error message when trying to use
+/// #[derive(GpuLayout)]
+/// struct A { ... }
+/// in
+/// #[derive(GpuLayout)]
+/// struct B { a: A }
+/// directly. This should instead be
+/// #[derive(GpuLayout)]
+/// struct B { a: shame::Struct<A> }
+/// which the error message points out.
+#[diagnostic::on_unimplemented(
+    message = "Try using shame::Struct<{Self}> instead. If that doesn't work {Self} can not be used as the field of a type deriving shame::GpuLayout."
+)]
+pub trait FromAny {
+    /// Constructs Self from Any
+    fn from_any(any: Any) -> Self;
+}
+
+impl<T: From<Any>> FromAny for T {
+    fn from_any(any: Any) -> Self { T::from(any) }
+}
