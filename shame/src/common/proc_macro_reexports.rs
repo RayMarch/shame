@@ -39,6 +39,7 @@ pub use crate::frontend::rust_types::type_traits::NoAtomics;
 pub use crate::frontend::rust_types::type_traits::NoBools;
 pub use crate::frontend::rust_types::type_traits::NoHandles;
 pub use crate::frontend::rust_types::type_traits::VertexAttribute;
+pub use crate::frontend::rust_types::type_traits::GpuLayoutField;
 pub use crate::frontend::rust_types::AsAny;
 pub use crate::frontend::rust_types::GpuType;
 #[allow(missing_docs)]
