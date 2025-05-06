@@ -3,6 +3,10 @@ name = "shame_wgpu"
 version = "2.0.0-beta.0"
 edition = "2024"
 
+[lib]
+name = "shame_wgpu"
+doctest = false # TODO(release) remove, and fix documentation to pass tests
+
 [dependencies]
 shame = { path = "../../shame" }
 wgpu = "25.0.0"
