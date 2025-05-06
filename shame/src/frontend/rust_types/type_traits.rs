@@ -230,13 +230,13 @@ pub trait VertexAttribute: GpuLayout + FromAnys {
 /// struct B { a: shame::Struct<A> }
 /// which the error message points out.
 #[diagnostic::on_unimplemented(
-    message = "Try using shame::Struct<{Self}> instead. If that doesn't work {Self} can not be used as the field of a type deriving shame::GpuLayout."
+    message = "{Self} is not a valid `shame::GpuLayout` field type. These include `shame::GpuType`s and `shame::packed::PackedVec`. If {Self} is a `shame::GpuLayout` struct, it can be used as a field by wrapping it in `shame::Struct<{Self}>`."
 )]
-pub trait FromAny {
+pub trait GpuLayoutField {
     /// Constructs Self from Any
     fn from_any(any: Any) -> Self;
 }
 
-impl<T: From<Any>> FromAny for T {
+impl<T: From<Any>> GpuLayoutField for T {
     fn from_any(any: Any) -> Self { T::from(any) }
 }
