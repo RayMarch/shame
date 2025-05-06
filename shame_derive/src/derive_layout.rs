@@ -271,7 +271,7 @@ pub fn impl_for_struct(
                         };
 
                         Self {
-                            #(#field_ident: <#field_type as From<#re::Any>>::from(#field_ident)),*
+                            #(#field_ident: <#field_type as #re::FromAny>::from_any(#field_ident)),*
                         }
                     }
                 }
