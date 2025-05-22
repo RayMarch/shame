@@ -65,7 +65,7 @@ pub struct BindingArgs {
 //[old-doc]
 //[old-doc] corresponds to WGSL "Storable type" https://www.w3.org/TR/WGSL/#storable-types
 /// (no documentation yet)
-pub trait GpuStore: GetAllFields + FromAnys {
+pub trait GpuStore: GpuAligned + GetAllFields + FromAnys {
     /// the type whose public immutable interface is exposed by [`shame::Ref<Self>`]:
     ///
     /// `<shame::Ref<Self, _, _> as std::ops::Deref>::Target`
