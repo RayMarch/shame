@@ -6,6 +6,19 @@ use crate::{
 use super::*;
 use TypeLayoutSemantics as TLS;
 
+impl TypeLayout<constraint::Storage> {
+    pub fn new_storage_layout_for(ty: impl Into<LayoutType>) -> Self {
+        type_layout_internal::cast_unchecked(TypeLayout::new_layout_for(ty, Repr::Storage))
+    }
+
+    /// Get the `CpuShareableType` this layout is based on.
+    pub fn cpu_shareable(&self) -> &LayoutType {
+        self.cpu_shareable
+            .as_ref()
+            .expect("constraint::Storage always contains a cpu-shareable")
+    }
+}
+
 impl TypeLayout<constraint::Uniform> {
     /// Takes a `SizedType`, because wgsl only supports sized uniform buffers.
     /// Use `new_layout_for_unchecked`to obtain the the uniform layout of an unsized host-shareable. /// Using the unsized layout with wgsl as your target language will cause an error.
@@ -21,9 +34,9 @@ impl TypeLayout<constraint::Uniform> {
     }
 }
 
-impl TypeLayout<constraint::Storage> {
-    pub fn new_storage_layout_for(ty: impl Into<LayoutType>) -> Self {
-        type_layout_internal::cast_unchecked(TypeLayout::new_layout_for(ty, Repr::Storage))
+impl TypeLayout<constraint::Packed> {
+    pub fn new_packed_layout_for(ty: impl Into<LayoutType>) -> Self {
+        type_layout_internal::cast_unchecked(TypeLayout::new_layout_for(ty, Repr::Packed))
     }
 
     /// Get the `CpuShareableType` this layout is based on.

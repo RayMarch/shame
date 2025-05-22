@@ -24,13 +24,11 @@ use crate::{
 use cpu_shareable::{LayoutType, Matrix, Vector};
 use thiserror::Error;
 
+mod builder;
 pub mod cpu_shareable;
 mod eq;
-mod storage_uniform;
-mod vertex;
 
-pub use vertex::*;
-pub use storage_uniform::*;
+pub use builder::*;
 pub(crate) use eq::*;
 
 /// The type contained in the bytes of a `TypeLayout`.
@@ -163,7 +161,7 @@ pub mod constraint {
         };
     }
 
-    type_restriction!(Plain, Storage, Uniform, Vertex);
+    type_restriction!(Plain, Storage, Uniform, Packed);
 
     macro_rules! impl_from_into {
         ($from:ident -> $($into:ident),*) => {
@@ -177,7 +175,7 @@ pub mod constraint {
 
     impl_from_into!(Storage -> Plain);
     impl_from_into!(Uniform -> Plain, Storage);
-    impl_from_into!(Vertex  -> Plain);
+    impl_from_into!(Packed  -> Plain);
 }
 
 impl TypeLayout {

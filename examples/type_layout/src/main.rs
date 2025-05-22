@@ -6,26 +6,35 @@ use shame::{
     boolx1,
     cpu_shareable::{self as cs, BinaryReprSized},
     f32x1, f32x2, f32x3, f32x4,
-    type_layout::*,
+    type_layout::{
+        constraint::{Packed, Plain, Storage},
+        *,
+    },
     Array, GpuLayout, GpuSized, VertexAttribute, VertexLayout,
 };
 
 fn main() {
-    // We'll start by building a `TypeLayout<Vertex>`, which can be used for ... nothing really
+    // We'll start by building a `TypeLayout`, which for this Vertex type.
     #[derive(GpuLayout)]
     struct Vertex {
         position: f32x3,
         normal: f32x3,
-        uv: f32x1,
+        uv: f32x2,
     }
 
-    // TypeLayout::vertex_builder immediately takes the first field of the struct, because
+    // SizedStruct::new immediately takes the first field of the struct, because
     // structs need to have at least one field.
-    let mut builder =
-        TypeLayout::vertex_builder("Vertex", "position", f32x4::vertex_attrib_format(), cs::Repr::Storage)
-            .extend("normal", f32x3::vertex_attrib_format())
-            .extend("uv", f32x1::vertex_attrib_format())
-            .finish();
+    let sized_struct = cs::SizedStruct::new("Vertex", "position", f32x3::layout_type_sized())
+        .extend("normal", f32x4::layout_type_sized())
+        .extend("uv", f32x1::layout_type_sized());
+    // A layout that follows the storage layout rules
+    let layout: TypeLayout = TypeLayout::new_layout_for(sized_struct.clone(), cs::Repr::Storage);
+    // Or we can get a TypeLayout<Storage>, which guarantees the storage layout rules.
+    let layout_storage: TypeLayout<Storage> = TypeLayout::new_storage_layout_for(sized_struct.clone());
+    assert_eq!(layout, layout_storage);
+    // Or we get it as a packed layout
+    let layout_packed: TypeLayout<Packed> = TypeLayout::new_packed_layout_for(sized_struct);
+    assert_ne!(layout_storage, layout_packed);
 
 
     // Now we'll replicate the layout of this struct
