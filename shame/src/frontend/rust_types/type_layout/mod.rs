@@ -119,7 +119,7 @@ pub struct TypeLayout<T: TypeConstraint = constraint::Plain> {
     /// the byte alignment
     ///
     /// top level alignment is not considered relevant in some checks, but relevant in others (vertex array elements)
-    pub byte_align: U32PowerOf2,
+    pub align: U32PowerOf2,
     /// the type contained in the bytes of this type layout
     pub kind: TypeLayoutSemantics,
 
@@ -189,7 +189,7 @@ impl TypeLayout {
     ) -> Self {
         TypeLayout {
             byte_size,
-            byte_align,
+            align: byte_align,
             kind,
             cpu_shareable: hostshareable,
             _phantom: PhantomData,
@@ -206,7 +206,7 @@ pub(in super::super::rust_types) mod type_layout_internal {
     pub fn cast_unchecked<From: TypeConstraint, Into: TypeConstraint>(layout: TypeLayout<From>) -> TypeLayout<Into> {
         TypeLayout {
             byte_size: layout.byte_size,
-            byte_align: layout.byte_align,
+            align: layout.align,
             kind: layout.kind,
             cpu_shareable: layout.cpu_shareable,
             _phantom: PhantomData,
@@ -392,7 +392,7 @@ impl<T: TypeConstraint> TypeLayout<T> {
     pub fn byte_size(&self) -> Option<u64> { self.byte_size }
 
     /// Align of the represented type.
-    pub fn byte_align(&self) -> U32PowerOf2 { self.byte_align }
+    pub fn byte_align(&self) -> U32PowerOf2 { self.align }
 
     /// Although all TypeLayout<T> always implement Into<TypeLayout<marker::MaybeInvalid>, this method
     /// is offered to avoid having to declare that as a bound when handling generic TypeLayout<T>.
@@ -479,7 +479,7 @@ impl<T: TypeConstraint> TypeLayout<T> {
                     }
                 }
                 write!(f, "{indent}}}")?;
-                write!(f, " align={}", self.byte_align.as_u64())?;
+                write!(f, " align={}", self.align.as_u64())?;
                 if let Some(size) = self.byte_size {
                     write!(f, " size={size}")?;
                 } else {

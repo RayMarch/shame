@@ -97,7 +97,18 @@ fn main() {
             f32x1::layout_type_sized(),
         );
     let layout = TypeLayout::new_storage_layout_for(sized_struct);
-    assert!(layout.byte_align.as_u32() == 16);
+    assert!(layout.align.as_u32() == 16);
+
+    // gpu_repr(uniform) and gpu_repr(storage), which is the default, are now supported
+    #[derive(shame::GpuLayout)]
+    #[gpu_repr(uniform)]
+    struct D {
+        a: f32x2,
+        b: Array<f32x1>,
+    }
+
+    // this would be 8 for storage layout rules
+    assert!(D::gpu_layout().align.as_u32() == 16);
 
     // Let's end on a pretty error message
     let mut sized_struct = cs::SizedStruct::new("D", "a", f32x2::layout_type_sized())
