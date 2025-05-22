@@ -107,7 +107,7 @@ impl<T: VertexLayout> VertexBuffer<'_, T> {
         let call_info = call_info!();
         let attribs_and_stride = Context::try_with(call_info, |ctx| {
             let skip_stride_check = false; // it is implied that T is in an array, the strides must match
-            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check);
+            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check).into_plain();
 
             let attribs_and_stride = Attrib::get_attribs_and_stride(&gpu_layout, &location_counter).ok_or_else(|| {
                 ctx.push_error(FrontendError::MalformedVertexBufferLayout(gpu_layout).into());
@@ -454,13 +454,13 @@ impl BindingIter<'_> {
     /// let texarr: sm::TextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
     /// let texarr: sm::TextureArray<sm::Filterable<f32x4>, 4> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## storage textures
     /// ```
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm> = bind_group.next();
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm, u32x2> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## Arrays of storage textures
     /// ```
     /// let texstoarr: sm::StorageTextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
@@ -558,7 +558,7 @@ impl PushConstants<'_> {
     #[track_caller]
     pub fn get<T>(self) -> T
     where
-        T: GpuStore + GpuSized + NoAtomics + NoBools,
+        T: GpuStore + GpuSized + NoAtomics + NoBools + GpuLayout,
     {
         let _caller_scope = Context::call_info_scope();
 

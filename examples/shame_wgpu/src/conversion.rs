@@ -101,7 +101,7 @@ pub fn sample_type(st: sm::TextureSampleUsageType) -> wgpu::TextureSampleType {
     }
 }
 
-/// converts `tf` into a `wgpu::TextureFormat` if supported. 
+/// converts `tf` into a `wgpu::TextureFormat` if supported.
 /// If `tf` is `ExtraTextureFormats::SurfaceFormat`, then the provided `surface_format` argument
 /// is returned if it is `Some`. Otherwise an error is returned.
 #[rustfmt::skip]
@@ -194,7 +194,7 @@ pub fn texture_format(tf: &dyn sm::TextureFormatId, surface_format: Option<wgpu:
         SmTf::EacR11Snorm          => wgpu::TextureFormat::EacR11Snorm,
         SmTf::EacRg11Unorm         => wgpu::TextureFormat::EacRg11Unorm,
         SmTf::EacRg11Snorm         => wgpu::TextureFormat::EacRg11Snorm,
-        SmTf::Astc { block, channel } => wgpu::TextureFormat::Astc { 
+        SmTf::Astc { block, channel } => wgpu::TextureFormat::Astc {
             block: match block {
                 SmASTCb::B4x4   => wgpu::AstcBlock::B4x4,
                 SmASTCb::B5x4   => wgpu::AstcBlock::B5x4,
@@ -210,12 +210,12 @@ pub fn texture_format(tf: &dyn sm::TextureFormatId, surface_format: Option<wgpu:
                 SmASTCb::B10x10 => wgpu::AstcBlock::B10x10,
                 SmASTCb::B12x10 => wgpu::AstcBlock::B12x10,
                 SmASTCb::B12x12 => wgpu::AstcBlock::B12x12,
-            }, 
+            },
             channel: match channel {
                 SmASTCc::Unorm     => wgpu::AstcChannel::Unorm,
                 SmASTCc::UnormSrgb => wgpu::AstcChannel::UnormSrgb,
                 SmASTCc::Hdr       => wgpu::AstcChannel::Hdr,
-            } 
+            }
         },
     };
     Ok(wtf)
@@ -449,7 +449,7 @@ fn color_writes(write_mask: smr::ChannelWrites) -> wgpu::ColorWrites {
 
 #[rustfmt::skip]
 fn vertex_format(format: smr::VertexAttribFormat) -> Result<wgpu::VertexFormat, ShameToWgpuError> {
-    use smr::ScalarType as S;
+    use shame::cpu_shareable::ScalarType as S;
     use smr::Len as L;
     use wgpu::VertexFormat as W;
     let unsupported = Err(ShameToWgpuError::UnsupportedVertexAttribFormat(format));
@@ -479,10 +479,8 @@ fn vertex_format(format: smr::VertexAttribFormat) -> Result<wgpu::VertexFormat, 
             (S::I32, L::X2) => W::Sint32x2,
             (S::I32, L::X3) => W::Sint32x3,
             (S::I32, L::X4) => W::Sint32x4,
-
-            (S::Bool, _) => return unsupported,
         },
-        
+
         smr::VertexAttribFormat::Coarse(p) => {
             use smr::PackedScalarType as PS;
             use smr::PackedFloat as Norm;

@@ -14,14 +14,14 @@ pub trait CpuLayoutExt {
 
 // glam::Vec4 matches sm::f32x4 in size and alignment
 impl CpuLayoutExt for glam::Vec4 {
-    fn cpu_layout() -> sm::TypeLayout { sm::f32x4::gpu_layout() }
+    fn cpu_layout() -> sm::TypeLayout { sm::f32x4::gpu_layout().into() }
 }
 
 // glam::Vec2 only matches sm::f32x2 if it has 8 byte alignment
 impl CpuLayoutExt for glam::Vec2 {
     fn cpu_layout() -> sm::TypeLayout {
         if align_of::<Self>() == 8 {
-            sm::f32x2::gpu_layout()
+            sm::f32x2::gpu_layout().into()
         } else {
             panic!("glam needs to use the `cuda` crate feature for Vec2 to be 8 byte aligned");
         }
@@ -30,5 +30,5 @@ impl CpuLayoutExt for glam::Vec2 {
 
 // glam::Mat4 matches sm::f32x4x4 in size and alignment
 impl CpuLayoutExt for glam::Mat4 {
-    fn cpu_layout() -> sm::TypeLayout { sm::f32x4x4::gpu_layout() }
+    fn cpu_layout() -> sm::TypeLayout { sm::f32x4x4::gpu_layout().into() }
 }

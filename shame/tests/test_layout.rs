@@ -248,9 +248,9 @@ fn unsized_struct_vec3_align_layout_eq() {
     }
     assert_ne!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
     assert!(OnGpu::gpu_layout().byte_size() == Some(16));
-    assert!(OnGpu::gpu_layout().align() == 16);
+    assert!(OnGpu::gpu_layout().byte_align().as_u32() == 16);
     assert!(OnCpu::cpu_layout().byte_size() == Some(12));
-    assert!(OnCpu::cpu_layout().align() == 4);
+    assert!(OnCpu::cpu_layout().byte_align().as_u32() == 4);
 }
 
 #[test]

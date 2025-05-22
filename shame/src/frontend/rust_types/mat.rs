@@ -7,7 +7,10 @@ use super::{
     mem::AddressSpace,
     reference::{AccessMode, AccessModeReadable},
     scalar_type::{ScalarType, ScalarTypeFp},
-    type_layout::{TypeLayout, TypeLayoutRules},
+    type_layout::{
+        cpu_shareable::{self, BinaryReprSized},
+        TypeLayout, TypeLayoutRules,
+    },
     type_traits::{
         BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools,
         NoHandles,
@@ -15,7 +18,7 @@ use super::{
     vec::{scalar, vec, ToInteger},
     AsAny, GpuType, To, ToGpuType,
 };
-use crate::{frontend::rust_types::reference::Ref, ir::recording::CallInfoScope};
+use crate::{cpu_shareable::BinaryRepr, frontend::rust_types::reference::Ref, ir::recording::CallInfoScope};
 use crate::{
     call_info,
     frontend::{
@@ -50,8 +53,22 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> Default for mat<T, C, R> {
     }
 }
 
+impl<T: ScalarTypeFp, C: Len2, R: Len2> BinaryReprSized for mat<T, C, R> {
+    fn layout_type_sized() -> cpu_shareable::SizedType {
+        cpu_shareable::Matrix {
+            columns: C::LEN2,
+            rows: R::LEN2,
+            scalar: T::SCALAR_TYPE_FP,
+        }
+        .into()
+    }
+}
+impl<T: ScalarTypeFp, C: Len2, R: Len2> BinaryRepr for mat<T, C, R> {
+    fn layout_type() -> cpu_shareable::LayoutType { Self::layout_type_sized().into() }
+}
+
 impl<T: ScalarTypeFp, C: Len2, R: Len2> GpuLayout for mat<T, C, R> {
-    fn gpu_layout() -> TypeLayout { TypeLayout::from_sized_ty(TypeLayoutRules::Wgsl, &<Self as GpuSized>::sized_ty()) }
+    fn gpu_repr() -> cpu_shareable::Repr { cpu_shareable::Repr::Storage }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> { None }
 }
@@ -181,7 +198,7 @@ impl<Cols: Len2, Rows: Len2, T: ScalarTypeFp> mat<T, Cols, Rows> {
     ///     sm::vec!(2.0, 5.0) // row 3
     /// ])
     ///
-    /// let m: f32x3x2 = sm::mat::new([   
+    /// let m: f32x3x2 = sm::mat::new([
     ///     0.0, 3.0 // column 0, becomes row 0
     ///     1.0, 4.0 // column 1, becomes row 1
     ///     2.0, 5.0 // column 2, becomes row 2
@@ -235,7 +252,7 @@ impl<Cols: Len2, Rows: Len2, T: ScalarTypeFp> mat<T, Cols, Rows> {
     ///     sm::vec!(2.0, 5.0) // row 3
     /// ])
     ///
-    /// let m: f32x3x2 = sm::mat::new([   
+    /// let m: f32x3x2 = sm::mat::new([
     ///     0.0, 3.0 // column 0, becomes row 0
     ///     1.0, 4.0 // column 1, becomes row 1
     ///     2.0, 5.0 // column 2, becomes row 2
@@ -496,7 +513,7 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> mat<T, C, R> {
     ///     sm::vec!(2.0, 5.0) // row 3
     /// ])
     ///
-    /// let m: f32x3x2 = sm::mat::new([   
+    /// let m: f32x3x2 = sm::mat::new([
     ///     0.0, 3.0 // column 0, becomes row 0
     ///     1.0, 4.0 // column 1, becomes row 1
     ///     2.0, 5.0 // column 2, becomes row 2

@@ -95,9 +95,11 @@ pub fn repr_c_struct_layout(
         Some(repr_c_align) => max_alignment.max(repr_c_align),
         None => max_alignment,
     };
+    let struct_alignment = U32PowerOf2::try_from(struct_alignment as u32).unwrap();
     let last_field_size = last_field_size.map(|s| s as u64);
 
-    let total_struct_size = last_field_size.map(|last_size| round_up(struct_alignment, last_field_offset + last_size));
+    let total_struct_size =
+        last_field_size.map(|last_size| round_up(struct_alignment.as_u64(), last_field_offset + last_size));
 
     let mut fields = first_fields_with_offsets_and_sizes
         .iter()
@@ -132,6 +134,7 @@ pub fn repr_c_struct_layout(
             name: struct_name.into(),
             fields,
         })),
+        None,
     ))
 }
 

@@ -184,7 +184,7 @@ pub use frontend::rust_types::vec_range_traits::VecRangeBoundsInclusive;
 pub mod aliases {
     use crate::frontend::rust_types::aliases;
 
-    #[rustfmt::skip]    
+    #[rustfmt::skip]
     pub use aliases::rust_simd::{
         f16x1, f32x1, f64x1, u32x1, i32x1, boolx1,
         f16x2, f32x2, f64x2, u32x2, i32x2, boolx2,
@@ -192,16 +192,16 @@ pub mod aliases {
         f16x4, f32x4, f64x4, u32x4, i32x4, boolx4,
     };
 
-    #[rustfmt::skip]    
+    #[rustfmt::skip]
     pub use aliases::rust_simd::{
         f16x2x2, f32x2x2, f64x2x2,
         f16x2x3, f32x2x3, f64x2x3,
         f16x2x4, f32x2x4, f64x2x4,
-    
+
         f16x3x2, f32x3x2, f64x3x2,
         f16x3x3, f32x3x3, f64x3x3,
         f16x3x4, f32x3x4, f64x3x4,
-    
+
         f16x4x2, f32x4x2, f64x4x2,
         f16x4x3, f32x4x3, f64x4x3,
         f16x4x4, f32x4x4, f64x4x4,
@@ -316,8 +316,10 @@ pub use shame_derive::CpuLayout;
 pub use shame_derive::GpuLayout;
 pub use frontend::rust_types::layout_traits::GpuLayout;
 pub use frontend::rust_types::layout_traits::CpuLayout;
+pub use frontend::rust_types::type_layout;
 pub use frontend::rust_types::type_layout::TypeLayout;
 pub use frontend::rust_types::type_layout::TypeLayoutError;
+pub use frontend::rust_types::type_layout::cpu_shareable;
 pub use frontend::rust_types::layout_traits::ArrayElementsUnsizedError;
 
 // derived traits
@@ -331,6 +333,7 @@ pub use frontend::rust_types::struct_::SizedFields;
 pub use frontend::rust_types::type_traits::NoBools;
 pub use frontend::rust_types::type_traits::NoAtomics;
 pub use frontend::rust_types::type_traits::NoHandles;
+pub use frontend::rust_types::type_traits::VertexAttribute;
 
 pub use frontend::rust_types::layout_traits::VertexLayout;
 

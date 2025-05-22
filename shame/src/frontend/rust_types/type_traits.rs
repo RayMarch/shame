@@ -3,9 +3,14 @@ use super::{
     layout_traits::{FromAnys, GetAllFields, GpuLayout},
     mem::{self, AddressSpace},
     reference::{AccessMode, AccessModeReadable},
+    type_layout::{self, type_layout_internal},
     AsAny, GpuType, ToGpuType,
 };
-use crate::frontend::any::shared_io::{BindPath, BindingType};
+use crate::{
+    frontend::any::shared_io::{BindPath, BindingType},
+    cpu_shareable::{LayoutType},
+    TypeLayout,
+};
 use crate::{
     call_info,
     common::proc_macro_utils::push_wrong_amount_of_args_error,
@@ -60,7 +65,7 @@ pub struct BindingArgs {
 //[old-doc]
 //[old-doc] corresponds to WGSL "Storable type" https://www.w3.org/TR/WGSL/#storable-types
 /// (no documentation yet)
-pub trait GpuStore: GpuAligned + GetAllFields + FromAnys {
+pub trait GpuStore: GetAllFields + FromAnys {
     /// the type whose public immutable interface is exposed by [`shame::Ref<Self>`]:
     ///
     /// `<shame::Ref<Self, _, _> as std::ops::Deref>::Target`
@@ -168,7 +173,7 @@ pub trait GpuSized: GpuAligned {
 )]
 /// ## known byte-alignment on the gpu
 /// types that have a byte-alignment on the graphics device that is known at rust compile-time
-pub trait GpuAligned: GpuLayout {
+pub trait GpuAligned {
     #[doc(hidden)] // runtime api
     fn aligned_ty() -> AlignedType
     where
@@ -186,7 +191,7 @@ pub trait GpuAligned: GpuLayout {
 ///
 /// boolean types do not have a defined size on gpus.
 /// You may want to use unsigned integers for transferring boolean data instead.
-pub trait NoBools: GpuLayout {}
+pub trait NoBools {}
 
 /// (no documentation yet)
 #[diagnostic::on_unimplemented(
@@ -197,7 +202,7 @@ pub trait NoBools: GpuLayout {}
 // error message isn't misleading for user provided types `T`. Those types will show
 // the base trait diagnostic, instead of "`T` contains `XYZ`" which it doesn't.
 /// types that don't contain atomics at any nesting level
-pub trait NoAtomics: GpuLayout {}
+pub trait NoAtomics {}
 
 // implementor note:
 // NoXYZ traits must require GpuLayout or some other base trait, so that the
@@ -207,13 +212,15 @@ pub trait NoAtomics: GpuLayout {}
     message = "`{Self}` may be or contain a handle type such as `Texture`, `Sampler`, `StorageTexture`."
 )]
 /// Implemented by types that aren't/contain no textures, storage textures, their array variants or samplers
-pub trait NoHandles: GpuLayout {}
+pub trait NoHandles {}
 
 /// this trait is only implemented by:
 ///
 /// * `sm::vec`s of non-boolean type (e.g. `sm::f32x4`)
 /// * `sm::packed::PackedVec`s (e.g. `sm::packed::unorm8x4`)
-pub trait VertexAttribute: GpuLayout + FromAnys {
+// Is at most 16 bytes according to https://www.w3.org/TR/WGSL/#input-output-locations
+// and thus GpuSized.
+pub trait VertexAttribute: GpuLayout + FromAnys + GpuSized {
     #[doc(hidden)] // runtime api
     fn vertex_attrib_format() -> VertexAttribFormat;
 }

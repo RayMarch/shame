@@ -13,6 +13,7 @@ use super::vec::{ToInteger, ToVec};
 use super::{AsAny, GpuType};
 use super::{To, ToGpuType};
 use crate::common::small_vec::SmallVec;
+use crate::cpu_shareable::{BinaryRepr, BinaryReprSized};
 use crate::frontend::any::shared_io::{BindPath, BindingType};
 use crate::frontend::any::Any;
 use crate::frontend::any::InvalidReason;
@@ -24,7 +25,7 @@ use crate::frontend::rust_types::vec::vec;
 use crate::ir::ir_type::stride_of_array_from_element_align_size;
 use crate::ir::pipeline::StageMask;
 use crate::ir::recording::Context;
-use crate::{call_info, for_count, ir};
+use crate::{call_info, cpu_shareable, for_count, ir};
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::num::NonZeroU32;
@@ -155,19 +156,30 @@ impl<T: GpuType + GpuSized, const N: usize> GpuSized for Array<T, Size<N>> {
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoHandles, N: ArrayLen> NoHandles for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoAtomics, N: ArrayLen> NoAtomics for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoBools  , N: ArrayLen> NoBools   for Array<T, N> {}
+impl<T: GpuType + GpuSized + BinaryReprSized, const N: usize> BinaryReprSized for Array<T, Size<N>> {
+    fn layout_type_sized() -> cpu_shareable::SizedType {
+        cpu_shareable::SizedArray::new(T::layout_type_sized(), Size::<N>::nonzero()).into()
+    }
+}
+impl<T: GpuType + GpuSized + BinaryReprSized, N: ArrayLen> BinaryRepr for Array<T, N> {
+    fn layout_type() -> cpu_shareable::LayoutType {
+        match N::LEN {
+            Some(n) => cpu_shareable::SizedArray::new(T::layout_type_sized(), n).into(),
+            None => cpu_shareable::RuntimeSizedArray::new(T::layout_type_sized()).into(),
+        }
+    }
+}
 
 impl<T: GpuType + GpuStore + GpuSized, N: ArrayLen> ToGpuType for Array<T, N> {
     type Gpu = Self;
-
-
 
     fn to_gpu(&self) -> Self::Gpu { self.clone() }
 
     fn as_gpu_type_ref(&self) -> Option<&Self::Gpu> { Some(self) }
 }
 
-impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
-    fn gpu_layout() -> TypeLayout { TypeLayout::from_array(TypeLayoutRules::Wgsl, &T::sized_ty(), N::LEN) }
+impl<T: GpuType + GpuSized + GpuLayout + BinaryReprSized, N: ArrayLen> GpuLayout for Array<T, N> {
+    fn gpu_repr() -> cpu_shareable::Repr { cpu_shareable::Repr::Storage }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         let (t_cpu_name, t_cpu_layout) = match T::cpu_type_name_and_layout()? {
@@ -187,14 +199,15 @@ impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
             name.into(),
             TypeLayout::new(
                 N::LEN.map(|n| n.get() as u64 * t_cpu_size),
-                t_cpu_layout.align(),
+                t_cpu_layout.byte_align(),
                 TypeLayoutSemantics::Array(
                     Rc::new(ElementLayout {
-                        byte_stride: stride_of_array_from_element_align_size(t_cpu_layout.align(), t_cpu_size),
+                        byte_stride: cpu_shareable::array_stride(t_cpu_layout.byte_align(), t_cpu_size),
                         ty: t_cpu_layout,
                     }),
                     N::LEN.map(NonZeroU32::get),
                 ),
+                None,
             ),
         );
 

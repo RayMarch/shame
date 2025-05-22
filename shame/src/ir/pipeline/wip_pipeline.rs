@@ -16,6 +16,7 @@ use crate::{
         po2::U32PowerOf2,
         pool::{Key, PoolRef},
     },
+    cpu_shareable,
     frontend::{
         any::{
             render_io::{Attrib, ColorTarget, Location, VertexBufferLayout},
@@ -43,7 +44,8 @@ use crate::{
         StructureFieldNamesMustBeUnique, TextureFormatWrapper, Type,
     },
     results::DepthStencilState,
-    BindingIter, DepthLhs, StencilMasking, Test,
+    type_layout::TypeLayoutSemantics,
+    BindingIter, DepthLhs, StencilMasking, Test, TypeLayout,
 };
 
 
@@ -71,7 +73,7 @@ macro_rules! stringify_checked {
 
 #[derive(Error, Debug, Clone)]
 pub enum PipelineError {
-    #[error("Missing pipeline specialization. Use either the `{}` or `{}` method to start a compute- or render-pipeline encoding.", 
+    #[error("Missing pipeline specialization. Use either the `{}` or `{}` method to start a compute- or render-pipeline encoding.",
         stringify_checked!(expr: EncodingGuard::new_compute_pipeline::<3>).replace("3", "_"),
         stringify_checked!(expr: EncodingGuard::new_render_pipeline),
     )]
@@ -352,7 +354,14 @@ impl WipPushConstantsField {
         let byte_size = sized_struct.byte_size();
 
         // TODO(release) the `.expect()` calls here can be removed by building a `std::alloc::Layout`-like builder for struct layouts.
-        let (_, _, layout) = StructLayout::from_ir_struct(TypeLayoutRules::Wgsl, &sized_struct);
+        let sized_struct: cpu_shareable::SizedStruct = sized_struct
+            .try_into()
+            .expect("push constants are NoBools and NoHandles");
+        let layout = TypeLayout::new_storage_layout_for(sized_struct);
+        let layout = match &layout.kind {
+            TypeLayoutSemantics::Structure(layout) => &**layout,
+            _ => unreachable!("expected struct layout for type layout of struct"),
+        };
 
         let mut ranges = ByteRangesPerStage::default();
 
@@ -408,7 +417,7 @@ impl WipPushConstantsField {
 
         // here we have to allocate unique name strings for each field,
         // so we don't fail the name uniqueness check, even though we don't need those names.
-        SizedStruct::new_nonempty("PushConstants".into(), 
+        SizedStruct::new_nonempty("PushConstants".into(),
             fields.iter().map(&mut to_sized_field).collect(),
             to_sized_field(last)
         ).map_err(|err| match err {
