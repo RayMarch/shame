@@ -25,7 +25,7 @@ fn main() {
     // SizedStruct::new immediately takes the first field of the struct, because
     // structs need to have at least one field.
     let sized_struct = cs::SizedStruct::new("Vertex", "position", f32x3::layout_type_sized())
-        .extend("normal", f32x4::layout_type_sized())
+        .extend("normal", f32x3::layout_type_sized())
         .extend("uv", f32x1::layout_type_sized());
     // A layout that follows the storage layout rules
     let layout: TypeLayout = TypeLayout::new_layout_for(sized_struct.clone(), cs::Repr::Storage);
