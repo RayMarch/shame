@@ -2,9 +2,8 @@ use std::{fmt::Display, rc::Rc};
 
 use thiserror::Error;
 
-use crate::any::layout;
 use crate::frontend::any::Any;
-use crate::frontend::rust_types::type_layout::TypeLayout;
+use crate::frontend::rust_types::type_layout::{layoutable, TypeLayout};
 use crate::{
     call_info,
     common::iterator_ext::try_collect,
@@ -109,7 +108,7 @@ impl Any {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VertexAttribFormat {
     /// regular [`crate::vec`] types
-    Fine(Len, layout::ScalarType),
+    Fine(Len, layoutable::ScalarType),
     /// packed [`crate::packed::PackedVec`] types
     Coarse(PackedVector),
 }
@@ -252,7 +251,7 @@ impl Attrib {
     ) -> Option<(Box<[Attrib]>, u64)> {
         let stride = {
             let size = layout.byte_size()?;
-            layout::array_stride(layout.align(), size)
+            layoutable::array_stride(layout.align(), size)
         };
         use TypeLayoutSemantics as TLS;
 
