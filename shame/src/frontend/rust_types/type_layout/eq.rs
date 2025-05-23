@@ -4,7 +4,7 @@ use super::*;
 #[derive(Clone)]
 pub struct LayoutMismatch {
     /// 2 (name, layout) pairs
-    layouts: [(String, TypeLayout<constraint::Plain>); 2],
+    layouts: [(String, TypeLayout<repr::Plain>); 2],
     colored_error: bool,
 }
 
@@ -65,7 +65,7 @@ impl LayoutMismatch {
     #[allow(clippy::needless_return)]
     pub(crate) fn write<W: Write>(
         indent: &str,
-        layouts: [(&str, &TypeLayout<constraint::Plain>); 2],
+        layouts: [(&str, &TypeLayout<repr::Plain>); 2],
         colored: bool,
         f: &mut W,
     ) -> Result<KeepWriting, MismatchWasFound> {
@@ -270,19 +270,19 @@ impl LayoutMismatch {
                 }
 
                 write!(f, "{:width$}{indent}}}", ' ', width = pad_width);
-                let align_matches = a.byte_align() == b.byte_align();
+                let align_matches = a.align() == b.align();
                 let size_matches = a.byte_size() == b.byte_size();
                 if !align_matches && size_matches {
                     writeln!(f);
                     color_a(f);
-                    writeln!(f, "{a_name}{SEP}{indent}align={}", a.byte_align().as_u32());
+                    writeln!(f, "{a_name}{SEP}{indent}align={}", a.align().as_u32());
                     color_b(f);
-                    writeln!(f, "{b_name}{SEP}{indent}align={}", b.byte_align().as_u32());
+                    writeln!(f, "{b_name}{SEP}{indent}align={}", b.align().as_u32());
                     color_reset(f);
                     return Err(MismatchWasFound);
                 } else {
                     match align_matches {
-                        true => write!(f, " align={}", a.byte_align().as_u32()),
+                        true => write!(f, " align={}", a.align().as_u32()),
                         false => write!(f, " align=?"),
                     };
                 }
@@ -431,7 +431,7 @@ impl LayoutMismatch {
 ///
 /// if the two layouts are not equal it uses the debug names in the returned
 /// error to tell the two layouts apart.
-pub(crate) fn check_eq<L: TypeConstraint, R: TypeConstraint>(
+pub(crate) fn check_eq<L: TypeRepr, R: TypeRepr>(
     a: (&str, &TypeLayout<L>),
     b: (&str, &TypeLayout<R>),
 ) -> Result<(), LayoutMismatch>

@@ -479,6 +479,7 @@ pub struct PackedVector {
 }
 
 /// exhaustive list of all byte sizes a `packed_vec` can have
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PackedVectorByteSize {
     _2,
     _4,

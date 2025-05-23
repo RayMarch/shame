@@ -8,7 +8,6 @@ use super::{
 };
 use crate::{
     frontend::any::shared_io::{BindPath, BindingType},
-    cpu_shareable::{LayoutType},
     TypeLayout,
 };
 use crate::{

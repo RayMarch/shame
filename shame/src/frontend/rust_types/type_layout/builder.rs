@@ -1,71 +1,81 @@
-use crate::{
-    __private::SmallVec,
-    cpu_shareable::{self as cs, Major, Repr, SizedField, UnsizedStruct},
-    ir::{ir_type::max_u64_po2_dividing, StoreType},
+use crate::ir::{ir_type::max_u64_po2_dividing, StoreType};
+use super::{
+    layoutable::{
+        MatrixMajor, RuntimeSizedArray, RuntimeSizedArrayField, SizedField, SizedStruct, SizedType, UnsizedStruct,
+    },
+    *,
 };
-use super::*;
 use TypeLayoutSemantics as TLS;
 
-impl TypeLayout<constraint::Storage> {
-    pub fn new_storage_layout_for(ty: impl Into<LayoutType>) -> Self {
+impl TypeLayout<repr::Storage> {
+    /// Returns the type layout of the given `LayoutableType`
+    /// layed out according to wgsl storage layout rules (std430).
+    pub fn new_storage_layout_for(ty: impl Into<LayoutableType>) -> Self {
         type_layout_internal::cast_unchecked(TypeLayout::new_layout_for(ty, Repr::Storage))
     }
 
-    /// Get the `CpuShareableType` this layout is based on.
-    pub fn cpu_shareable(&self) -> &LayoutType {
-        self.cpu_shareable
+    /// Get the `LayoutableType` this layout is based on.
+    pub fn layoutable_type(&self) -> &LayoutableType {
+        self.layoutable_type
             .as_ref()
-            .expect("constraint::Storage always contains a cpu-shareable")
+            .expect("Storage is always based on a layoutable type")
     }
 }
 
-impl TypeLayout<constraint::Uniform> {
-    /// Takes a `SizedType`, because wgsl only supports sized uniform buffers.
-    /// Use `new_layout_for_unchecked`to obtain the the uniform layout of an unsized host-shareable. /// Using the unsized layout with wgsl as your target language will cause an error.
-    pub fn new_uniform_layout_for(ty: impl Into<LayoutType>) -> Self {
+impl TypeLayout<repr::Uniform> {
+    /// Returns the type layout of the given `LayoutableType`
+    /// layed out according to wgsl uniform layout rules (std140).
+    pub fn new_uniform_layout_for(ty: impl Into<LayoutableType>) -> Self {
         type_layout_internal::cast_unchecked(TypeLayout::new_layout_for(ty, Repr::Uniform))
     }
 
-    /// Get the `CpuShareableType` this layout is based on.
-    pub fn cpu_shareable(&self) -> &LayoutType {
-        self.cpu_shareable
+    /// Get the `LayoutableType` this layout is based on.
+    pub fn layoutable_type(&self) -> &LayoutableType {
+        self.layoutable_type
             .as_ref()
-            .expect("constraint::Uniform always contains a cpu-shareable")
+            .expect("Uniform is always based on a layoutable type")
     }
 }
 
-impl TypeLayout<constraint::Packed> {
-    pub fn new_packed_layout_for(ty: impl Into<LayoutType>) -> Self {
+impl TypeLayout<repr::Packed> {
+    /// Returns the type layout of the given `LayoutableType` in packed format.
+    pub fn new_packed_layout_for(ty: impl Into<LayoutableType>) -> Self {
         type_layout_internal::cast_unchecked(TypeLayout::new_layout_for(ty, Repr::Packed))
     }
 
-    /// Get the `CpuShareableType` this layout is based on.
-    pub fn cpu_shareable(&self) -> &LayoutType {
-        self.cpu_shareable
+    /// Get the `LayoutableType` this layout is based on.
+    pub fn layoutable_type(&self) -> &LayoutableType {
+        self.layoutable_type
             .as_ref()
-            .expect("constraint::Storage always contains a cpu-shareable")
+            .expect("Packed is always based on a layoutable type")
     }
 }
 
 impl TypeLayout {
-    pub fn new_layout_for(ty: impl Into<LayoutType>, repr: Repr) -> Self {
+    /// Returns the type layout of the given `LayoutableType`
+    /// layed out according to the given `repr`.
+    pub fn new_layout_for(ty: impl Into<LayoutableType>, repr: Repr) -> Self {
         match ty.into() {
-            LayoutType::Sized(ty) => Self::from_sized_type(ty, repr),
-            LayoutType::UnsizedStruct(ty) => Self::from_unsized_struct(ty, repr),
-            LayoutType::RuntimeSizedArray(ty) => Self::from_runtime_sized_array(ty, repr),
+            LayoutableType::Sized(ty) => Self::from_sized_type(ty, repr),
+            LayoutableType::UnsizedStruct(ty) => Self::from_unsized_struct(ty, repr),
+            LayoutableType::RuntimeSizedArray(ty) => Self::from_runtime_sized_array(ty, repr),
         }
     }
 
-    fn from_sized_type(ty: cs::SizedType, repr: Repr) -> Self {
+    fn from_sized_type(ty: SizedType, repr: Repr) -> Self {
         let (size, align, tls) = match &ty {
-            cs::SizedType::Vector(v) => (v.byte_size(), v.align(), TLS::Vector(*v)),
-            cs::SizedType::Atomic(a) => (
+            SizedType::Vector(v) => (v.byte_size(), v.align(), TLS::Vector(*v)),
+            SizedType::Atomic(a) => (
                 a.byte_size(),
                 a.align(),
                 TLS::Vector(Vector::new(a.scalar.into(), ir::Len::X1)),
             ),
-            cs::SizedType::Matrix(m) => (m.byte_size(Major::Row), m.align(repr, Major::Row), TLS::Matrix(*m)),
-            cs::SizedType::Array(a) => (
+            SizedType::Matrix(m) => (
+                m.byte_size(MatrixMajor::Row),
+                m.align(repr, MatrixMajor::Row),
+                TLS::Matrix(*m),
+            ),
+            SizedType::Array(a) => (
                 a.byte_size(repr),
                 a.align(repr),
                 TLS::Array(
@@ -76,8 +86,8 @@ impl TypeLayout {
                     Some(a.len.get()),
                 ),
             ),
-            cs::SizedType::PackedVec(v) => (v.byte_size().as_u64(), v.align(), TLS::PackedVector(*v)),
-            cs::SizedType::Struct(s) => {
+            SizedType::PackedVec(v) => (v.byte_size().as_u64(), v.align(), TLS::PackedVector(*v)),
+            SizedType::Struct(s) => {
                 let mut field_offsets = s.field_offsets(repr);
                 let fields = (&mut field_offsets)
                     .zip(s.fields())
@@ -128,7 +138,7 @@ impl TypeLayout {
     }
 
 
-    fn from_runtime_sized_array(ty: cs::RuntimeSizedArray, repr: Repr) -> Self {
+    fn from_runtime_sized_array(ty: RuntimeSizedArray, repr: Repr) -> Self {
         Self::new(
             None,
             ty.byte_align(repr),
@@ -156,44 +166,43 @@ fn sized_field_to_field_layout(field: &SizedField, offset: u64, repr: Repr) -> F
     }
 }
 
-impl<'a> TryFrom<&'a TypeLayout<constraint::Storage>> for TypeLayout<constraint::Uniform> {
+impl<'a> TryFrom<&'a TypeLayout<repr::Storage>> for TypeLayout<repr::Uniform> {
     type Error = UniformLayoutError;
 
-    fn try_from(s_layout: &'a TypeLayout<constraint::Storage>) -> Result<Self, Self::Error> {
-        let cpu_shareable = s_layout.cpu_shareable().clone();
+    fn try_from(s_layout: &'a TypeLayout<repr::Storage>) -> Result<Self, Self::Error> {
+        let layoutable_type = s_layout.layoutable_type().clone();
 
         // Checking whether it's sized
-        let sized = match cpu_shareable {
-            LayoutType::Sized(sized) => sized,
+        let sized = match layoutable_type {
+            LayoutableType::Sized(sized) => sized,
             _ => {
-                return Err(UniformLayoutError::MustBeSized("wgsl", cpu_shareable.into()));
+                return Err(UniformLayoutError::MustBeSized("wgsl", layoutable_type));
             }
         };
 
         let u_layout = TypeLayout::new_uniform_layout_for(sized);
 
         // Checking fields
-        fn check_layout<S: TypeConstraint, U: TypeConstraint>(
+        fn check_layout<S: TypeRepr, U: TypeRepr>(
             s_layout: &TypeLayout<S>,
             u_layout: &TypeLayout<U>,
             is_top_level: bool,
         ) -> Result<(), Mismatch> {
-            // kinds are the same, because the type layouts are based on the same cpu shareable
+            // kinds are the same, because the type layouts are based on the same LayoutableType
             match (&s_layout.kind, &u_layout.kind) {
                 (TLS::Structure(s), TLS::Structure(u)) => {
                     for (i, (s_field, u_field)) in s.fields.iter().zip(u.fields.iter()).enumerate() {
                         // Checking field offset
                         if s_field.rel_byte_offset != u_field.rel_byte_offset {
-                            let (sized_fields, last_unsized) = match s_layout.get_cpu_shareable().unwrap() {
-                                LayoutType::Sized(cs::SizedType::Struct(s)) => (s.fields().to_vec(), None),
-                                LayoutType::UnsizedStruct(s) => (s.sized_fields.clone(), Some(s.last_unsized.clone())),
+                            let struct_type = match s_layout.get_layoutable_type().unwrap() {
+                                LayoutableType::Sized(SizedType::Struct(s)) => StructKind::Sized(s.clone()),
+                                LayoutableType::UnsizedStruct(s) => StructKind::Unsized(s.clone()),
                                 _ => unreachable!("is struct, because tls is struct"),
                             };
 
-                            return Err(Mismatch::StructureFieldOffset(StructureFieldOffsetError {
+                            return Err(Mismatch::StructureFieldOffset(StructFieldOffsetError {
                                 struct_layout: (**s).clone(),
-                                sized_fields,
-                                last_unsized,
+                                struct_type,
                                 field_name: s_field.field.name.clone(),
                                 field_index: i,
                                 actual_offset: s_field.rel_byte_offset,
@@ -210,8 +219,8 @@ impl<'a> TryFrom<&'a TypeLayout<constraint::Storage>> for TypeLayout<constraint:
                     // the element align must divide the stride (uniform requirement), because
                     // u_layout is a valid uniform layout.
                     if s_ele.byte_stride != u_ele.byte_stride {
-                        let element_ty = match u_ele.ty.get_cpu_shareable().unwrap() {
-                            LayoutType::Sized(s) => s.clone(),
+                        let element_ty = match u_ele.ty.get_layoutable_type().unwrap() {
+                            LayoutableType::Sized(s) => s.clone(),
                             _ => {
                                 unreachable!("elements of an array are always sized for TypeLayout<Storage | Uniform>")
                             }
@@ -254,34 +263,31 @@ impl<'a> TryFrom<&'a TypeLayout<constraint::Storage>> for TypeLayout<constraint:
     }
 }
 
-type DepthIndex = SmallVec<usize, 5>;
-
+/// Enum of possible errors during `TypeLayout<Storage> -> TypeLayout<Uniform>` conversion.
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum UniformLayoutError {
     #[error("{0}")]
     ArrayStride(WithContext<ArrayStrideError>),
     #[error("{0}")]
-    StructureFieldOffset(WithContext<StructureFieldOffsetError>),
-    // TODO(chronicl) consider using CpuShareableType and implementing Display for it instead
-    // of converting to StoreType
+    StructureFieldOffset(WithContext<StructFieldOffsetError>),
     #[error(
         "The size of `{1}` on the gpu is not known at compile time. `{0}` \
     requires that the size of uniform buffers on the gpu is known at compile time."
     )]
-    MustBeSized(&'static str, StoreType),
+    MustBeSized(&'static str, LayoutableType),
 }
 
 #[derive(Debug, Clone)]
-pub enum Mismatch {
+enum Mismatch {
     ArrayStride(ArrayStrideError),
-    StructureFieldOffset(StructureFieldOffsetError),
+    StructureFieldOffset(StructFieldOffsetError),
 }
 
 
 #[derive(Debug, Clone)]
 pub struct LayoutErrorContext {
-    s_layout: TypeLayout<constraint::Storage>,
-    u_layout: TypeLayout<constraint::Uniform>,
+    s_layout: TypeLayout<repr::Storage>,
+    u_layout: TypeLayout<repr::Uniform>,
     use_color: bool,
 }
 
@@ -306,13 +312,13 @@ impl<T> WithContext<T> {
 pub struct ArrayStrideError {
     expected: u64,
     actual: u64,
-    element_ty: cs::SizedType,
+    element_ty: SizedType,
 }
 
 impl std::error::Error for WithContext<ArrayStrideError> {}
 impl Display for WithContext<ArrayStrideError> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let top_level: StoreType = self.ctx.s_layout.cpu_shareable().clone().into();
+        let top_level: StoreType = self.ctx.s_layout.layoutable_type().clone().into();
         writeln!(
             f,
             "array elements within type `{}` do not satisfy uniform layout requirements.",
@@ -336,12 +342,11 @@ impl Display for WithContext<ArrayStrideError> {
     }
 }
 
-
+#[allow(missing_docs)]
 #[derive(Debug, Clone)]
-pub struct StructureFieldOffsetError {
+pub struct StructFieldOffsetError {
     pub struct_layout: StructLayout,
-    pub sized_fields: Vec<cs::SizedField>,
-    pub last_unsized: Option<cs::RuntimeSizedArrayField>,
+    pub struct_type: StructKind,
     pub field_name: CanonName,
     pub field_index: usize,
     pub actual_offset: u64,
@@ -349,11 +354,16 @@ pub struct StructureFieldOffsetError {
     pub is_top_level: bool,
 }
 
-impl std::error::Error for WithContext<StructureFieldOffsetError> {}
-impl Display for WithContext<StructureFieldOffsetError> {
+#[derive(Debug, Clone)]
+pub enum StructKind {
+    Sized(SizedStruct),
+    Unsized(UnsizedStruct),
+}
+
+impl std::error::Error for WithContext<StructFieldOffsetError> {}
+impl Display for WithContext<StructFieldOffsetError> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO(chronicl) remove conversion here if CpuShareableType implements Display
-        let top_level_type: StoreType = self.ctx.s_layout.cpu_shareable().clone().into();
+        let top_level_type = self.ctx.s_layout.layoutable_type();
         writeln!(
             f,
             "The type `{top_level_type}` cannot be used as a uniform buffer binding."
@@ -372,8 +382,7 @@ impl Display for WithContext<StructureFieldOffsetError> {
 
         write_struct_layout(
             &self.struct_layout,
-            &self.sized_fields,
-            self.last_unsized.as_ref(),
+            &self.struct_type,
             self.ctx.use_color,
             Some(self.field_index),
             f,
@@ -391,18 +400,18 @@ impl Display for WithContext<StructureFieldOffsetError> {
         set_color(f, None, false)?;
         writeln!(f)?;
 
-        writeln!(f, "Potential solutions include:");
+        writeln!(f, "Potential solutions include:")?;
         writeln!(
             f,
             "- add an #[align({})] attribute to the definition of `{}` (not supported by OpenGL/GLSL pipelines)",
             expected_alignment, self.field_name
-        );
-        writeln!(f, "- use a storage binding instead of a uniform binding");
+        )?;
+        writeln!(f, "- use a storage binding instead of a uniform binding")?;
         writeln!(
             f,
             "- increase the offset of `{}` until it is divisible by {} by making previous fields larger or adding fields before it",
             self.field_name, expected_alignment
-        );
+        )?;
         writeln!(f)?;
 
         writeln!(
@@ -416,8 +425,7 @@ impl Display for WithContext<StructureFieldOffsetError> {
 /// Panics if s is not the layout of a struct and doesn't contain a cpu-shareable.
 fn write_struct_layout<F>(
     struct_layout: &StructLayout,
-    sized_fields: &[cs::SizedField],
-    last_unsized: Option<&cs::RuntimeSizedArrayField>,
+    struct_type: &StructKind,
     colored: bool,
     highlight_field: Option<usize>,
     f: &mut F,
@@ -435,10 +443,15 @@ where
         false => Ok(()),
     };
 
+    let (sized_fields, last_unsized) = match struct_type {
+        StructKind::Sized(s) => (s.fields(), None),
+        StructKind::Unsized(s) => (s.sized_fields.as_slice(), Some(&s.last_unsized)),
+    };
+
     let struct_name = &*struct_layout.name;
 
     let indent = "  ";
-    let field_decl_line = |field: &cs::SizedField| {
+    let field_decl_line = |field: &SizedField| {
         let sized: ir::SizedType = field.ty.clone().into();
         format!("{indent}{}: {},", field.name, sized)
     };
@@ -459,7 +472,7 @@ where
         if Some(i) == highlight_field {
             color(f, "#508EE3")?;
         }
-        let (align, size) = (layout.ty.byte_align(), layout.ty.byte_size().expect("is sized field"));
+        let (align, size) = (layout.ty.align(), layout.ty.byte_size().expect("is sized field"));
         let decl_line = field_decl_line(field);
         f.write_str(&decl_line)?;
         // write spaces to table on the right
@@ -481,7 +494,7 @@ where
         for _ in decl_line.len()..table_start_column {
             f.write_char(' ')?
         }
-        write!(f, "{:6} {:5}", layout.rel_byte_offset, layout.ty.byte_align().as_u32())?;
+        write!(f, "{:6} {:5}", layout.rel_byte_offset, layout.ty.align().as_u32())?;
     }
     writeln!(f, "}}")?;
     Ok(())

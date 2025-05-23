@@ -16,7 +16,6 @@ use crate::{
         po2::U32PowerOf2,
         pool::{Key, PoolRef},
     },
-    cpu_shareable,
     frontend::{
         any::{
             render_io::{Attrib, ColorTarget, Location, VertexBufferLayout},
@@ -33,7 +32,7 @@ use crate::{
         error::InternalError,
         rust_types::{
             len::x3,
-            type_layout::{StructLayout, TypeLayoutRules},
+            type_layout::{self, layoutable, StructLayout},
         },
     },
     ir::{
@@ -44,7 +43,6 @@ use crate::{
         StructureFieldNamesMustBeUnique, TextureFormatWrapper, Type,
     },
     results::DepthStencilState,
-    type_layout::TypeLayoutSemantics,
     BindingIter, DepthLhs, StencilMasking, Test, TypeLayout,
 };
 
@@ -354,12 +352,12 @@ impl WipPushConstantsField {
         let byte_size = sized_struct.byte_size();
 
         // TODO(release) the `.expect()` calls here can be removed by building a `std::alloc::Layout`-like builder for struct layouts.
-        let sized_struct: cpu_shareable::SizedStruct = sized_struct
+        let sized_struct: layoutable::SizedStruct = sized_struct
             .try_into()
             .expect("push constants are NoBools and NoHandles");
         let layout = TypeLayout::new_storage_layout_for(sized_struct);
         let layout = match &layout.kind {
-            TypeLayoutSemantics::Structure(layout) => &**layout,
+            type_layout::TypeLayoutSemantics::Structure(layout) => &**layout,
             _ => unreachable!("expected struct layout for type layout of struct"),
         };
 

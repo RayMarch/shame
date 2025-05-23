@@ -200,8 +200,8 @@ pub fn impl_for_struct(
 
     match which_derive {
         WhichDerive::GpuLayout => {
-            let layout_type_fn = quote! {
-                let result = #re::LayoutType::struct_from_parts(
+            let layoutable_type_fn = quote! {
+                let result = #re::LayoutableType::struct_from_parts(
                     std::stringify!(#derive_struct_ident),
                     [
                         #((
@@ -210,13 +210,13 @@ pub fn impl_for_struct(
                                 #field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")).into(),
                                 #field_size.into(),
                             ),
-                            <#field_type as #re::BinaryRepr>::layout_type()
+                            <#field_type as #re::Layoutable>::layoutable_type()
                         ),)*
                     ]
                 );
 
                 match result {
-                    Ok(layout_type) => layout_type,
+                    Ok(layoutable_type) => layoutable_type,
                     Err(#re::StructFromPartsError::MustHaveAtLeastOneField) => unreachable!("checked above"),
                     Err(#re::StructFromPartsError::OnlyLastFieldMayBeUnsized) => unreachable!("ensured by field trait bounds"),
                     // GpuType is not implemented for derived structs directly, so they can't be used
@@ -226,28 +226,28 @@ pub fn impl_for_struct(
                 }
             };
 
-            let impl_binary_repr = quote! {
-                impl<#generics_decl> #re::BinaryRepr for #derive_struct_ident<#(#idents_of_generics),*>
+            let impl_layoutable = quote! {
+                impl<#generics_decl> #re::Layoutable for #derive_struct_ident<#(#idents_of_generics),*>
                 where
-                    // These NoBools and NoHandle bounds are only for better diagnostics, BinaryRepr already implies them
-                    #(#first_fields_type: #re::NoBools + #re::NoHandles + #re::BinaryReprSized,)*
-                    #last_field_type: #re::NoBools + #re::NoHandles + #re::BinaryRepr,
+                    // These NoBools and NoHandle bounds are only for better diagnostics, Layoutable already implies them
+                    #(#first_fields_type: #re::NoBools + #re::NoHandles + #re::LayoutableSized,)*
+                    #last_field_type: #re::NoBools + #re::NoHandles + #re::Layoutable,
                     #where_clause_predicates
                 {
-                    fn layout_type() -> #re::LayoutType {
-                        #layout_type_fn
+                    fn layoutable_type() -> #re::LayoutableType {
+                        #layoutable_type_fn
                     }
                 }
 
-                impl<#generics_decl> #re::BinaryReprSized for #derive_struct_ident<#(#idents_of_generics),*>
+                impl<#generics_decl> #re::LayoutableSized for #derive_struct_ident<#(#idents_of_generics),*>
                 where
-                    #(#field_type: #re::NoBools + #re::NoHandles + #triv #re::BinaryReprSized,)*
+                    #(#field_type: #re::NoBools + #re::NoHandles + #triv #re::LayoutableSized,)*
                     #where_clause_predicates
                 {
-                    fn layout_type_sized() -> #re::SizedType {
-                        match { #layout_type_fn } {
-                            #re::LayoutType::Sized(s) => s,
-                            _ => unreachable!("ensured by BinaryReprSized field trait bounds above")
+                    fn layoutable_type_sized() -> #re::SizedType {
+                        match { #layoutable_type_fn } {
+                            #re::LayoutableType::Sized(s) => s,
+                            _ => unreachable!("ensured by LayoutableSized field trait bounds above")
                         }
                     }
                 }
@@ -256,8 +256,8 @@ pub fn impl_for_struct(
             let impl_gpu_layout = quote! {
                 impl<#generics_decl> #re::GpuLayout for #derive_struct_ident<#(#idents_of_generics),*>
                 where
-                    #(#first_fields_type: #re::BinaryReprSized,)*
-                    #last_field_type: #re::BinaryRepr,
+                    #(#first_fields_type: #re::LayoutableSized,)*
+                    #last_field_type: #re::Layoutable,
                     #where_clause_predicates
                 {
                     fn gpu_repr() -> #re::Repr {
@@ -365,7 +365,7 @@ pub fn impl_for_struct(
                 // this is basically only for vertex buffers, so
                 // we only implement `GpuLayout` and `VertexLayout`, as well as their implied traits
                 Ok(quote! {
-                    #impl_binary_repr
+                    #impl_layoutable
                     #impl_gpu_layout
                     #impl_vertex_buffer_layout
                     #impl_fake_auto_traits
@@ -380,7 +380,7 @@ pub fn impl_for_struct(
                 );
 
                 Ok(quote! {
-                    #impl_binary_repr
+                    #impl_layoutable
                     #impl_gpu_layout
                     #impl_vertex_buffer_layout
                     #impl_fake_auto_traits

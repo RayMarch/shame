@@ -1,3 +1,4 @@
+use crate::any::layout::LayoutableSized;
 use crate::common::proc_macro_reexports::GpuStoreImplCategory;
 use crate::frontend::any::shared_io::{BindPath, BindingType, BufferBindingType};
 use crate::frontend::any::{Any, InvalidReason};
@@ -17,7 +18,6 @@ use crate::frontend::rust_types::{reference::AccessModeReadable, scalar_type::Sc
 use crate::ir::pipeline::StageMask;
 use crate::ir::recording::{Context, MemoryRegion};
 use crate::ir::Type;
-use crate::type_layout::cpu_shareable::BinaryReprSized;
 use crate::{self as shame, call_info, ir, GpuLayout};
 
 use std::borrow::Borrow;
@@ -319,7 +319,7 @@ fn store_type_from_impl_category(category: GpuStoreImplCategory) -> ir::StoreTyp
 #[rustfmt::skip] impl<T: GpuStore + NoHandles + NoAtomics + NoBools, AS: BufferAddressSpace, const DYN_OFFSET: bool>
 Binding for Buffer<Array<T>, AS, DYN_OFFSET>
 where
-    T: GpuType + GpuSized + GpuLayout + BinaryReprSized
+    T: GpuType + GpuSized + GpuLayout + LayoutableSized
 {
     fn binding_type() -> BindingType { BufferInner::<T, AS>::binding_type(DYN_OFFSET) }
     #[track_caller]

@@ -1,7 +1,7 @@
+use crate::any::layout::{Layoutable, LayoutableSized, Repr};
 use crate::call_info;
 use crate::common::po2::U32PowerOf2;
 use crate::common::proc_macro_utils::{self, repr_c_struct_layout, ReprCError, ReprCField};
-use crate::cpu_shareable::{BinaryRepr, BinaryReprSized, Repr};
 use crate::frontend::any::render_io::{
     Attrib, VertexBufferLookupIndex, Location, VertexAttribFormat, VertexBufferLayout, VertexLayoutError,
 };
@@ -22,11 +22,10 @@ use super::error::FrontendError;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable};
 use super::struct_::{BufferFields, SizedFields, Struct};
-use super::type_layout::constraint::TypeConstraint;
-use super::type_layout::cpu_shareable::{self, array_stride, Vector};
+use super::type_layout::repr::TypeRepr;
+use super::type_layout::layoutable::{self, array_stride, Vector};
 use super::type_layout::{
-    self, constraint, ElementLayout, FieldLayout, FieldLayoutWithOffset, StructLayout, TypeLayout, TypeLayoutError,
-    TypeLayoutRules, TypeLayoutSemantics,
+    self, repr, ElementLayout, FieldLayout, FieldLayoutWithOffset, StructLayout, TypeLayout, TypeLayoutSemantics,
 };
 use super::type_traits::{
     BindingArgs, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles, VertexAttribute,
@@ -138,7 +137,7 @@ use std::rc::Rc;
 /// [`Texture`]: crate::Texture
 /// [`StorageTexture`]: crate::StorageTexture
 ///
-pub trait GpuLayout: BinaryRepr {
+pub trait GpuLayout: Layoutable {
     /// returns a [`TypeLayout`] object that can be used to inspect the layout
     /// of a type on the gpu.
     ///
@@ -159,9 +158,9 @@ pub trait GpuLayout: BinaryRepr {
     /// println!("OnGpu:\n{}\n", OnGpu::gpu_layout());
     /// println!("OnCpu:\n{}\n", OnCpu::cpu_layout());
     /// ```
-    fn gpu_layout() -> TypeLayout { TypeLayout::new_layout_for(Self::layout_type(), Self::gpu_repr()) }
+    fn gpu_layout() -> TypeLayout { TypeLayout::new_layout_for(Self::layoutable_type(), Self::gpu_repr()) }
 
-    /// TODO(chronicl) docs
+    /// Returns the `Repr` of the `TypeLayout` from `GpuLayout::gpu_layout`.
     fn gpu_repr() -> Repr;
 
     /// the `#[cpu(...)]` in `#[derive(GpuLayout)]` allows the definition of a
@@ -207,7 +206,7 @@ pub(crate) fn get_layout_compare_with_cpu_push_error<T: GpuLayout>(
     gpu_layout
 }
 
-pub(crate) fn check_layout_push_error<L: TypeConstraint, R: TypeConstraint>(
+pub(crate) fn check_layout_push_error<L: TypeRepr, R: TypeRepr>(
     ctx: &Context,
     cpu_name: &str,
     cpu_layout: &TypeLayout<L>,
@@ -215,7 +214,7 @@ pub(crate) fn check_layout_push_error<L: TypeConstraint, R: TypeConstraint>(
     skip_stride_check: bool,
     comment_on_mismatch_error: &str,
 ) -> Result<(), InvalidReason> {
-    type_layout::check_eq(("cpu", cpu_layout), ("gpu", gpu_layout))
+    type_layout::eq::check_eq(("cpu", cpu_layout), ("gpu", gpu_layout))
         .map_err(|e| LayoutError::LayoutMismatch(e, Some(comment_on_mismatch_error.to_string())))
         .and_then(|_| {
             if skip_stride_check {
@@ -228,8 +227,8 @@ pub(crate) fn check_layout_push_error<L: TypeConstraint, R: TypeConstraint>(
                         name: gpu_layout.short_name(),
                     }),
                     (Some(cpu_size), Some(gpu_size)) => {
-                        let cpu_stride = array_stride(cpu_layout.byte_align(), cpu_size);
-                        let gpu_stride = array_stride(gpu_layout.byte_align(), gpu_size);
+                        let cpu_stride = array_stride(cpu_layout.align(), cpu_size);
+                        let gpu_stride = array_stride(gpu_layout.align(), gpu_size);
 
                         if cpu_stride != gpu_stride {
                             Err(LayoutError::StrideMismatch {
@@ -354,7 +353,6 @@ pub(crate) fn from_single_any(mut anys: impl Iterator<Item = Any>) -> Any {
 pub trait VertexLayout: GpuLayout + FromAnys {}
 impl<T: VertexAttribute> VertexLayout for T {}
 
-// TODO(chronicl) uncomment
 // #[derive(GpuLayout)]
 // TODO(release) remove this type. This is an example impl for figuring out how the derive macro should work
 #[derive(Clone)]
@@ -540,11 +538,11 @@ where
     }
 }
 
-impl BinaryReprSized for GpuT {
-    fn layout_type_sized() -> cpu_shareable::SizedType { todo!() }
+impl LayoutableSized for GpuT {
+    fn layoutable_type_sized() -> layoutable::SizedType { todo!() }
 }
-impl BinaryRepr for GpuT {
-    fn layout_type() -> cpu_shareable::LayoutType { todo!() }
+impl Layoutable for GpuT {
+    fn layoutable_type() -> layoutable::LayoutableType { todo!() }
 }
 
 impl GpuLayout for GpuT {
@@ -696,8 +694,8 @@ where
 impl CpuLayout for f32 {
     fn cpu_layout() -> TypeLayout {
         TypeLayout::from_rust_sized::<f32>(TypeLayoutSemantics::Vector(Vector::new(
-            cpu_shareable::ScalarType::F32,
-            cpu_shareable::Len::X1,
+            layoutable::ScalarType::F32,
+            layoutable::Len::X1,
         )))
     }
     // fn gpu_type_layout() -> Option<Result<TypeLayout, ArrayElementsUnsizedError>> {
@@ -708,8 +706,8 @@ impl CpuLayout for f32 {
 impl CpuLayout for f64 {
     fn cpu_layout() -> TypeLayout {
         TypeLayout::from_rust_sized::<f32>(TypeLayoutSemantics::Vector(Vector::new(
-            cpu_shareable::ScalarType::F64,
-            cpu_shareable::Len::X1,
+            layoutable::ScalarType::F64,
+            layoutable::Len::X1,
         )))
     }
 }
@@ -717,8 +715,8 @@ impl CpuLayout for f64 {
 impl CpuLayout for u32 {
     fn cpu_layout() -> TypeLayout {
         TypeLayout::from_rust_sized::<f32>(TypeLayoutSemantics::Vector(Vector::new(
-            cpu_shareable::ScalarType::U32,
-            cpu_shareable::Len::X1,
+            layoutable::ScalarType::U32,
+            layoutable::Len::X1,
         )))
     }
 }
@@ -726,8 +724,8 @@ impl CpuLayout for u32 {
 impl CpuLayout for i32 {
     fn cpu_layout() -> TypeLayout {
         TypeLayout::from_rust_sized::<f32>(TypeLayoutSemantics::Vector(Vector::new(
-            cpu_shareable::ScalarType::I32,
-            cpu_shareable::Len::X1,
+            layoutable::ScalarType::I32,
+            layoutable::Len::X1,
         )))
     }
 }

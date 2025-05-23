@@ -1,5 +1,5 @@
+use crate::any::layout::{Layoutable, LayoutableSized};
 use crate::common::small_vec::SmallVec;
-use crate::cpu_shareable::{self, BinaryRepr, BinaryReprSized};
 use crate::frontend::any::shared_io::{BindPath, BindingType};
 use crate::frontend::any::{Any, InvalidReason};
 use crate::frontend::encoding::buffer::BufferRefInner;
@@ -23,7 +23,7 @@ use std::{
 };
 
 use super::layout_traits::{GetAllFields, GpuLayout};
-use super::type_layout::{TypeLayout, TypeLayoutRules};
+use super::type_layout::{self, layoutable, TypeLayout};
 use super::type_traits::{GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoBools};
 use super::{
     error::FrontendError,
@@ -135,19 +135,19 @@ impl<T: SizedFields + GpuStore> Deref for Struct<T> {
     fn deref(&self) -> &Self::Target { &self.fields }
 }
 
-impl<T: SizedFields + GpuStore + NoBools> BinaryReprSized for Struct<T> {
-    fn layout_type_sized() -> cpu_shareable::SizedType {
-        cpu_shareable::SizedStruct::try_from(T::get_sizedstruct_type())
+impl<T: SizedFields + GpuStore + NoBools> LayoutableSized for Struct<T> {
+    fn layoutable_type_sized() -> layoutable::SizedType {
+        layoutable::SizedStruct::try_from(T::get_sizedstruct_type())
             .expect("no bools")
             .into()
     }
 }
-impl<T: SizedFields + GpuStore + NoBools> BinaryRepr for Struct<T> {
-    fn layout_type() -> cpu_shareable::LayoutType { Self::layout_type_sized().into() }
+impl<T: SizedFields + GpuStore + NoBools> Layoutable for Struct<T> {
+    fn layoutable_type() -> layoutable::LayoutableType { Self::layoutable_type_sized().into() }
 }
 
 impl<T: SizedFields + GpuStore + NoBools> GpuLayout for Struct<T> {
-    fn gpu_repr() -> cpu_shareable::Repr { cpu_shareable::Repr::Storage }
+    fn gpu_repr() -> type_layout::Repr { type_layout::Repr::Storage }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         T::cpu_type_name_and_layout().map(|x| x.map(|(name, l)| (format!("Struct<{name}>").into(), l)))

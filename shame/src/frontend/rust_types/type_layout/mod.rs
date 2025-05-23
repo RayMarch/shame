@@ -1,7 +1,4 @@
-#![allow(missing_docs)] // TODO(chronicl) remove
 //! Everything related to type layouts.
-
-
 
 use std::{
     fmt::{Debug, Display, Write},
@@ -16,25 +13,20 @@ use crate::{
     common::{ignore_eq::IgnoreInEqOrdHash, prettify::set_color},
     ir::{
         self,
-        ir_type::{round_up, CanonName, ScalarTypeFp},
+        ir_type::{round_up, CanonName},
         recording::Context,
-        Len, SizedType, Type,
+        Len,
     },
 };
-use cpu_shareable::{LayoutType, Matrix, Vector};
-use thiserror::Error;
+use layoutable::{LayoutableType, Matrix, Vector};
 
-mod builder;
-pub mod cpu_shareable;
-mod eq;
-
-pub use builder::*;
-pub(crate) use eq::*;
+pub(crate) mod builder;
+pub(crate) mod eq;
+pub(crate) mod layoutable;
 
 /// The type contained in the bytes of a `TypeLayout`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeLayoutSemantics {
-    // TODO(chronicl) consider replacing this scalar type with the host shareable version.
     /// `vec<T, L>`
     Vector(Vector),
     /// special compressed vectors for vertex attribute types
@@ -54,45 +46,37 @@ pub enum TypeLayoutSemantics {
 /// This models only the layout, not other characteristics of the types.
 /// For example an `Atomic<vec<u32, x1>>` is treated like a regular `vec<u32, x1>` layout wise.
 ///
-/// ### Constraint generic
+/// ### Generic
 ///
-/// `TypeLayout` has a generic `T: TypeConstraint`, which guarantees that the layout
-/// follows certain layout rules. The following layout rules exist and are captured by
-/// the [`Repr`] enum:
+/// `TypeLayout` has a generic `T: TypeRepr`, which is used to statically guarantee that
+/// it follows specific layout rules.
+///
+/// The following types implementing `TypeRepr` exist and can be found in [`shame::any::repr`]:
+///
 /// ```
-/// pub enum Repr {
-///     Storage, /// wgsl storage address space layout / OpenGL std430
-///     Uniform, /// wgsl uniform address space layout / OpenGL std140
-///     Packed,  /// packed layout, vertex buffer only
-/// }
+/// struct Plain;   /// May not follow any layout rules. This is the default.
+/// struct Storage; /// wgsl storage address space layout / OpenGL std430
+/// struct Uniform; /// wgsl uniform address space layout / OpenGL std140
+/// struct Packed;  /// Packed layout
 /// ```
 ///
 /// More information on the exact details of these layout rules is available here
 ///
 /// https://www.w3.org/TR/WGSL/#address-space-layout-constraints
 ///
-/// The following types implementing `TypeConstraint` exist and can be found in [`constraint`]:
-///
+/// The following methods exist for creating new type layouts based on a [`LayoutableType`]
 /// ```
-/// struct Plain;   /// May not follow any layout rules.
-/// struct Storage; /// Follows `Repr::Storage` layout rules.
-/// struct Uniform; /// Follows `Repr::Uniform` layout rules.
-/// struct Vertex;  /// Follows either `Repr::Packed` or both
-///                 /// `Repr::Storage` and `Repr::Uniform`.
+/// let layout_type: LayoutableType = f32x1::layoutable_type();
+/// let _ = TypeLayout::new_layout_for(layout_type);
+/// let _ = TypeLayout::new_storage_layout_for(layout_type);
+/// let _ = TypeLayout::new_uniform_layout_for(layout_type);
+/// let _ = TypeLayout::new_packed_layout_for(layout_type);
 /// ```
-/// `Vertex` also guarantees that it is either the layout of a [`VertexAttribute`] or the layout
-/// of a struct with fields that are all `VertexAttribute`s, which is why `Repr::Storage`
-/// and `Repr::Uniform` are equivalent for it.
 ///
-/// `Storage` and `Uniform` are always based on a [`CpuShareableType`], which can be accessed
-/// using [`TypeLayout::cpu_shareable`]. They also guarantee, that all nested `TypeLayout<Plain>`s
-/// (for example struct fields) are also based on a `CpuShareableType`, which can only be accessed
-/// through `TypeLayout::get_cpu_shareable`.
-///
-/// TODO(chronicl) make sure these are caught:
-/// There is some target language specific constraints that `TypeLayout<T>` does not capture:
-/// - `TypeLayout<Uniform>` may be unsized, which is not allowed for wgsl.
-/// - `custom_min_align` and `custom_min_size` are not supported for glsl.
+/// Non-`Plain` layouts are always based on a [`LayoutableType`], which can be accessed
+/// using [`TypeLayout::layoutable_type`]. They also guarantee, that all nested `TypeLayout<Plain>`s
+/// (for example struct fields) are also based on a `LayoutableType`, which can only be accessed
+/// through `TypeLayout::get_layoutable_type`.
 ///
 /// ### Layout comparison
 ///
@@ -100,18 +84,17 @@ pub enum TypeLayoutSemantics {
 /// "do these two types have the same layout" so that uploading a type to the gpu
 /// will result in no memory errors.
 ///
-/// A layout comparison looks like this:
+/// a layout comparison looks like this:
 /// ```
-/// assert!(f32::cpu_layout() == vec<f32, x1>::gpu_layout().into_unconstraint());
+/// assert!(f32::cpu_layout() == vec<f32, x1>::gpu_layout());
 /// // or, more explicitly
 /// assert_eq!(
 ///     <f32 as CpuLayout>::cpu_layout(),
 ///     <vec<f32, x1> as GpuLayout>::gpu_layout(),
 /// );
 /// ```
-///
 #[derive(Clone)]
-pub struct TypeLayout<T: TypeConstraint = constraint::Plain> {
+pub struct TypeLayout<T: TypeRepr = repr::Plain> {
     /// size in bytes (Some), or unsized (None)
     pub byte_size: Option<u64>,
     /// the byte alignment
@@ -122,46 +105,57 @@ pub struct TypeLayout<T: TypeConstraint = constraint::Plain> {
     pub kind: TypeLayoutSemantics,
 
     /// Is some for `constraint::Storage` and `constraint::Uniform`. Can be converted to a `StoreType`.
-    pub(crate) cpu_shareable: Option<LayoutType>,
+    pub(crate) layoutable_type: Option<LayoutableType>,
     _phantom: PhantomData<T>,
 }
 
 // PartialEq, Eq, Hash for TypeLayout
-impl<L: TypeConstraint, R: TypeConstraint> PartialEq<TypeLayout<R>> for TypeLayout<L> {
+impl<L: TypeRepr, R: TypeRepr> PartialEq<TypeLayout<R>> for TypeLayout<L> {
     fn eq(&self, other: &TypeLayout<R>) -> bool { self.byte_size() == other.byte_size() && self.kind == other.kind }
 }
-impl<T: TypeConstraint> Eq for TypeLayout<T> {}
-impl<T: TypeConstraint> Hash for TypeLayout<T> {
+impl<T: TypeRepr> Eq for TypeLayout<T> {}
+impl<T: TypeRepr> Hash for TypeLayout<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.byte_size.hash(state);
         self.kind.hash(state);
     }
 }
 
-use constraint::TypeConstraint;
+pub use repr::{TypeRepr, Repr};
 /// Module for all restrictions on `TypeLayout<T: TypeRestriction>`.
-pub mod constraint {
+pub mod repr {
     use super::*;
 
-    /// Type restriction of a `TypeLayout<T: TypeRestriction>`. This allows type layouts
-    /// to have guarantees based on their type restriction. For example a
-    /// `TypeLayout<restriction::Vertex> can be used in vertex buffers. For more
-    /// details see the documentation of [`TypeLayout`].
-    pub trait TypeConstraint: Clone + PartialEq + Eq {}
+    /// Type representation used by `TypeLayout<T: TypeRepr>`. This provides guarantees
+    /// about the alignment rules that the type layout adheres to.
+    /// See [`TypeLayout`] documentation for more details.
+    pub trait TypeRepr: Clone + PartialEq + Eq {}
 
-    macro_rules! type_restriction {
+    /// Enum of layout rules.
+    #[derive(Debug, Clone, Copy)]
+    pub enum Repr {
+        /// Wgsl storage address space layout / OpenGL std430
+        /// https://www.w3.org/TR/WGSL/#address-space-layout-constraints
+        Storage,
+        /// Wgsl uniform address space layout / OpenGL std140
+        /// https://www.w3.org/TR/WGSL/#address-space-layout-constraints
+        Uniform,
+        /// Packed layout. Vertex buffer only.
+        Packed,
+    }
+
+    macro_rules! type_repr {
         ($($constraint:ident),*) => {
             $(
-                /// A type restriction for `TypeLayout<T: TypeRestriction>`.
-                /// See [`TypeRestriction`] documentation for TODO(chronicl)
+                /// A type representation used by `TypeLayout<T: TypeRepr>`.
+                /// See [`TypeLayout`] documentation for more details.
                 #[derive(Clone, PartialEq, Eq, Hash)]
                 pub struct $constraint;
-                impl TypeConstraint for $constraint {}
+                impl TypeRepr for $constraint {}
             )*
         };
     }
-
-    type_restriction!(Plain, Storage, Uniform, Packed);
+    type_repr!(Plain, Storage, Uniform, Packed);
 
     macro_rules! impl_from_into {
         ($from:ident -> $($into:ident),*) => {
@@ -183,13 +177,13 @@ impl TypeLayout {
         byte_size: Option<u64>,
         byte_align: U32PowerOf2,
         kind: TypeLayoutSemantics,
-        hostshareable: Option<LayoutType>,
+        layoutable_type: Option<LayoutableType>,
     ) -> Self {
         TypeLayout {
             byte_size,
             align: byte_align,
             kind,
-            cpu_shareable: hostshareable,
+            layoutable_type,
             _phantom: PhantomData,
         }
     }
@@ -201,22 +195,22 @@ impl TypeLayout {
 pub(in super::super::rust_types) mod type_layout_internal {
     use super::*;
 
-    pub fn cast_unchecked<From: TypeConstraint, Into: TypeConstraint>(layout: TypeLayout<From>) -> TypeLayout<Into> {
+    pub fn cast_unchecked<From: TypeRepr, Into: TypeRepr>(layout: TypeLayout<From>) -> TypeLayout<Into> {
         TypeLayout {
             byte_size: layout.byte_size,
             align: layout.align,
             kind: layout.kind,
-            cpu_shareable: layout.cpu_shareable,
+            layoutable_type: layout.layoutable_type,
             _phantom: PhantomData,
         }
     }
 }
 
-/// `LayoutCalculator` helps calculate the size, align and the field offsets of a gpu struct.
+/// `LayoutCalculator` helps calculate the size, align and the field offsets of a struct.
 ///
 /// If `LayoutCalculator` is created with `packed = true`, provided `field_align`s
-/// are ignored and the field is directly after the previous field. However,
-/// a `custom_min_align` that is `Some` overwrites the `packedness` of the field.
+/// are ignored and the field is inserted directly after the previous field. However,
+/// a `custom_min_align` that is `Some` overwrites the "packedness" of the field.
 #[derive(Debug, Clone)]
 pub struct LayoutCalculator {
     next_offset_min: u64,
@@ -321,10 +315,11 @@ impl LayoutCalculator {
 }
 
 /// a sized or unsized struct type with 0 or more fields
-#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructLayout {
+    /// The canonical name of the structure type, ignored in equality/hash comparisons
     pub name: IgnoreInEqOrdHash<CanonName>,
+    /// The fields of the structure with their memory offsets
     pub fields: Vec<FieldLayoutWithOffset>,
 }
 
@@ -338,8 +333,10 @@ impl StructLayout {
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldLayoutWithOffset {
+    /// The layout information for the field
     pub field: FieldLayout,
-    pub rel_byte_offset: u64, // this being relative is used in TypeLayout::byte_size
+    /// The relative byte offset of this field from the start of its containing structure
+    pub rel_byte_offset: u64,
 }
 
 impl std::ops::Deref for FieldLayoutWithOffset {
@@ -352,56 +349,32 @@ impl std::ops::Deref for FieldLayoutWithOffset {
 pub struct ElementLayout {
     /// Stride of the elements
     pub byte_stride: u64,
-    /// The elment layout must be constraint::Plain, because it's shared by all constraints.
-    // `ElementLayout` could possibly be made generic too, but it would complicate a lot.
-    pub ty: TypeLayout<constraint::Plain>,
+    /// The type layout of each element in the array.
+    ///
+    /// The element layout must be constraint::Plain because it's shared by all constraints.
+    /// `ElementLayout` could possibly be made generic too, but it would complicate a lot.
+    pub ty: TypeLayout<repr::Plain>,
 }
 
-/// the layout rules used when calculating the byte offsets and alignment of a type
-#[derive(Debug, Clone, Copy)]
-pub enum TypeLayoutRules {
-    /// wgsl type layout rules, see https://www.w3.org/TR/WGSL/#memory-layouts
-    Wgsl,
-    // reprC,
-    // Std140,
-    // Std430,
-    // Scalar,
-}
-
-#[allow(missing_docs)]
-#[derive(Error, Debug, Clone)]
-pub enum TypeLayoutError {
-    #[error("An array cannot contain elements of an unsized type {elements}")]
-    ArrayOfUnsizedElements { elements: TypeLayout },
-    #[error("the type `{0}` has no defined {1:?} layout in shaders")]
-    LayoutUndefined(Type, TypeLayoutRules),
-    #[error("in `{parent_name}` at field `{field_name}`: {error}")]
-    AtField {
-        parent_name: CanonName,
-        field_name: CanonName,
-        error: Rc<TypeLayoutError>,
-    },
-    #[error("in element of array: {0}")]
-    InArrayElement(Rc<TypeLayoutError>),
-}
-
-impl<T: TypeConstraint> TypeLayout<T> {
-    /// Byte size of the represented type.
+impl<T: TypeRepr> TypeLayout<T> {
+    /// Returns the byte size of the represented type.
+    ///
+    /// For sized types, this returns Some(size), while for unsized types
+    /// (like runtime-sized arrays), this returns None.
     pub fn byte_size(&self) -> Option<u64> { self.byte_size }
 
-    /// Align of the represented type.
-    pub fn byte_align(&self) -> U32PowerOf2 { self.align }
+    /// Returns the alignment requirement of the represented type.
+    pub fn align(&self) -> U32PowerOf2 { self.align }
 
     /// Although all TypeLayout<T> always implement Into<TypeLayout<marker::MaybeInvalid>, this method
     /// is offered to avoid having to declare that as a bound when handling generic TypeLayout<T>.
-    pub fn into_plain(self) -> TypeLayout<constraint::Plain> { type_layout_internal::cast_unchecked(self) }
+    pub fn into_plain(self) -> TypeLayout<repr::Plain> { type_layout_internal::cast_unchecked(self) }
 
-    /// Get the `CpuShareableType` this layout is based on.
+    /// Get the `LayoutableType` this layout is based on.
     ///
-    /// This may be `None` for type layouts
-    /// that aren't `TypeLayout<Storage>` or `TypeLayout<Uniform>`. Those two also offer direct
-    /// access via [`TypeLayout::cpu_shareable`].
-    pub fn get_cpu_shareable(&self) -> Option<&LayoutType> { self.cpu_shareable.as_ref() }
+    /// This may be `None` for `TypeLayout<Plain>`.
+    /// `TypeLayout<Storage | Uniform | Packed>` may use [`TypeLayout::layoutable_type`].
+    pub fn get_layoutable_type(&self) -> Option<&LayoutableType> { self.layoutable_type.as_ref() }
 
     /// a short name for this `TypeLayout`, useful for printing inline
     pub fn short_name(&self) -> String {
@@ -502,8 +475,8 @@ impl TypeLayout {
     }
 
     // TODO(chronicl) this should be removed with improved any api for storage/uniform bindings
-    pub(crate) fn from_store_ty(store_type: ir::StoreType) -> Result<Self, cpu_shareable::CpuShareableConversionError> {
-        let t: cpu_shareable::LayoutType = store_type.try_into()?;
+    pub(crate) fn from_store_ty(store_type: ir::StoreType) -> Result<Self, layoutable::LayoutableConversionError> {
+        let t: layoutable::LayoutableType = store_type.try_into()?;
         Ok(TypeLayout::new_storage_layout_for(t).into())
     }
 }
@@ -517,24 +490,10 @@ pub struct FieldLayout {
     pub custom_min_align: IgnoreInEqOrdHash<Option<U32PowerOf2>>,
     /// The fields layout must be constraint::Plain,
     /// because that's the most it can be while supporting all possible constraints.
-    pub ty: TypeLayout<constraint::Plain>,
+    pub ty: TypeLayout<repr::Plain>,
 }
 
 impl FieldLayout {
-    pub fn new(
-        name: CanonName,
-        custom_min_size: Option<u64>,
-        custom_min_align: Option<U32PowerOf2>,
-        ty: TypeLayout<constraint::Plain>,
-    ) -> Self {
-        Self {
-            name,
-            custom_min_size: custom_min_size.into(),
-            custom_min_align: custom_min_align.into(),
-            ty,
-        }
-    }
-
     fn byte_size(&self) -> Option<u64> {
         self.ty
             .byte_size()
@@ -542,7 +501,7 @@ impl FieldLayout {
     }
 
     /// The alignment of the field with `custom_min_align` taken into account.
-    fn byte_align(&self) -> U32PowerOf2 { Self::calculate_align(self.ty.byte_align(), self.custom_min_align.0) }
+    fn byte_align(&self) -> U32PowerOf2 { Self::calculate_align(self.ty.align(), self.custom_min_align.0) }
 
     const fn calculate_byte_size(byte_size: u64, custom_min_size: Option<u64>) -> u64 {
         // const byte_size.max(custom_min_size.unwrap_or(0))
@@ -555,7 +514,7 @@ impl FieldLayout {
     }
 
     const fn calculate_align(align: U32PowerOf2, custom_min_align: Option<U32PowerOf2>) -> U32PowerOf2 {
-        // const align.max(custom_min_align.unwrap_or(U32PowerOf2::_1) as u32 as u64)
+        // const align.max(custom_min_align.unwrap_or(U32PowerOf2::_1))
         if let Some(min_align) = custom_min_align {
             align.max(min_align)
         } else {
@@ -602,13 +561,13 @@ impl<T: Into<CanonName>> From<T> for FieldOptions {
     fn from(name: T) -> Self { Self::new(name, None, None) }
 }
 
-impl<T: TypeConstraint> Display for TypeLayout<T> {
+impl<T: TypeRepr> Display for TypeLayout<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let colored = Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages).unwrap_or(false);
         self.write("", colored, f)
     }
 }
 
-impl<T: TypeConstraint> Debug for TypeLayout<T> {
+impl<T: TypeRepr> Debug for TypeLayout<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.write("", false, f) }
 }

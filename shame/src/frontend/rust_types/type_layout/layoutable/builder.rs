@@ -1,9 +1,15 @@
 use super::*;
 
-impl LayoutType {
+impl LayoutableType {
+    /// Fallibly creates a new `LayoutableType` of a struct.
+    ///
+    /// An error is returned if the following rules aren't followed:
+    /// - There must be at least one field.
+    /// - None of the fields must be an `UnsizedStruct`.
+    /// - Only the last field may be unsized (a runtime sized array).
     pub fn struct_from_parts(
         struct_name: impl Into<CanonName>,
-        fields: impl IntoIterator<Item = (FieldOptions, LayoutType)>,
+        fields: impl IntoIterator<Item = (FieldOptions, LayoutableType)>,
     ) -> Result<Self, StructFromPartsError> {
         use StructFromPartsError::*;
 
@@ -16,13 +22,13 @@ impl LayoutType {
             .into_iter()
             .map(|(options, ty)| {
                 Ok(match ty {
-                    LayoutType::Sized(s) => Field::Sized(SizedField::new(options, s)),
-                    LayoutType::RuntimeSizedArray(a) => Field::Unsized(RuntimeSizedArrayField::new(
+                    LayoutableType::Sized(s) => Field::Sized(SizedField::new(options, s)),
+                    LayoutableType::RuntimeSizedArray(a) => Field::Unsized(RuntimeSizedArrayField::new(
                         options.name,
                         options.custom_min_align,
                         a.element,
                     )),
-                    LayoutType::UnsizedStruct(_) => return Err(MustNotHaveUnsizedStructField),
+                    LayoutableType::UnsizedStruct(_) => return Err(MustNotHaveUnsizedStructField),
                 })
             })
             .peekable();
@@ -60,6 +66,7 @@ impl LayoutType {
     }
 }
 
+#[allow(missing_docs)]
 #[derive(thiserror::Error, Debug)]
 pub enum StructFromPartsError {
     #[error("Struct must have at least one field.")]
@@ -78,13 +85,6 @@ impl SizedStruct {
         Self {
             name: name.into(),
             fields: vec![SizedField::new(field_options, ty)],
-        }
-    }
-
-    pub fn from_parts(name: impl Into<CanonName>, fields: Vec<SizedField>) -> Self {
-        Self {
-            name: name.into(),
-            fields,
         }
     }
 
@@ -111,9 +111,9 @@ impl SizedStruct {
 
     /// Adds either a `SizedType` or a `RuntimeSizedArray` field to the struct.
     ///
-    /// Returns a `HostshareableType`, because the `Self` may either stay
+    /// Returns a `LayoutableType`, because the `Self` may either stay
     /// a `SizedStruct` or become an `UnsizedStruct` depending on the field's type.
-    pub fn extend_sized_or_array(self, field_options: impl Into<FieldOptions>, field: SizedOrArray) -> LayoutType {
+    pub fn extend_sized_or_array(self, field_options: impl Into<FieldOptions>, field: SizedOrArray) -> LayoutableType {
         let options = field_options.into();
         match field {
             SizedOrArray::Sized(ty) => self.extend(options, ty).into(),
@@ -123,24 +123,37 @@ impl SizedStruct {
         }
     }
 
-    pub fn new_sized_or_array(
-        struct_name: impl Into<CanonName>,
-        field_options: impl Into<FieldOptions>,
-        field: SizedOrArray,
-    ) -> LayoutType {
-        let options = field_options.into();
-        match field {
-            SizedOrArray::Sized(ty) => Self::new(struct_name, options, ty).into(),
-            SizedOrArray::RuntimeSizedArray(a) => UnsizedStruct {
-                name: struct_name.into(),
-                sized_fields: Vec::new(),
-                last_unsized: RuntimeSizedArrayField::new(options.name, options.custom_min_align, a.element),
-            }
-            .into(),
+    /// The fields of this struct.
+    pub fn fields(&self) -> &[SizedField] { &self.fields }
+
+    pub(crate) fn from_parts(name: impl Into<CanonName>, fields: Vec<SizedField>) -> Self {
+        Self {
+            name: name.into(),
+            fields,
         }
     }
+}
 
-    pub fn fields(&self) -> &[SizedField] { &self.fields }
+#[allow(missing_docs)]
+pub enum SizedOrArray {
+    Sized(SizedType),
+    RuntimeSizedArray(RuntimeSizedArray),
+}
+
+#[allow(missing_docs)]
+#[derive(thiserror::Error, Debug)]
+#[error("`LayoutType` is `UnsizedStruct`, which is not a variant of `SizedOrArray`")]
+pub struct IsUnsizedStructError;
+impl TryFrom<LayoutableType> for SizedOrArray {
+    type Error = IsUnsizedStructError;
+
+    fn try_from(value: LayoutableType) -> Result<Self, Self::Error> {
+        match value {
+            LayoutableType::Sized(sized) => Ok(SizedOrArray::Sized(sized)),
+            LayoutableType::RuntimeSizedArray(array) => Ok(SizedOrArray::RuntimeSizedArray(array)),
+            LayoutableType::UnsizedStruct(_) => Err(IsUnsizedStructError),
+        }
+    }
 }
 
 impl<T: Into<CanonName>> From<(T, SizedType)> for SizedField {

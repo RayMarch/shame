@@ -8,8 +8,9 @@ use super::{
     reference::{AccessMode, AccessModeReadable},
     scalar_type::{ScalarType, ScalarTypeFp},
     type_layout::{
-        cpu_shareable::{self, BinaryReprSized},
-        TypeLayout, TypeLayoutRules,
+        self,
+        layoutable::{self, LayoutableSized},
+        TypeLayout,
     },
     type_traits::{
         BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools,
@@ -18,7 +19,7 @@ use super::{
     vec::{scalar, vec, ToInteger},
     AsAny, GpuType, To, ToGpuType,
 };
-use crate::{cpu_shareable::BinaryRepr, frontend::rust_types::reference::Ref, ir::recording::CallInfoScope};
+use crate::{any::layout::Layoutable, frontend::rust_types::reference::Ref, ir::recording::CallInfoScope};
 use crate::{
     call_info,
     frontend::{
@@ -53,9 +54,9 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> Default for mat<T, C, R> {
     }
 }
 
-impl<T: ScalarTypeFp, C: Len2, R: Len2> BinaryReprSized for mat<T, C, R> {
-    fn layout_type_sized() -> cpu_shareable::SizedType {
-        cpu_shareable::Matrix {
+impl<T: ScalarTypeFp, C: Len2, R: Len2> LayoutableSized for mat<T, C, R> {
+    fn layoutable_type_sized() -> layoutable::SizedType {
+        layoutable::Matrix {
             columns: C::LEN2,
             rows: R::LEN2,
             scalar: T::SCALAR_TYPE_FP,
@@ -63,12 +64,12 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> BinaryReprSized for mat<T, C, R> {
         .into()
     }
 }
-impl<T: ScalarTypeFp, C: Len2, R: Len2> BinaryRepr for mat<T, C, R> {
-    fn layout_type() -> cpu_shareable::LayoutType { Self::layout_type_sized().into() }
+impl<T: ScalarTypeFp, C: Len2, R: Len2> Layoutable for mat<T, C, R> {
+    fn layoutable_type() -> layoutable::LayoutableType { Self::layoutable_type_sized().into() }
 }
 
 impl<T: ScalarTypeFp, C: Len2, R: Len2> GpuLayout for mat<T, C, R> {
-    fn gpu_repr() -> cpu_shareable::Repr { cpu_shareable::Repr::Storage }
+    fn gpu_repr() -> type_layout::Repr { type_layout::Repr::Storage }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> { None }
 }

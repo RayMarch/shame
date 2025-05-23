@@ -449,7 +449,7 @@ fn color_writes(write_mask: smr::ChannelWrites) -> wgpu::ColorWrites {
 
 #[rustfmt::skip]
 fn vertex_format(format: smr::VertexAttribFormat) -> Result<wgpu::VertexFormat, ShameToWgpuError> {
-    use shame::cpu_shareable::ScalarType as S;
+    use shame::any::layout::ScalarType as S;
     use smr::Len as L;
     use wgpu::VertexFormat as W;
     let unsupported = Err(ShameToWgpuError::UnsupportedVertexAttribFormat(format));

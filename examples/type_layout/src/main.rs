@@ -1,16 +1,17 @@
 #![allow(dead_code, unused)]
 //! Demonstration of the TypeLayout and TypeLayout Builder API.
 
+use layout::{repr, Repr, SizedStruct};
 use shame::{
-    any::{self, U32PowerOf2},
-    boolx1,
-    cpu_shareable::{self as cs, BinaryReprSized},
-    f32x1, f32x2, f32x3, f32x4,
-    type_layout::{
-        constraint::{Packed, Plain, Storage},
-        *,
+    any::{
+        self,
+        layout::{
+            self, LayoutableSized, UnsizedStruct, SizedField, SizedType, ScalarType, Len, RuntimeSizedArrayField,
+            FieldOptions, Vector,
+        },
+        U32PowerOf2,
     },
-    Array, GpuLayout, GpuSized, VertexAttribute, VertexLayout,
+    boolx1, f32x1, f32x2, f32x3, f32x4, Array, GpuLayout, GpuSized, TypeLayout, VertexAttribute, VertexLayout,
 };
 
 fn main() {
@@ -24,16 +25,16 @@ fn main() {
 
     // SizedStruct::new immediately takes the first field of the struct, because
     // structs need to have at least one field.
-    let sized_struct = cs::SizedStruct::new("Vertex", "position", f32x3::layout_type_sized())
-        .extend("normal", f32x3::layout_type_sized())
-        .extend("uv", f32x1::layout_type_sized());
+    let sized_struct = SizedStruct::new("Vertex", "position", f32x3::layoutable_type_sized())
+        .extend("normal", f32x3::layoutable_type_sized())
+        .extend("uv", f32x1::layoutable_type_sized());
     // A layout that follows the storage layout rules
-    let layout: TypeLayout = TypeLayout::new_layout_for(sized_struct.clone(), cs::Repr::Storage);
+    let layout: TypeLayout = TypeLayout::new_layout_for(sized_struct.clone(), Repr::Storage);
     // Or we can get a TypeLayout<Storage>, which guarantees the storage layout rules.
-    let layout_storage: TypeLayout<Storage> = TypeLayout::new_storage_layout_for(sized_struct.clone());
+    let layout_storage: TypeLayout<repr::Storage> = TypeLayout::new_storage_layout_for(sized_struct.clone());
     assert_eq!(layout, layout_storage);
     // Or we get it as a packed layout
-    let layout_packed: TypeLayout<Packed> = TypeLayout::new_packed_layout_for(sized_struct);
+    let layout_packed: TypeLayout<repr::Packed> = TypeLayout::new_packed_layout_for(sized_struct);
     assert_ne!(layout_storage, layout_packed);
 
 
@@ -45,16 +46,16 @@ fn main() {
         c: Array<f32x1>,
     }
 
-    // Be default structs are #[gpu_repr(Storage)], which means that it follows
+    // By default structs are #[gpu_repr(Storage)], which means that it follows
     // the wgsl storage layout rules (std430). To obtain a corresponding TypeLayout<Storage>
     // we first need to build a `CpuShareableType`, in our case an `UnsizedStruct`.
-    let unsized_struct = cs::UnsizedStruct {
+    let unsized_struct = UnsizedStruct {
         name: "A".into(),
         sized_fields: vec![
-            cs::SizedField::new("a", cs::Vector::new(cs::ScalarType::F32, cs::Len::X4)),
-            cs::SizedField::new("b", f32x3::layout_type_sized()),
+            SizedField::new("a", Vector::new(ScalarType::F32, Len::X4)),
+            SizedField::new("b", f32x3::layoutable_type_sized()),
         ],
-        last_unsized: cs::RuntimeSizedArrayField::new("c", None, f32x1::layout_type_sized()),
+        last_unsized: RuntimeSizedArrayField::new("c", None, f32x1::layoutable_type_sized()),
     };
     // And now we can get the `TypeLayout<Storage>`.
     let s_layout = TypeLayout::new_storage_layout_for(unsized_struct.clone());
@@ -75,9 +76,9 @@ fn main() {
     }
 
     // Sized structs require a builder to ensure it always contains at least one field.
-    let mut sized_struct = cs::SizedStruct::new("B", "b", f32x4::layout_type_sized())
-        .extend("b", f32x3::layout_type_sized())
-        .extend("c", f32x1::layout_type_sized());
+    let mut sized_struct = SizedStruct::new("B", "b", f32x4::layoutable_type_sized())
+        .extend("b", f32x3::layoutable_type_sized())
+        .extend("c", f32x1::layoutable_type_sized());
     // Since this struct is sized we can use TypeLayout::<constraint::Uniform>::new_layout_for.
     let u_layout = TypeLayout::new_uniform_layout_for(sized_struct.clone());
     let s_layout = TypeLayout::new_storage_layout_for(sized_struct);
@@ -87,7 +88,7 @@ fn main() {
     // uniform layout rules despite not being `TypeLayout<constraint::Uniform>`,
     // which in this case will succeed, but if it doesn't we get a very nice error message about
     // why the layout is not compatible with the uniform layout rules.
-    let u_layout = TypeLayout::<constraint::Uniform>::try_from(&s_layout).unwrap();
+    let u_layout = TypeLayout::<repr::Uniform>::try_from(&s_layout).unwrap();
 
     // Let's replicate a more complex example with explicit field size and align.
     #[derive(shame::GpuLayout)]
@@ -99,11 +100,11 @@ fn main() {
         c: f32x2,
     }
 
-    let mut sized_struct = cs::SizedStruct::new("C", "a", f32x3::layout_type_sized())
-        .extend(FieldOptions::new("b", None, Some(16)), f32x3::layout_type_sized())
+    let mut sized_struct = SizedStruct::new("C", "a", f32x3::layoutable_type_sized())
+        .extend(FieldOptions::new("b", None, Some(16)), f32x3::layoutable_type_sized())
         .extend(
             FieldOptions::new("c", Some(U32PowerOf2::_16), None),
-            f32x1::layout_type_sized(),
+            f32x1::layoutable_type_sized(),
         );
     let layout = TypeLayout::new_storage_layout_for(sized_struct);
     assert!(layout.align.as_u32() == 16);
@@ -120,11 +121,11 @@ fn main() {
     assert!(D::gpu_layout().align.as_u32() == 16);
 
     // Let's end on a pretty error message
-    let mut sized_struct = cs::SizedStruct::new("D", "a", f32x2::layout_type_sized())
+    let mut sized_struct = SizedStruct::new("D", "a", f32x2::layoutable_type_sized())
         // This has align of 4 for storage and align of 16 for uniform.
-        .extend("b", Array::<f32x1, shame::Size<1>>::layout_type_sized());
+        .extend("b", Array::<f32x1, shame::Size<1>>::layoutable_type_sized());
     let s_layout = TypeLayout::new_storage_layout_for(sized_struct);
-    let result = TypeLayout::<constraint::Uniform>::try_from(&s_layout);
+    let result = TypeLayout::<repr::Uniform>::try_from(&s_layout);
     match result {
         Err(e) => println!("This error is a showcase:\n{}", e),
         Ok(u_layout) => println!("It unexpectedly worked, ohh no."),

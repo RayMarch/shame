@@ -6,14 +6,12 @@ use std::{
 
 use thiserror::Error;
 
-use crate::{common::proc_macro_reexports::TypeLayoutRules, frontend::rust_types::type_layout::TypeLayout};
+use crate::frontend::rust_types::type_layout::{eq::LayoutMismatch, TypeLayout};
 use crate::{
     backend::language::Language,
     call_info,
     common::prettify::set_color,
-    frontend::{
-        any::shared_io::BufferBindingType, encoding::EncodingErrorKind, rust_types::type_layout::LayoutMismatch,
-    },
+    frontend::{any::shared_io::BufferBindingType, encoding::EncodingErrorKind},
     ir::{
         ir_type::{max_u64_po2_dividing, AccessModeReadable},
         recording::{Context, MemoryRegion},

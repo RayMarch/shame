@@ -1,37 +1,38 @@
-#![allow(missing_docs)]
+//! This module defines types that can be laid out in memory.
+
 use std::{num::NonZeroU32, rc::Rc};
 
 use crate::{
     any::U32PowerOf2,
     ir::{self, ir_type::BufferBlockDefinitionError, StructureFieldNamesMustBeUnique},
-    GpuAligned, GpuSized, GpuStore, GpuType, NoBools, NoHandles,
 };
 
-// TODO(chronicl)
-// - Consider moving this module into ir_type?
-// - We borrow these types from `StoreType` currently. Maybe it would be better the other
-//   way around - `StoreType` should borrow from `HostShareableType`.
-pub use crate::ir::{Len, Len2, LenEven, PackedVector, ScalarTypeFp, ScalarTypeInteger, ir_type::CanonName};
-use super::{constraint, FieldOptions};
+pub use crate::ir::{Len, Len2, PackedVector, ScalarTypeFp, ScalarTypeInteger, ir_type::CanonName};
+use super::FieldOptions;
 
-mod align_size;
-mod builder;
+pub(crate) mod align_size;
+pub(crate) mod builder;
 
-pub use align_size::*;
-pub use builder::*;
+pub use align_size::{FieldOffsets, MatrixMajor, array_size, array_stride, array_align};
+pub use builder::SizedOrArray;
 
-// TODO(chronicl) rewrite
-/// This reprsents a wgsl spec compliant host-shareable type with the addition
-/// that f64 is a supported scalar type.
+/// Types that have a defined memory layout.
 ///
-/// https://www.w3.org/TR/WGSL/#host-shareable-types
+/// `LayoutableType` does not contain any layout information itself, but a layout
+/// can be assigned to it using [`TypeLayout`] according to one of the available layout rules:
+/// storage, uniform or packed.
 #[derive(Debug, Clone)]
-pub enum LayoutType {
+pub enum LayoutableType {
+    /// A type with a statically known size.
     Sized(SizedType),
+    /// A struct with a runtime sized array as it's last field.
     UnsizedStruct(UnsizedStruct),
+    /// An array whose size is determined at runtime.
     RuntimeSizedArray(RuntimeSizedArray),
 }
 
+/// Types with a statically known size.
+#[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub enum SizedType {
     Vector(Vector),
@@ -42,12 +43,14 @@ pub enum SizedType {
     Struct(SizedStruct),
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Vector {
     pub scalar: ScalarType,
     pub len: Len,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Matrix {
     pub scalar: ScalarTypeFp,
@@ -55,23 +58,30 @@ pub struct Matrix {
     pub rows: Len2,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub struct SizedArray {
     pub element: Rc<SizedType>,
     pub len: NonZeroU32,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]
 pub struct Atomic {
     pub scalar: ScalarTypeInteger,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub struct RuntimeSizedArray {
     pub element: SizedType,
 }
 
-/// Same as `ir::ScalarType`, but without `ScalarType::Bool`.
+/// Scalar types with known memory layout.
+///
+/// Same as `ir::ScalarType`, but without `ScalarType::Bool` since booleans
+/// don't have a standardized memory representation.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ScalarType {
     F16,
@@ -81,20 +91,29 @@ pub enum ScalarType {
     F64,
 }
 
+/// A struct with a known fixed size.
 #[derive(Debug, Clone)]
 pub struct SizedStruct {
+    /// The canonical name of the struct.
     pub name: CanonName,
     // This is private to ensure a `SizedStruct` always has at least one field.
     fields: Vec<SizedField>,
 }
 
+/// A struct whose size is not known at compile time.
+///
+/// This struct has a runtime sized array as it's last field.
 #[derive(Debug, Clone)]
 pub struct UnsizedStruct {
+    /// The canonical name of the struct.
     pub name: CanonName,
+    /// Fixed-size fields that come before the unsized field
     pub sized_fields: Vec<SizedField>,
+    /// Last runtime sized array field of the struct.
     pub last_unsized: RuntimeSizedArrayField,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub struct SizedField {
     pub name: CanonName,
@@ -103,6 +122,7 @@ pub struct SizedField {
     pub ty: SizedType,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub struct RuntimeSizedArrayField {
     pub name: CanonName,
@@ -111,6 +131,7 @@ pub struct RuntimeSizedArrayField {
 }
 
 impl SizedField {
+    /// Creates a new `SizedField`.
     pub fn new(options: impl Into<FieldOptions>, ty: impl Into<SizedType>) -> Self {
         let options = options.into();
         Self {
@@ -123,6 +144,8 @@ impl SizedField {
 }
 
 impl RuntimeSizedArrayField {
+    /// Creates a new `RuntimeSizedArrayField` given it's field name,
+    /// an optional custom minimum align and it's element type.
     pub fn new(
         name: impl Into<CanonName>,
         custom_min_align: Option<U32PowerOf2>,
@@ -139,6 +162,7 @@ impl RuntimeSizedArrayField {
 }
 
 impl SizedArray {
+    /// Creates a new `RuntimeSizedArray` from it's element type and length.
     pub fn new(element_ty: impl Into<SizedType>, len: NonZeroU32) -> Self {
         Self {
             element: Rc::new(element_ty.into()),
@@ -148,6 +172,7 @@ impl SizedArray {
 }
 
 impl RuntimeSizedArray {
+    /// Creates a new `RuntimeSizedArray` from it's element type.
     pub fn new(element_ty: impl Into<SizedType>) -> Self {
         RuntimeSizedArray {
             element: element_ty.into(),
@@ -155,32 +180,15 @@ impl RuntimeSizedArray {
     }
 }
 
-pub enum SizedOrArray {
-    Sized(SizedType),
-    RuntimeSizedArray(RuntimeSizedArray),
+/// Trait for types that have a well-defined memory layout.
+pub trait Layoutable {
+    /// Returns the `LayoutableType` representation for this type.
+    fn layoutable_type() -> LayoutableType;
 }
-
-#[derive(thiserror::Error, Debug)]
-#[error("`LayoutType` is `UnsizedStruct`, which is not a variant of `SizedOrArray`")]
-pub struct IsUnsizedStruct;
-impl TryFrom<LayoutType> for SizedOrArray {
-    type Error = IsUnsizedStruct;
-
-    fn try_from(value: LayoutType) -> Result<Self, Self::Error> {
-        match value {
-            LayoutType::Sized(sized) => Ok(SizedOrArray::Sized(sized)),
-            LayoutType::RuntimeSizedArray(array) => Ok(SizedOrArray::RuntimeSizedArray(array)),
-            LayoutType::UnsizedStruct(_) => Err(IsUnsizedStruct),
-        }
-    }
-}
-
-// TODO(chronicl) documentation
-pub trait BinaryRepr {
-    fn layout_type() -> LayoutType;
-}
-pub trait BinaryReprSized: BinaryRepr {
-    fn layout_type_sized() -> SizedType;
+/// Trait for types that have a well-defined memory layout and statically known size.
+pub trait LayoutableSized: Layoutable {
+    /// Returns the `SizedType` representation for this type.
+    fn layoutable_type_sized() -> SizedType;
 }
 
 
@@ -196,7 +204,7 @@ impl std::fmt::Display for ScalarType {
     }
 }
 
-//   Conversions to ScalarType, SizedType and HostshareableType   //
+//   Conversions to ScalarType, SizedType and LayoutableType   //
 
 macro_rules! impl_into_sized_type {
     ($($ty:ident -> $variant:path),*) => {
@@ -204,9 +212,9 @@ macro_rules! impl_into_sized_type {
            impl $ty {
                /// Const conversion to [`SizedType`]
                pub const fn into_sized_type(self) -> SizedType { $variant(self) }
-               /// Const conversion to [`HostshareableType`]
-               pub const fn into_cpu_shareable(self) -> LayoutType {
-                   LayoutType::Sized(self.into_sized_type())
+               /// Const conversion to [`LayoutableType`]
+               pub const fn into_layoutable_type(self) -> LayoutableType {
+                   LayoutableType::Sized(self.into_sized_type())
                }
            }
 
@@ -225,18 +233,18 @@ impl_into_sized_type!(
     PackedVector -> SizedType::PackedVec
 );
 
-impl<T> From<T> for LayoutType
+impl<T> From<T> for LayoutableType
 where
     SizedType: From<T>,
 {
-    fn from(value: T) -> Self { LayoutType::Sized(SizedType::from(value)) }
+    fn from(value: T) -> Self { LayoutableType::Sized(SizedType::from(value)) }
 }
 
-impl From<UnsizedStruct> for LayoutType {
-    fn from(s: UnsizedStruct) -> Self { LayoutType::UnsizedStruct(s) }
+impl From<UnsizedStruct> for LayoutableType {
+    fn from(s: UnsizedStruct) -> Self { LayoutableType::UnsizedStruct(s) }
 }
-impl From<RuntimeSizedArray> for LayoutType {
-    fn from(a: RuntimeSizedArray) -> Self { LayoutType::RuntimeSizedArray(a) }
+impl From<RuntimeSizedArray> for LayoutableType {
+    fn from(a: RuntimeSizedArray) -> Self { LayoutableType::RuntimeSizedArray(a) }
 }
 
 impl ScalarTypeInteger {
@@ -266,12 +274,12 @@ impl From<ScalarTypeFp> for ScalarType {
 
 //     Conversions to ir types     //
 
-impl From<LayoutType> for ir::StoreType {
-    fn from(host: LayoutType) -> Self {
+impl From<LayoutableType> for ir::StoreType {
+    fn from(host: LayoutableType) -> Self {
         match host {
-            LayoutType::Sized(s) => ir::StoreType::Sized(s.into()),
-            LayoutType::RuntimeSizedArray(s) => ir::StoreType::RuntimeSizedArray(s.element.into()),
-            LayoutType::UnsizedStruct(s) => ir::StoreType::BufferBlock(s.into()),
+            LayoutableType::Sized(s) => ir::StoreType::Sized(s.into()),
+            LayoutableType::RuntimeSizedArray(s) => ir::StoreType::RuntimeSizedArray(s.element.into()),
+            LayoutableType::UnsizedStruct(s) => ir::StoreType::BufferBlock(s.into()),
         }
     }
 }
@@ -359,12 +367,13 @@ impl From<RuntimeSizedArrayField> for ir::ir_type::RuntimeSizedArrayField {
 
 //     Conversions from ir types     //
 
+/// Type contains bools, which doesn't have a known layout.
 #[derive(thiserror::Error, Debug)]
-#[error("Type contains bools, which isn't cpu shareable.")]
-pub struct ContainsBools;
+#[error("Type contains bools, which doesn't have a known layout.")]
+pub struct ContainsBoolsError;
 
 impl TryFrom<ir::ScalarType> for ScalarType {
-    type Error = ContainsBools;
+    type Error = ContainsBoolsError;
 
     fn try_from(value: ir::ScalarType) -> Result<Self, Self::Error> {
         Ok(match value {
@@ -373,18 +382,13 @@ impl TryFrom<ir::ScalarType> for ScalarType {
             ir::ScalarType::F64 => ScalarType::F64,
             ir::ScalarType::U32 => ScalarType::U32,
             ir::ScalarType::I32 => ScalarType::I32,
-            ir::ScalarType::Bool => return Err(ContainsBools),
+            ir::ScalarType::Bool => return Err(ContainsBoolsError),
         })
     }
 }
 
-impl ir::ScalarType {
-    // TODO(chronicl) remove
-    pub fn as_host_shareable_unchecked(self) -> ScalarType { self.try_into().unwrap() }
-}
-
 impl TryFrom<ir::SizedType> for SizedType {
-    type Error = ContainsBools;
+    type Error = ContainsBoolsError;
 
     fn try_from(value: ir::SizedType) -> Result<Self, Self::Error> {
         Ok(match value {
@@ -404,7 +408,7 @@ impl TryFrom<ir::SizedType> for SizedType {
 }
 
 impl TryFrom<ir::ir_type::SizedStruct> for SizedStruct {
-    type Error = ContainsBools;
+    type Error = ContainsBoolsError;
 
     fn try_from(structure: ir::ir_type::SizedStruct) -> Result<Self, Self::Error> {
         let mut fields = Vec::new();
@@ -425,35 +429,38 @@ impl TryFrom<ir::ir_type::SizedStruct> for SizedStruct {
     }
 }
 
+/// Errors that can occur when converting IR types to layoutable types.
 #[derive(thiserror::Error, Debug)]
-pub enum CpuShareableConversionError {
-    #[error("Type contains bools, which isn't cpu shareable.")]
+pub enum LayoutableConversionError {
+    /// Type contains bools, which don't have a standardized memory layout.
+    #[error("Type contains bools, which don't have a standardized memory layout.")]
     ContainsBool,
-    #[error("Type is a handle, which isn't cpu shareable.")]
+    /// Type is a handle, which don't have a standardized memory layout.
+    #[error("Type is a handle, which don't have a standardized memory layout.")]
     IsHandle,
 }
 
-impl From<ContainsBools> for CpuShareableConversionError {
-    fn from(_: ContainsBools) -> Self { Self::ContainsBool }
+impl From<ContainsBoolsError> for LayoutableConversionError {
+    fn from(_: ContainsBoolsError) -> Self { Self::ContainsBool }
 }
 
-impl TryFrom<ir::StoreType> for LayoutType {
-    type Error = CpuShareableConversionError;
+impl TryFrom<ir::StoreType> for LayoutableType {
+    type Error = LayoutableConversionError;
 
     fn try_from(value: ir::StoreType) -> Result<Self, Self::Error> {
         Ok(match value {
-            ir::StoreType::Sized(sized_type) => LayoutType::Sized(sized_type.try_into()?),
-            ir::StoreType::RuntimeSizedArray(element) => LayoutType::RuntimeSizedArray(RuntimeSizedArray {
+            ir::StoreType::Sized(sized_type) => LayoutableType::Sized(sized_type.try_into()?),
+            ir::StoreType::RuntimeSizedArray(element) => LayoutableType::RuntimeSizedArray(RuntimeSizedArray {
                 element: element.try_into()?,
             }),
             ir::StoreType::BufferBlock(buffer_block) => buffer_block.try_into()?,
-            ir::StoreType::Handle(_) => return Err(CpuShareableConversionError::IsHandle),
+            ir::StoreType::Handle(_) => return Err(LayoutableConversionError::IsHandle),
         })
     }
 }
 
-impl TryFrom<ir::ir_type::BufferBlock> for LayoutType {
-    type Error = ContainsBools;
+impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
+    type Error = ContainsBoolsError;
 
     fn try_from(buffer_block: ir::ir_type::BufferBlock) -> Result<Self, Self::Error> {
         let mut sized_fields = Vec::new();
@@ -489,5 +496,39 @@ impl TryFrom<ir::ir_type::BufferBlock> for LayoutType {
             last_unsized,
         }
         .into())
+    }
+}
+
+// Display impls
+
+impl std::fmt::Display for LayoutableType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LayoutableType::Sized(s) => write!(f, "{s}"),
+            LayoutableType::RuntimeSizedArray(a) => write!(f, "Array<{}>", a.element),
+            LayoutableType::UnsizedStruct(s) => write!(f, "{}", s.name),
+        }
+    }
+}
+
+impl std::fmt::Display for SizedType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SizedType::Vector(v) => write!(f, "{}{}", ir::ScalarType::from(v.scalar), v.len),
+            SizedType::Matrix(m) => {
+                write!(
+                    f,
+                    "mat<{}, {}, {}>",
+                    ir::ScalarType::from(m.scalar),
+                    Len::from(m.columns),
+                    Len::from(m.rows)
+                )
+            }
+            SizedType::Array(a) => write!(f, "Array<{}, {}>", &*a.element, a.len),
+            SizedType::Atomic(a) => write!(f, "Atomic<{}>", ir::ScalarType::from(a.scalar)),
+            // TODO(chronicl) figure out scalar type display
+            SizedType::PackedVec(p) => write!(f, "PackedVec<{:?}, {}>", p.scalar_type, Len::from(p.len)),
+            SizedType::Struct(s) => write!(f, "{}", s.name),
+        }
     }
 }

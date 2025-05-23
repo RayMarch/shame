@@ -7,20 +7,16 @@ use super::{
     mem::AddressSpace,
     reference::{AccessMode, AccessModeReadable},
     scalar_type::{dtype_as_scalar_from_f64, ScalarType, ScalarTypeInteger, ScalarTypeNumber},
-    type_layout::{
-        cpu_shareable::{self, BinaryReprSized},
-        TypeLayoutRules,
-    },
     type_traits::{BindingArgs, GpuAligned, GpuStoreImplCategory, NoAtomics, NoHandles, VertexAttribute},
     AsAny, GpuType, To, ToGpuType,
 };
 use crate::{
+    any::layout::{self, Layoutable, LayoutableSized},
     call_info,
     common::{
         proc_macro_utils::{collect_into_array_exact, push_wrong_amount_of_args_error},
         small_vec::SmallVec,
     },
-    cpu_shareable::BinaryRepr,
     frontend::encoding::{
         buffer::{BufferAddressSpace, BufferInner, BufferRefInner},
         rasterizer::Gradient,
@@ -577,26 +573,26 @@ impl<T: ScalarType, L: Len> GpuStore for vec<T, L> {
 }
 
 
-impl<T: ScalarType, L: Len> BinaryReprSized for vec<T, L>
+impl<T: ScalarType, L: Len> LayoutableSized for vec<T, L>
 where
     vec<T, L>: NoBools,
 {
-    fn layout_type_sized() -> cpu_shareable::SizedType {
-        cpu_shareable::Vector::new(T::SCALAR_TYPE.try_into().expect("no bools"), L::LEN).into()
+    fn layoutable_type_sized() -> layout::SizedType {
+        layout::Vector::new(T::SCALAR_TYPE.try_into().expect("no bools"), L::LEN).into()
     }
 }
-impl<T: ScalarType, L: Len> BinaryRepr for vec<T, L>
+impl<T: ScalarType, L: Len> Layoutable for vec<T, L>
 where
     vec<T, L>: NoBools,
 {
-    fn layout_type() -> cpu_shareable::LayoutType { Self::layout_type_sized().into() }
+    fn layoutable_type() -> layout::LayoutableType { Self::layoutable_type_sized().into() }
 }
 
 impl<T: ScalarType, L: Len> GpuLayout for vec<T, L>
 where
     vec<T, L>: NoBools,
 {
-    fn gpu_repr() -> cpu_shareable::Repr { cpu_shareable::Repr::Storage }
+    fn gpu_repr() -> layout::Repr { layout::Repr::Storage }
 
     fn cpu_type_name_and_layout()
     -> Option<Result<(std::borrow::Cow<'static, str>, TypeLayout), super::layout_traits::ArrayElementsUnsizedError>>
@@ -1119,7 +1115,7 @@ where
     Self: NoBools,
 {
     fn vertex_attrib_format() -> VertexAttribFormat {
-        VertexAttribFormat::Fine(L::LEN, T::SCALAR_TYPE.as_host_shareable_unchecked())
+        VertexAttribFormat::Fine(L::LEN, T::SCALAR_TYPE.try_into().expect("no bools vec"))
     }
 }
 
