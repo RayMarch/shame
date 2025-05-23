@@ -92,14 +92,12 @@ impl Iterator for FieldOffsets<'_> {
                     match self.repr {
                         // Packedness is ensured by the `LayoutCalculator`.
                         Repr::Storage | Repr::Packed => (size, align),
-                        // https://www.w3.org/TR/WGSL/#address-space-layout-constraints
                         // The uniform address space requires that:
-                        // - struct S align: roundUp(16, AlignOf(S))
                         // - If a structure member itself has a structure type S, then the number of
                         // bytes between the start of that member and the start of any following
                         // member must be at least roundUp(16, SizeOf(S)).
-                        // -> We adjust size too.
-                        Repr::Uniform => (round_up(16, size), round_up_align(U32PowerOf2::_16, align)),
+                        // -> We need to adjust size.
+                        Repr::Uniform => (round_up(16, size), align),
                     }
                 }
                 non_struct => non_struct.byte_size_and_align(self.repr),
