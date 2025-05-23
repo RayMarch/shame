@@ -4,6 +4,37 @@ use super::*;
 //              Size and align of layoutable types              //
 // https://www.w3.org/TR/WGSL/#address-space-layout-constraints //
 
+impl LayoutableType {
+    /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
+    pub fn byte_size(&self, repr: Repr) -> Option<u64> {
+        match self {
+            LayoutableType::Sized(s) => Some(s.byte_size(repr)),
+            LayoutableType::UnsizedStruct(_) | LayoutableType::RuntimeSizedArray(_) => None,
+        }
+    }
+
+    /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
+        match self {
+            LayoutableType::Sized(s) => s.align(repr),
+            LayoutableType::UnsizedStruct(s) => s.align(repr),
+            LayoutableType::RuntimeSizedArray(a) => a.align(repr),
+        }
+    }
+
+    /// This is expensive for structs as it calculates the byte size and align from scratch.
+    pub fn byte_size_and_align(&self, repr: Repr) -> (Option<u64>, U32PowerOf2) {
+        match self {
+            LayoutableType::Sized(s) => {
+                let (size, align) = s.byte_size_and_align(repr);
+                (Some(size), align)
+            }
+            LayoutableType::UnsizedStruct(s) => (None, s.align(repr)),
+            LayoutableType::RuntimeSizedArray(a) => (None, a.align(repr)),
+        }
+    }
+}
+
 impl SizedType {
     /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
     pub fn byte_size(&self, repr: Repr) -> u64 {
@@ -17,8 +48,8 @@ impl SizedType {
         }
     }
 
-    /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the size.
-    pub fn byte_align(&self, repr: Repr) -> U32PowerOf2 {
+    /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         match self {
             SizedType::Array(a) => a.align(repr),
             SizedType::Vector(v) => v.align(),
@@ -29,11 +60,11 @@ impl SizedType {
         }
     }
 
-    /// This is expensive for structs.
+    /// This is expensive for structs as it calculates the byte size and align from scratch.
     pub fn byte_size_and_align(&self, repr: Repr) -> (u64, U32PowerOf2) {
         match self {
             SizedType::Struct(s) => s.byte_size_and_align(repr),
-            non_struct => (non_struct.byte_size(repr), non_struct.byte_align(repr)),
+            non_struct => (non_struct.byte_size(repr), non_struct.align(repr)),
         }
     }
 }
@@ -140,14 +171,14 @@ impl UnsizedStruct {
         // Iterating over any remaining field offsets to update the layout calculator.
         (&mut offsets).count();
 
-        let array_align = self.last_unsized.array.byte_align(offsets.repr);
+        let array_align = self.last_unsized.array.align(offsets.repr);
         let custom_min_align = self.last_unsized.custom_min_align;
         let (offset, align) = offsets.calc.extend_unsized(array_align, custom_min_align);
         (offset, struct_align(align, offsets.repr))
     }
 
     /// This is expensive as it calculates the byte align from scratch.
-    pub fn byte_align(&self, repr: Repr) -> U32PowerOf2 {
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         let offsets = self.sized_field_offsets(repr);
         self.last_field_offset_and_struct_align(offsets).1
     }
@@ -242,7 +273,7 @@ impl Atomic {
 impl SizedArray {
     pub fn byte_size(&self, repr: Repr) -> u64 { array_size(self.byte_stride(repr), self.len) }
 
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.byte_align(repr), repr) }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.align(repr), repr) }
 
     pub fn byte_stride(&self, repr: Repr) -> u64 {
         let (element_size, element_align) = self.element.byte_size_and_align(repr);
@@ -273,20 +304,20 @@ pub const fn array_stride(element_align: U32PowerOf2, element_size: u64) -> u64 
 
 #[allow(missing_docs)]
 impl RuntimeSizedArray {
-    pub fn byte_align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.byte_align(repr), repr) }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.align(repr), repr) }
 
-    pub fn byte_stride(&self, repr: Repr) -> u64 { array_stride(self.byte_align(repr), self.element.byte_size(repr)) }
+    pub fn byte_stride(&self, repr: Repr) -> u64 { array_stride(self.align(repr), self.element.byte_size(repr)) }
 }
 
 #[allow(missing_docs)]
 impl SizedField {
     pub fn byte_size(&self, repr: Repr) -> u64 { self.ty.byte_size(repr) }
-    pub fn byte_align(&self, repr: Repr) -> U32PowerOf2 { self.ty.byte_align(repr) }
+    pub fn byte_align(&self, repr: Repr) -> U32PowerOf2 { self.ty.align(repr) }
 }
 
 #[allow(missing_docs)]
 impl RuntimeSizedArrayField {
-    pub fn byte_align(&self, repr: Repr) -> U32PowerOf2 { self.array.byte_align(repr) }
+    pub fn byte_align(&self, repr: Repr) -> U32PowerOf2 { self.array.align(repr) }
 }
 
 pub const fn round_up(multiple_of: u64, n: u64) -> u64 {

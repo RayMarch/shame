@@ -141,7 +141,7 @@ impl TypeLayout {
     fn from_runtime_sized_array(ty: RuntimeSizedArray, repr: Repr) -> Self {
         Self::new(
             None,
-            ty.byte_align(repr),
+            ty.align(repr),
             TLS::Array(
                 Rc::new(ElementLayout {
                     byte_stride: ty.byte_stride(repr),
