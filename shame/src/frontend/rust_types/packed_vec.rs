@@ -10,7 +10,7 @@ use crate::{
         AsAny, DataPackingFn,
     },
     common::floating_point::f16,
-    f32x2, f32x4, i32x4, u32x1, u32x4,
+    f32x2, f32x4, gpu_layout, i32x4, u32x1, u32x4,
 };
 use crate::frontend::rust_types::len::{x1, x2, x3, x4};
 use crate::frontend::rust_types::vec::vec;
@@ -172,7 +172,7 @@ impl<T: PackedScalarType, L: LenEven> From<Any> for PackedVec<T, L> {
         let inner = Context::try_with(call_info!(), |ctx| {
             let err = |ty| {
                 ctx.push_error_get_invalid_any(
-                    FrontendError::InvalidDowncastToNonShaderType(ty, Self::gpu_layout()).into(),
+                    FrontendError::InvalidDowncastToNonShaderType(ty, gpu_layout::<Self>()).into(),
                 )
             };
             match any.ty() {

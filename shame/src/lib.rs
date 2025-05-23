@@ -315,7 +315,9 @@ pub use frontend::texture::texture_formats as tf;
 pub use shame_derive::CpuLayout;
 pub use shame_derive::GpuLayout;
 pub use frontend::rust_types::layout_traits::GpuLayout;
+pub use frontend::rust_types::layout_traits::gpu_layout;
 pub use frontend::rust_types::layout_traits::CpuLayout;
+pub use frontend::rust_types::layout_traits::cpu_layout;
 pub use frontend::rust_types::type_layout::TypeLayout;
 
 // derived traits

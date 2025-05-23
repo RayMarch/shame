@@ -6,12 +6,13 @@ use shame::{
     any::{
         self,
         layout::{
-            self, LayoutableSized, UnsizedStruct, SizedField, SizedType, ScalarType, Len, RuntimeSizedArrayField,
-            FieldOptions, Vector,
+            self, FieldOptions, LayoutableSized, Len, RuntimeSizedArrayField, ScalarType, SizedField, SizedType,
+            UnsizedStruct, Vector,
         },
         U32PowerOf2,
     },
-    boolx1, f32x1, f32x2, f32x3, f32x4, Array, GpuLayout, GpuSized, TypeLayout, VertexAttribute, VertexLayout,
+    boolx1, f32x1, f32x2, f32x3, f32x4, gpu_layout, Array, GpuLayout, GpuSized, TypeLayout, VertexAttribute,
+    VertexLayout,
 };
 
 fn main() {
@@ -118,7 +119,7 @@ fn main() {
     }
 
     // this would be 8 for storage layout rules
-    assert!(D::gpu_layout().align.as_u32() == 16);
+    assert!(gpu_layout::<D>().align.as_u32() == 16);
 
     // Let's end on a pretty error message
     let mut sized_struct = SizedStruct::new("D", "a", f32x2::layoutable_type_sized())

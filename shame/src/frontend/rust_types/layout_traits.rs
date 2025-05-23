@@ -138,28 +138,6 @@ use std::rc::Rc;
 /// [`StorageTexture`]: crate::StorageTexture
 ///
 pub trait GpuLayout: Layoutable {
-    /// returns a [`TypeLayout`] object that can be used to inspect the layout
-    /// of a type on the gpu.
-    ///
-    /// # Layout comparison of different types
-    ///
-    /// The layouts of different [`GpuLayout`]/[`CpuLayout`] types can be compared
-    /// by comparing [`TypeLayout`] objects returned by `.gpu_layout()`/`.cpu_layout()`
-    /// ```
-    /// use shame as sm;
-    /// use sm::{ GpuLayout, CpuLayout };
-    ///
-    /// type OnGpu = sm::Array<sm::f32x1, sm::Size<16>>;
-    /// type OnCpu = [f32; 16];
-    ///
-    /// if OnGpu::gpu_layout() == OnCpu::cpu_layout() {
-    ///     println!("same layout")
-    /// }
-    /// println!("OnGpu:\n{}\n", OnGpu::gpu_layout());
-    /// println!("OnCpu:\n{}\n", OnCpu::cpu_layout());
-    /// ```
-    fn gpu_layout() -> TypeLayout { TypeLayout::new_layout_for(Self::layoutable_type(), Self::gpu_repr()) }
-
     /// Returns the `Repr` of the `TypeLayout` from `GpuLayout::gpu_layout`.
     fn gpu_repr() -> Repr;
 
@@ -175,6 +153,36 @@ pub trait GpuLayout: Layoutable {
     /// *** The user expects that layout to be checked! ***
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>>;
 }
+
+/// returns a [`TypeLayout`] object that can be used to inspect the layout
+/// of a type on the gpu.
+///
+/// # Layout comparison of different types
+///
+/// The layouts of different [`GpuLayout`]/[`CpuLayout`] types can be compared
+/// by comparing [`TypeLayout`] objects returned by `.gpu_layout()`/`.cpu_layout()`
+/// ```
+/// use shame as sm;
+/// use sm::{ GpuLayout, CpuLayout };
+///
+/// type OnGpu = sm::Array<sm::f32x1, sm::Size<16>>;
+/// type OnCpu = [f32; 16];
+///
+/// if OnGpu::gpu_layout() == OnCpu::cpu_layout() {
+///     println!("same layout")
+/// }
+/// println!("OnGpu:\n{}\n", OnGpu::gpu_layout());
+/// println!("OnCpu:\n{}\n", OnCpu::cpu_layout());
+/// ```
+pub fn gpu_layout<T: GpuLayout + ?Sized>() -> TypeLayout {
+    TypeLayout::new_layout_for(T::layoutable_type(), T::gpu_repr())
+}
+
+/// (no documentation yet)
+// `CpuLayout::cpu_layout` exists, but this function exists for consistency with
+// the `gpu_layout` function. `GpuLayout::gpu_layout` does not exist, so that implementors
+// of `GpuLayout` can't overwrite it.
+pub fn cpu_layout<T: CpuLayout + ?Sized>() -> TypeLayout { T::cpu_layout() }
 
 pub(crate) fn cpu_type_name_and_layout<T: GpuLayout>(ctx: &Context) -> Option<(Cow<'static, str>, TypeLayout)> {
     match T::cpu_type_name_and_layout().transpose() {
@@ -199,7 +207,7 @@ pub(crate) fn get_layout_compare_with_cpu_push_error<T: GpuLayout>(
 ) -> TypeLayout {
     const ERR_COMMENT: &str = "`GpuLayout` uses WGSL layout rules unless #[gpu_repr(packed)] is used.\nsee https://www.w3.org/TR/WGSL/#structure-member-layout\n`CpuLayout` uses #[repr(C)].\nsee https://doc.rust-lang.org/reference/type-layout.html#r-layout.repr.c.struct";
 
-    let gpu_layout = T::gpu_layout();
+    let gpu_layout = gpu_layout::<T>();
     if let Some((cpu_name, cpu_layout)) = cpu_type_name_and_layout::<T>(ctx) {
         check_layout_push_error(ctx, &cpu_name, &cpu_layout, &gpu_layout, skip_stride_check, ERR_COMMENT).ok();
     }
