@@ -42,6 +42,9 @@ pub use frontend::encoding::rasterizer::VertexStage;
 pub use frontend::encoding::rasterizer::VertexIndex;
 pub use frontend::encoding::io_iter::VertexBuffer;
 pub use frontend::encoding::io_iter::VertexBufferIter;
+pub use frontend::encoding::io_iter_dynamic::VertexBufferDynamic;
+pub use frontend::encoding::io_iter_dynamic::VertexAttributeIter;
+pub use frontend::encoding::io_iter_dynamic::VertexBufferElement;
 
 // primitive assembly
 pub use frontend::encoding::rasterizer::PrimitiveAssembly;
@@ -548,6 +551,9 @@ pub mod any {
     pub use any::render_io::Location;
     pub use any::render_io::VertexAttribFormat;
     pub use any::render_io::VertexBufferLayoutRecorded;
+    pub use any::render_io::VertexAttributes;
+    pub use any::render_io::VertexAttribute;
+    pub use any::render_io::VertexBufferAny;
 
     #[allow(missing_docs)]
     pub mod control_flow {

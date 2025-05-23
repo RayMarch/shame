@@ -7,7 +7,7 @@ use crate::{
     },
     call_info,
     frontend::any::{
-        render_io::{self, VertexAttributes, VertexBufferKey},
+        render_io::{self, VertexAttributes, VertexBufferAny},
         InvalidReason,
     },
     ir::{self, pipeline::PipelineError, recording::Context},
@@ -54,7 +54,7 @@ impl VertexBufferIterDynamic {
 
 /// (no documentation - chronicl)
 pub struct VertexBufferDynamic {
-    slot: VertexBufferKey,
+    slot: VertexBufferAny,
     location_counter: LocationCounter,
 }
 
@@ -120,14 +120,14 @@ impl VertexBufferDynamic {
 
 /// (no documentation - chronicl)
 pub struct VertexBufferElement {
-    slot: VertexBufferKey,
+    slot: VertexBufferAny,
     location_counter: LocationCounter,
     lookup: VertexBufferLookupIndex,
 }
 
 impl VertexBufferElement {
     pub(crate) fn new(
-        slot: VertexBufferKey,
+        slot: VertexBufferAny,
         location_counter: LocationCounter,
         lookup: VertexBufferLookupIndex,
     ) -> Self {
@@ -153,14 +153,14 @@ impl VertexBufferElement {
 
     /// (no documentation - chronicl)
     #[track_caller]
-    pub fn attribute_iter(self, repr: Repr) -> VertexAttributeIter {
+    pub fn iter_attributes(self, repr: Repr) -> VertexAttributeIter {
         VertexAttributeIter::new(self.slot, self.location_counter, self.lookup, repr)
     }
 }
 
 /// (no documentation - chronicl)
 pub struct VertexAttributeIter {
-    slot: VertexBufferKey,
+    slot: VertexBufferAny,
     location_counter: LocationCounter,
     lookup: VertexBufferLookupIndex,
     layout_calculator: LayoutCalculator,
@@ -169,7 +169,7 @@ pub struct VertexAttributeIter {
 
 impl VertexAttributeIter {
     fn new(
-        slot: VertexBufferKey,
+        slot: VertexBufferAny,
         location_counter: LocationCounter,
         lookup: VertexBufferLookupIndex,
         repr: Repr,

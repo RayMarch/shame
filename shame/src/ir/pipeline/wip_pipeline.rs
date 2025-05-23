@@ -95,8 +95,10 @@ pub enum PipelineError {
         buffer_a: u32,
         buffer_b: u32,
     },
-    #[error("trying to import vertex buffer #{0} twice")]
-    DuplicateVertexBufferImport(u32),
+    #[error("trying to import vertex buffer #{0} twice. previous import at {1}")]
+    DuplicateVertexBufferImport(u32, CallInfo),
+    #[error("vertex buffer was created while no pipeline encoding was active")]
+    VertexBufferCreatedOutsideOfActiveEncoding,
     #[error("trying to access color target #{0} twice")]
     DuplicateColorTargetAccess(u32),
     #[error("Invalid interpolator type: {0:?}. primitive fragments can only be filled with scalar or vector types.")]

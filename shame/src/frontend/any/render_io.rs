@@ -2,6 +2,7 @@ use std::{fmt::Display, rc::Rc};
 
 use thiserror::Error;
 
+use crate::__private::SmallVec;
 use crate::frontend::any::Any;
 use crate::frontend::rust_types::type_layout::{layoutable, TypeLayout};
 use crate::{ir};
@@ -51,7 +52,7 @@ pub enum VertexLayoutError {
     // FieldCannotBeVertexAttribute(CanonName, Type),
 }
 
-
+#[derive(Debug, Clone)]
 /// (no documentation - chronicl)
 pub struct VertexAttributes {
     /// (no documentation - chronicl)
@@ -60,6 +61,7 @@ pub struct VertexAttributes {
     pub attribs: Box<[VertexAttribute]>,
 }
 
+#[derive(Debug, Clone, Copy)]
 /// Vertex Attribute information - offset and format.
 pub struct VertexAttribute {
     /// (no documentation - chronicl)
@@ -263,14 +265,14 @@ impl VertexAttribFormat {
     }
 }
 
-/// Signifies ownership of a vertex buffer layout slot if `VertexBufferKey::is_valid` is true.
+/// Signifies ownership of a recorded vertex buffer layout if `VertexBufferKey::is_valid` is true.
 ///
-/// Can be used to extend the vertex buffer layout at the slot via `Any::vertex_buffer_extend`.
+/// Can be used to extend a recorded vertex buffer layout via `Any::vertex_buffer_extend`.
 /// If the key is not valid the resulting `Any`s will not be valid, but
 /// `Any::vertex_buffer_extend` is still okay to call.
-pub struct VertexBufferKey(Result<usize, InvalidReason>);
+pub struct VertexBufferAny(Result<usize, InvalidReason>);
 
-impl VertexBufferKey {
+impl VertexBufferAny {
     /// Returns whether this key is valid.
     pub fn is_valid(&self) -> bool { self.0.is_ok() }
 }
@@ -279,16 +281,15 @@ impl Any {
     /// Obtains ownership over a new vertex buffer layout slot. The `VertexBufferKey` can
     /// be used with `Any::vertex_buffer_extend` to add attributes to the vertex buffer layout at the slot.
     #[track_caller]
-    pub fn vertex_buffer_new(slot: u32) -> VertexBufferKey {
-        let call_info = call_info!();
-        let result = Context::try_with(call_info, |ctx| {
+    pub fn vertex_buffer_new(slot: u32) -> VertexBufferAny {
+        let result = Context::try_with(call_info!(), |ctx| {
             ctx.push_error_if_outside_encoding_scope("vertex buffer import");
 
             let buffers = &mut ctx.render_pipeline_mut().vertex_buffers;
 
-            match buffers.iter().position(|b| b.slot == slot) {
-                Some(_) => {
-                    ctx.push_error(PipelineError::DuplicateVertexBufferImport(slot).into());
+            match buffers.iter().find(|b| b.slot == slot) {
+                Some(existing) => {
+                    ctx.push_error(PipelineError::DuplicateVertexBufferImport(slot, existing.call_info).into());
                     Err(InvalidReason::ErrorThatWasPushed)
                 }
                 None => {
@@ -301,7 +302,7 @@ impl Any {
                             attribs: Default::default(),
                         },
                         slot,
-                        call_info,
+                        ctx.latest_user_caller(),
                     ));
                     Ok(i)
                 }
@@ -309,16 +310,16 @@ impl Any {
         })
         .unwrap_or(Err(InvalidReason::CreatedWithNoActiveEncoding));
 
-        VertexBufferKey(result)
+        VertexBufferAny(result)
     }
 
-    /// Extends the vertex buffer layout at `slot` by the given vertex `attributes`.
+    /// Extends the vertex buffer layout at `vertex_buffer_record_index` by the given vertex `attributes`.
     ///
     /// - Later calls to this function extending the same `slot` will overwrite
     ///   the `stride` and `lookup`.
     #[track_caller]
     pub fn vertex_buffer_extend(
-        slot: &VertexBufferKey,
+        vertex_buffer_record_index: &VertexBufferAny,
         lookup: VertexBufferLookupIndex,
         stride: u64,
         // TODO(chronicl) probably change this to iterator over Attrib
@@ -326,58 +327,64 @@ impl Any {
     ) -> Vec<Any> {
         let call_info = call_info!();
 
-        let mut new_attribute_count = 0;
-        let mut attributes = attributes.into_iter();
-        let attributes_mut = &mut attributes;
-        let anys = Context::try_with(call_info, |ctx| -> Result<Vec<Any>, InvalidReason> {
+
+        let attributes: SmallVec<_, 5> = attributes.into_iter().collect();
+
+        let invalid_anys = |reason| std::iter::repeat_n(Any::new_invalid(reason), attributes.len()).collect();
+
+        Context::try_with(call_info, |ctx| -> Vec<Any> {
             ctx.push_error_if_outside_encoding_scope("vertex attribute import");
 
-            let slot_index = slot.0?;
+            let vertex_buffer_record_index = match vertex_buffer_record_index.0 {
+                Ok(i) => i,
+                Err(reason) => {
+                    match reason {
+                        InvalidReason::ErrorThatWasPushed => (),
+                        InvalidReason::CreatedWithNoActiveEncoding => {
+                            ctx.push_error(PipelineError::VertexBufferCreatedOutsideOfActiveEncoding.into())
+                        }
+                    }
+                    return invalid_anys(InvalidReason::ErrorThatWasPushed);
+                }
+            };
+
             let mut rp = ctx.render_pipeline_mut();
-            let buffer = &mut rp.vertex_buffers[slot_index];
+            let buffer = &mut rp.vertex_buffers[vertex_buffer_record_index];
             buffer.lookup = lookup;
             buffer.stride = stride;
             let slot = buffer.slot;
             drop(rp);
 
             let mut anys = Vec::<Any>::new();
-            for (location, attr) in attributes_mut {
-                new_attribute_count += 1;
-
+            for (location, attr) in attributes.iter() {
                 let mut rp = ctx.render_pipeline_mut();
                 let mut buffers = &mut rp.vertex_buffers;
-                if let Err(e) = ensure_location_is_unique(ctx, slot, location, buffers) {
-                    ctx.push_error(e.into());
-                    return Err(InvalidReason::ErrorThatWasPushed);
-                }
 
-                buffers[slot_index].attribs.push(RecordedWithIndex::new(
-                    Attrib::new(attr.offset, location, attr.format),
-                    location.0,
-                    call_info,
-                ));
+                let any = match ensure_location_is_unique(ctx, slot, *location, buffers) {
+                    Err(e) => ctx.push_error_get_invalid_any(e.into()),
+                    Ok(()) => {
+                        buffers[vertex_buffer_record_index].attribs.push(RecordedWithIndex::new(
+                            Attrib::new(attr.offset, *location, attr.format),
+                            location.0,
+                            call_info,
+                        ));
 
-                // Have to drop because record_node needs access.
-                drop(rp);
-                // Order important! must happen after `attribs.push`.
-                anys.push(record_node(
-                    ctx.latest_user_caller(),
-                    ShaderIo::GetVertexInput(location).into(),
-                    &[],
-                ));
+                        // Have to drop because record_node needs access.
+                        drop(rp);
+                        // Order important! must happen after `attribs.push`.
+                        record_node(
+                            ctx.latest_user_caller(),
+                            ShaderIo::GetVertexInput(*location).into(),
+                            &[],
+                        )
+                    }
+                };
+                anys.push(any);
             }
 
-            Ok(anys)
+            anys
         })
-        .unwrap_or(Err(InvalidReason::CreatedWithNoActiveEncoding));
-        // If we returned early due to an error, we are still
-        // adding up the left over attributes here.
-        new_attribute_count += attributes.count();
-
-        match anys {
-            Ok(anys) => anys,
-            Err(reason) => vec![Any::new_invalid(reason); new_attribute_count],
-        }
+        .unwrap_or_else(|| invalid_anys(InvalidReason::CreatedWithNoActiveEncoding))
     }
 
     #[allow(missing_docs)]

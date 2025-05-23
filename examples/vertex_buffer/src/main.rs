@@ -5,7 +5,10 @@ use shame::aliases::*;
 use sm::{
     VertexAttribute, VertexLayout,
     results::{VertexAttribFormat, VertexBufferLookupIndex},
-    any::{self, Any, layout},
+    any::{
+        self, Any,
+        layout::{self, Repr},
+    },
 };
 
 fn main() { make_pipeline(false).unwrap(); }
@@ -29,7 +32,7 @@ fn make_pipeline(has_uv: bool) -> Result<sm::results::RenderPipeline, sm::Encodi
 
     // Attribute iter api
     let buffer: sm::VertexBufferDynamic = drawcall.vertices.buffers.next_dynamic();
-    let mut vertex: sm::VertexAttributeIter = buffer.at(drawcall.vertices.index).attribute_iter(false);
+    let mut vertex: sm::VertexAttributeIter = buffer.at(drawcall.vertices.index).iter_attributes(Repr::Storage);
     let position: f32x3 = vertex.next();
     // specify locations of the attributes manually
     let normal: f32x3 = vertex.at(4);
