@@ -19,7 +19,7 @@ use crate::{
     },
     frontend::{
         any::{
-            render_io::{Attrib, ColorTarget, Location, VertexBufferLayout},
+            render_io::{Attrib, ColorTarget, Location, VertexBufferLayoutRecorded},
             shared_io::{BindPath, BindingType},
         },
         encoding::{
@@ -445,7 +445,7 @@ pub struct WipSpecialization {
 
 #[derive(Default, Debug)]
 pub struct WipRenderPipelineDescriptor {
-    pub(crate) vertex_buffers: Vec<RecordedWithIndex<VertexBufferLayout>>,
+    pub(crate) vertex_buffers: Vec<RecordedWithIndex<VertexBufferLayoutRecorded>>,
     // TODO(release) test if color target multisampling works decoupled from depth/stencil buffer multisampling https://registry.khronos.org/vulkan/specs/1.2-extensions/html/chap8.html#VUID-VkRenderingInfo-imageView-06858
     pub(crate) color_targets: Vec<RecordedWithIndex<ColorTarget>>,
     pub(crate) depth_stencil: LateRecorded<WipDepthStencilState>,
@@ -683,11 +683,25 @@ impl<T> std::ops::DerefMut for RecordedWithIndex<T> {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.t }
 }
 
+impl<T: PartialEq> PartialEq<RecordedWithIndex<T>> for RecordedWithIndex<T> {
+    fn eq(&self, other: &RecordedWithIndex<T>) -> bool { self.index == other.index && self.t == other.t }
+}
+
+impl<T: Eq> Eq for RecordedWithIndex<T> {}
+
+impl<T: std::hash::Hash> std::hash::Hash for RecordedWithIndex<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.index.hash(state);
+        self.t.hash(state);
+    }
+}
+
 impl WipRenderPipelineDescriptor {
     pub fn find_vertex_attrib(&self, location: Location) -> Result<&Attrib, PipelineError> {
         self.vertex_buffers
             .iter()
             .find_map(|vb| vb.attribs.iter().find(|attrib| attrib.location == location))
+            .map(|attrib| &attrib.t)
             .ok_or(PipelineError::AttribLocationNotFound(location))
     }
 

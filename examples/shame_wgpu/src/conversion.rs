@@ -454,7 +454,7 @@ fn vertex_format(format: smr::VertexAttribFormat) -> Result<wgpu::VertexFormat, 
     use wgpu::VertexFormat as W;
     let unsupported = Err(ShameToWgpuError::UnsupportedVertexAttribFormat(format));
     Ok(match format {
-        smr::VertexAttribFormat::Fine(len, scalar_type) => match (scalar_type, len) {
+        smr::VertexAttribFormat::Fine(v) => match (v.scalar, v.len) {
             (S::F16, L::X1) => W::Float16,
             (S::F16, L::X2) => W::Float16x2,
             (S::F16, L::X3) => return unsupported,
@@ -512,7 +512,7 @@ fn vertex_format(format: smr::VertexAttribFormat) -> Result<wgpu::VertexFormat, 
 }
 
 /// returns (array_stride, step_mode, attributes) tuple
-fn vertex_buffer_layout(vbuf: smr::VertexBufferLayout) -> Result<WgpuVertexBufferLayout, ShameToWgpuError> {
+fn vertex_buffer_layout(vbuf: smr::VertexBufferLayoutRecorded) -> Result<WgpuVertexBufferLayout, ShameToWgpuError> {
     let layout = WgpuVertexBufferLayout {
         array_stride: vbuf.stride,
         step_mode: match vbuf.lookup {

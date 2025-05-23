@@ -471,6 +471,9 @@ impl LayoutCalculator {
         }
     }
 
+    /// Returns the stride that this layout's type has as the element of an array.
+    pub const fn array_element_stride(&self) -> u64 { array_stride(self.align(), self.byte_size()) }
+
     pub(crate) const fn calculate_byte_size(byte_size: u64, custom_min_size: Option<u64>) -> u64 {
         // const byte_size.max(custom_min_size.unwrap_or(0))
         if let Some(min_size) = custom_min_size {

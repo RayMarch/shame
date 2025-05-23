@@ -7,6 +7,7 @@ use super::{
     AsAny, GpuType, ToGpuType,
 };
 use crate::{
+    any::layout::LayoutableSized,
     frontend::any::shared_io::{BindPath, BindingType},
     TypeLayout,
 };
@@ -219,7 +220,7 @@ pub trait NoHandles {}
 /// * `sm::packed::PackedVec`s (e.g. `sm::packed::unorm8x4`)
 // Is at most 16 bytes according to https://www.w3.org/TR/WGSL/#input-output-locations
 // and thus GpuSized.
-pub trait VertexAttribute: GpuLayout + FromAnys + GpuSized {
+pub trait VertexAttribute: GpuLayout + FromAnys + GpuSized + LayoutableSized {
     #[doc(hidden)] // runtime api
     fn vertex_attrib_format() -> VertexAttribFormat;
 }

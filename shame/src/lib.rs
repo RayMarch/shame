@@ -379,7 +379,7 @@ pub mod results {
     pub use pipeline_info::RenderPipeline;
     pub use pipeline_info::RenderPipelineShaders;
     pub use pipeline_info::RenderPipelineInfo;
-    pub use crate::frontend::any::render_io::VertexBufferLayout;
+    pub use crate::frontend::any::render_io::VertexBufferLayoutRecorded;
     pub use pipeline_info::RenderPipelinePushConstantRanges;
     pub use pipeline_info::RasterizerState;
 
@@ -547,7 +547,7 @@ pub mod any {
     pub use any::render_io::VertexBufferLookupIndex;
     pub use any::render_io::Location;
     pub use any::render_io::VertexAttribFormat;
-    pub use any::render_io::VertexBufferLayout;
+    pub use any::render_io::VertexBufferLayoutRecorded;
 
     #[allow(missing_docs)]
     pub mod control_flow {

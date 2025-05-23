@@ -4,6 +4,7 @@ pub use super::proc_macro_utils::*;
 
 pub use crate::call_info;
 pub use crate::frontend::any::render_io::VertexAttribFormat;
+pub use crate::frontend::any::render_io::VertexAttributes;
 pub use crate::frontend::any::shared_io::BindPath;
 pub use crate::frontend::any::shared_io::BindingType;
 pub use crate::frontend::any::Any;
@@ -17,7 +18,10 @@ pub use crate::frontend::rust_types::layout_traits::CpuLayout;
 pub use crate::frontend::rust_types::layout_traits::FromAnys;
 pub use crate::frontend::rust_types::layout_traits::GetAllFields;
 pub use crate::frontend::rust_types::layout_traits::GpuLayout;
+pub use crate::frontend::rust_types::layout_traits::gpu_layout;
 pub use crate::frontend::rust_types::layout_traits::VertexLayout;
+pub use crate::frontend::rust_types::layout_traits::attributes_from_layout;
+pub use crate::frontend::rust_types::layout_traits::ContainsNonVertexAttribute;
 pub use crate::frontend::rust_types::reference::AccessMode;
 pub use crate::frontend::rust_types::reference::AccessModeReadable;
 pub use crate::frontend::rust_types::reference::Ref;

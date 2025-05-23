@@ -280,7 +280,15 @@ pub fn impl_for_struct(
                 where
                     #(#triv #field_type: #re::VertexAttribute,)*
                     #where_clause_predicates
-                { }
+                {
+                    fn vertex_attributes() -> #re::VertexAttributes {
+                        match #re::attributes_from_layout(&#re::gpu_layout::<Self>()) {
+                            Ok(v) => v,
+                            Err(ContainsNonVertexAttribute) =>
+                            unreachable!("T only contains vertex attributes, checked by field trait bounds"),
+                        }
+                    }
+                }
             };
 
 

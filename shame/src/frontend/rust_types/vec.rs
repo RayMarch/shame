@@ -7,7 +7,7 @@ use super::{
     mem::AddressSpace,
     reference::{AccessMode, AccessModeReadable},
     scalar_type::{dtype_as_scalar_from_f64, ScalarType, ScalarTypeInteger, ScalarTypeNumber},
-    type_layout::repr,
+    type_layout::{layoutable, repr},
     type_traits::{BindingArgs, GpuAligned, GpuStoreImplCategory, NoAtomics, NoHandles, VertexAttribute},
     AsAny, GpuType, To, ToGpuType,
 };
@@ -1116,7 +1116,10 @@ where
     Self: NoBools,
 {
     fn vertex_attrib_format() -> VertexAttribFormat {
-        VertexAttribFormat::Fine(L::LEN, T::SCALAR_TYPE.try_into().expect("no bools vec"))
+        VertexAttribFormat::Fine(layoutable::Vector::new(
+            T::SCALAR_TYPE.try_into().expect("no bools"),
+            L::LEN,
+        ))
     }
 }
 

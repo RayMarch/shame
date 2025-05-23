@@ -3,7 +3,7 @@ use crate::call_info;
 use crate::common::po2::U32PowerOf2;
 use crate::common::proc_macro_utils::{self, repr_c_struct_layout, ReprCError, ReprCField};
 use crate::frontend::any::render_io::{
-    Attrib, VertexBufferLookupIndex, Location, VertexAttribFormat, VertexBufferLayout, VertexLayoutError,
+    self, Attrib, Location, VertexAttribFormat, VertexAttributes, VertexBufferLookupIndex, VertexLayoutError,
 };
 use crate::frontend::any::{Any, InvalidReason};
 use crate::frontend::encoding::buffer::{BufferAddressSpace, BufferInner, BufferRefInner};
@@ -362,8 +362,68 @@ pub(crate) fn from_single_any(mut anys: impl Iterator<Item = Any>) -> Any {
 /// * `sm::vec`s of non-boolean type (e.g. `sm::f32x4`)
 /// * `sm::packed::PackedVec`s (e.g. `sm::packed::unorm8x4`)
 /// * `#[derive(sm::GpuLayout)]` structs that contains only elements of the above mentioned types
-pub trait VertexLayout: GpuLayout + FromAnys {}
-impl<T: VertexAttribute> VertexLayout for T {}
+pub trait VertexLayout: GpuLayout + FromAnys {
+    /// Returns the vertex attributes of this type with offset and stride information.
+    fn vertex_attributes() -> VertexAttributes;
+}
+impl<T: VertexAttribute> VertexLayout for T {
+    fn vertex_attributes() -> VertexAttributes {
+        match attributes_from_layout(&gpu_layout::<T>()) {
+            Ok(v) => v,
+            Err(ContainsNonVertexAttribute) => unreachable!("T is vertex attribute"),
+        }
+    }
+}
+
+/// For usage in proc_macro
+#[derive(thiserror::Error, Debug)]
+#[error("Must be the layout of a vertex attribute or a struct with vertex attribute fields.")]
+pub struct ContainsNonVertexAttribute;
+
+/// For usage in proc_macro
+pub fn attributes_from_layout(layout: &TypeLayout) -> Result<VertexAttributes, ContainsNonVertexAttribute> {
+    use TypeLayoutSemantics as TLS;
+    use render_io::VertexAttribute as VertexAttrib;
+
+    let stride = array_stride(
+        layout.align(),
+        layout
+            .byte_size()
+            .expect("vertex attribute or struct of vertex attributes is sized"),
+    );
+
+    let attribs: Box<[VertexAttrib]> = match &layout.kind {
+        TLS::Matrix(..) | TLS::Array(..) => return Err(ContainsNonVertexAttribute),
+        TLS::Vector(v) => [VertexAttrib {
+            offset: 0,
+            format: VertexAttribFormat::Fine(*v),
+        }]
+        .into(),
+        TLS::PackedVector(packed_vector) => [VertexAttrib {
+            offset: 0,
+            format: VertexAttribFormat::Coarse(*packed_vector),
+        }]
+        .into(),
+        TLS::Structure(rc) => rc
+            .fields
+            .iter()
+            .map(|f| {
+                Ok(VertexAttrib {
+                    offset: f.rel_byte_offset,
+                    format: match f.field.ty.kind {
+                        TLS::Matrix(..) | TLS::Array(..) | TLS::Structure(..) => {
+                            return Err(ContainsNonVertexAttribute);
+                        }
+                        TLS::Vector(v) => VertexAttribFormat::Fine(v),
+                        TLS::PackedVector(packed_vector) => VertexAttribFormat::Coarse(packed_vector),
+                    },
+                })
+            })
+            .collect::<Result<Box<_>, _>>()?,
+    };
+
+    Ok(VertexAttributes { stride, attribs })
+}
 
 // #[derive(GpuLayout)]
 // TODO(release) remove this type. This is an example impl for figuring out how the derive macro should work
@@ -388,6 +448,7 @@ where
     vec<u32, x1>: for<'trivial_bound> VertexAttribute,
     Array<vec<i32, x1>, Size<4>>: for<'trivial_bound> VertexAttribute,
 {
+    fn vertex_attributes() -> VertexAttributes { todo!() }
 }
 
 impl<AS: AddressSpace, AM: AccessMode> FromAnys for GpuTypeRef<AS, AM> {

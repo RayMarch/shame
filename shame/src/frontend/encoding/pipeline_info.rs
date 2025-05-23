@@ -4,7 +4,7 @@ use crate::{
     backend::shader_code::ShaderCode,
     common::small_vec::SmallVec,
     frontend::any::{
-        render_io::{ColorTarget, VertexBufferLayout},
+        render_io::{ColorTarget, VertexBufferLayoutRecorded},
         shared_io::BindingType,
     },
     ir::{
@@ -51,7 +51,7 @@ pub type Dict<K, V> = BTreeMap<K, V>;
 #[non_exhaustive]
 pub struct RenderPipelineInfo {
     /// vertex buffer memory layouts
-    pub vertex_buffers: Dict<u32, VertexBufferLayout>,
+    pub vertex_buffers: Dict<u32, VertexBufferLayoutRecorded>,
     /// type information of each bind group / descriptorset
     pub bind_groups: Dict<u32, BindGroupLayout>,
     /// byte ranges of push constants per shader stage
