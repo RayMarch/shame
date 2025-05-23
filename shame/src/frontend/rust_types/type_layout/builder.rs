@@ -249,7 +249,7 @@ impl<'a> TryFrom<&'a TypeLayout<repr::Storage>> for TypeLayout<repr::Uniform> {
                     u_layout,
                     // TODO(chronicl) default shouldn't be true?
                     use_color: Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages)
-                        .unwrap_or(true),
+                        .unwrap_or(false),
                 };
 
                 use UniformLayoutError as U;
