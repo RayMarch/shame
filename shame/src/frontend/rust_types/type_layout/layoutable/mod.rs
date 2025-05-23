@@ -291,8 +291,12 @@ impl From<SizedType> for ir::SizedType {
             SizedType::Matrix(m) => ir::SizedType::Matrix(m.columns, m.rows, m.scalar),
             SizedType::Array(a) => ir::SizedType::Array(Rc::new(Rc::unwrap_or_clone(a.element).into()), a.len),
             SizedType::Atomic(i) => ir::SizedType::Atomic(i.scalar),
-            // TODO(chronicl) check if this should be decompressed
-            SizedType::PackedVec(v) => v.decompressed_ty(),
+            SizedType::PackedVec(v) => SizedType::Vector(match v.byte_size() {
+                ir::ir_type::PackedVectorByteSize::_2 => Vector::new(ScalarType::F16, Len::X1),
+                ir::ir_type::PackedVectorByteSize::_4 => Vector::new(ScalarType::U32, Len::X1),
+                ir::ir_type::PackedVectorByteSize::_8 => Vector::new(ScalarType::U32, Len::X2),
+            })
+            .into(),
             SizedType::Struct(s) => ir::SizedType::Structure(s.into()),
         }
     }
