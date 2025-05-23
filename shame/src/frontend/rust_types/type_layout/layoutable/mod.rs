@@ -191,19 +191,6 @@ pub trait LayoutableSized: Layoutable {
     fn layoutable_type_sized() -> SizedType;
 }
 
-
-impl std::fmt::Display for ScalarType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            ScalarType::F16 => "f16",
-            ScalarType::F32 => "f32",
-            ScalarType::F64 => "f64",
-            ScalarType::U32 => "u32",
-            ScalarType::I32 => "i32",
-        })
-    }
-}
-
 //   Conversions to ScalarType, SizedType and LayoutableType   //
 
 macro_rules! impl_into_sized_type {
@@ -534,5 +521,17 @@ impl std::fmt::Display for SizedType {
             SizedType::PackedVec(p) => write!(f, "PackedVec<{:?}, {}>", p.scalar_type, Len::from(p.len)),
             SizedType::Struct(s) => write!(f, "{}", s.name),
         }
+    }
+}
+
+impl std::fmt::Display for ScalarType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            ScalarType::F16 => "f16",
+            ScalarType::F32 => "f32",
+            ScalarType::F64 => "f64",
+            ScalarType::U32 => "u32",
+            ScalarType::I32 => "i32",
+        })
     }
 }
