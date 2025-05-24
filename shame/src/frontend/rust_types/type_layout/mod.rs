@@ -18,7 +18,7 @@ use crate::{
         Len,
     },
 };
-use layoutable::{LayoutableType, Matrix, Vector};
+use layoutable::{align_size::PACKED_ALIGN, LayoutableType, Matrix, Vector};
 
 pub(crate) mod builder;
 pub(crate) mod eq;
@@ -144,6 +144,15 @@ pub mod repr {
         Packed,
     }
 
+    impl Repr {
+        /// True if `Repr::Storage`
+        pub const fn is_storage(self) -> bool { matches!(self, Repr::Storage) }
+        /// True if `Repr::Uniform`
+        pub const fn is_uniform(self) -> bool { matches!(self, Repr::Uniform) }
+        /// True if `Repr::Packed`
+        pub const fn is_packed(self) -> bool { matches!(self, Repr::Packed) }
+    }
+
     macro_rules! type_repr {
         ($($constraint:ident),*) => {
             $(
@@ -215,65 +224,56 @@ pub(in super::super::rust_types) mod type_layout_internal {
 pub struct LayoutCalculator {
     next_offset_min: u64,
     align: U32PowerOf2,
-    packed: bool,
+    repr: Repr,
 }
 
 impl LayoutCalculator {
     /// Creates a new `LayoutCalculator`, which calculates the size, align and
     /// the field offsets of a gpu struct.
-    pub const fn new(packed: bool) -> Self {
+    pub const fn new(repr: Repr) -> Self {
         Self {
             next_offset_min: 0,
             align: U32PowerOf2::_1,
-            packed,
+            repr,
         }
     }
 
-    /// Extends the layout by a field given it's size and align.
+    /// Extends the layout by a field.
+    ///
+    /// `is_struct` must be true if the field is a struct.
     ///
     /// Returns the field's offset.
     pub const fn extend(
         &mut self,
         field_size: u64,
-        field_align: U32PowerOf2,
+        mut field_align: U32PowerOf2,
         custom_min_size: Option<u64>,
         custom_min_align: Option<U32PowerOf2>,
+        is_struct: bool,
     ) -> u64 {
-        let size = FieldLayout::calculate_byte_size(field_size, custom_min_size);
-        let align = FieldLayout::calculate_align(field_align, custom_min_align);
+        // Just in case the user didn't already do this.
+        if self.repr.is_packed() {
+            field_align = PACKED_ALIGN;
+        }
+
+        let size = Self::calculate_byte_size(field_size, custom_min_size);
+        let align = Self::calculate_align(field_align, custom_min_align);
 
         let offset = self.next_field_offset(align, custom_min_align);
-        self.next_offset_min = offset + size;
+        self.next_offset_min = match (self.repr, is_struct) {
+            // The uniform address space requires that:
+            // - If a structure member itself has a structure type S, then the number of
+            // bytes between the start of that member and the start of any following
+            // member must be at least roundUp(16, SizeOf(S)).
+            (Repr::Uniform, true) => round_up(16, offset + size),
+            _ => offset + size,
+        };
         self.align = self.align.max(align);
 
         offset
     }
 
-    /// Extends the layout by a field given it's size and align. If the field
-    /// is unsized, pass `None` as it's size.
-    ///
-    /// Returns (byte size, byte align, last field offset).
-    ///
-    /// `self` is consumed, so that no further fields may be extended, because
-    /// only the last field may be unsized.
-    pub const fn extend_maybe_unsized(
-        mut self,
-        field_size: Option<u64>,
-        field_align: U32PowerOf2,
-        custom_min_size: Option<u64>,
-        custom_min_align: Option<U32PowerOf2>,
-    ) -> (Option<u64>, U32PowerOf2, u64) {
-        if let Some(size) = field_size {
-            let offset = self.extend(size, field_align, custom_min_size, custom_min_align);
-            (Some(self.byte_size()), self.align(), offset)
-        } else {
-            let (offset, align) = self.extend_unsized(field_align, custom_min_align);
-            (None, align, offset)
-        }
-    }
-
-
-    /// Extends the layout by an unsized field given it's align.
+    /// Extends the layout by an runtime sized array field given it's align.
     ///
     /// Returns (last field offset, align)
     ///
@@ -281,10 +281,15 @@ impl LayoutCalculator {
     /// only the last field may be unsized.
     pub const fn extend_unsized(
         mut self,
-        field_align: U32PowerOf2,
+        mut field_align: U32PowerOf2,
         custom_min_align: Option<U32PowerOf2>,
     ) -> (u64, U32PowerOf2) {
-        let align = FieldLayout::calculate_align(field_align, custom_min_align);
+        // Just in case the user didn't already do this.
+        if self.repr.is_packed() {
+            field_align = PACKED_ALIGN;
+        }
+
+        let align = Self::calculate_align(field_align, custom_min_align);
 
         let offset = self.next_field_offset(align, custom_min_align);
         self.align = self.align.max(align);
@@ -306,10 +311,29 @@ impl LayoutCalculator {
     /// field_align should already respect field_custom_min_align.
     /// field_custom_min_align is used to overwrite packing if self is packed.
     const fn next_field_offset(&self, field_align: U32PowerOf2, field_custom_min_align: Option<U32PowerOf2>) -> u64 {
-        match (self.packed, field_custom_min_align) {
-            (true, None) => self.next_offset_min,
-            (true, Some(custom_align)) => round_up(custom_align.as_u64(), self.next_offset_min),
-            (false, _) => round_up(field_align.as_u64(), self.next_offset_min),
+        match (self.repr, field_custom_min_align) {
+            (Repr::Packed, None) => self.next_offset_min,
+            (Repr::Packed, Some(custom_align)) => round_up(custom_align.as_u64(), self.next_offset_min),
+            (_, _) => round_up(field_align.as_u64(), self.next_offset_min),
+        }
+    }
+
+    const fn calculate_byte_size(byte_size: u64, custom_min_size: Option<u64>) -> u64 {
+        // const byte_size.max(custom_min_size.unwrap_or(0))
+        if let Some(min_size) = custom_min_size {
+            if min_size > byte_size {
+                return min_size;
+            }
+        }
+        byte_size
+    }
+
+    const fn calculate_align(align: U32PowerOf2, custom_min_align: Option<U32PowerOf2>) -> U32PowerOf2 {
+        // const align.max(custom_min_align.unwrap_or(U32PowerOf2::_1))
+        if let Some(min_align) = custom_min_align {
+            align.max(min_align)
+        } else {
+            align
         }
     }
 }
@@ -499,30 +523,11 @@ impl FieldLayout {
     fn byte_size(&self) -> Option<u64> {
         self.ty
             .byte_size()
-            .map(|byte_size| Self::calculate_byte_size(byte_size, self.custom_min_size.0))
+            .map(|byte_size| LayoutCalculator::calculate_byte_size(byte_size, self.custom_min_size.0))
     }
 
     /// The alignment of the field with `custom_min_align` taken into account.
-    fn byte_align(&self) -> U32PowerOf2 { Self::calculate_align(self.ty.align(), self.custom_min_align.0) }
-
-    const fn calculate_byte_size(byte_size: u64, custom_min_size: Option<u64>) -> u64 {
-        // const byte_size.max(custom_min_size.unwrap_or(0))
-        if let Some(min_size) = custom_min_size {
-            if min_size > byte_size {
-                return min_size;
-            }
-        }
-        byte_size
-    }
-
-    const fn calculate_align(align: U32PowerOf2, custom_min_align: Option<U32PowerOf2>) -> U32PowerOf2 {
-        // const align.max(custom_min_align.unwrap_or(U32PowerOf2::_1))
-        if let Some(min_align) = custom_min_align {
-            align.max(min_align)
-        } else {
-            align
-        }
-    }
+    fn align(&self) -> U32PowerOf2 { LayoutCalculator::calculate_align(self.ty.align(), self.custom_min_align.0) }
 }
 
 /// Options for the field of a struct.

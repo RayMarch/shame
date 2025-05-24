@@ -64,14 +64,14 @@ impl TypeLayout {
 
     fn from_sized_type(ty: SizedType, repr: Repr) -> Self {
         let (size, align, tls) = match &ty {
-            SizedType::Vector(v) => (v.byte_size(), v.align(), TLS::Vector(*v)),
+            SizedType::Vector(v) => (v.byte_size(), v.align(repr), TLS::Vector(*v)),
             SizedType::Atomic(a) => (
                 a.byte_size(),
-                a.align(),
+                a.align(repr),
                 TLS::Vector(Vector::new(a.scalar.into(), ir::Len::X1)),
             ),
             SizedType::Matrix(m) => (
-                m.byte_size(MatrixMajor::Row),
+                m.byte_size(repr, MatrixMajor::Row),
                 m.align(repr, MatrixMajor::Row),
                 TLS::Matrix(*m),
             ),
@@ -86,7 +86,7 @@ impl TypeLayout {
                     Some(a.len.get()),
                 ),
             ),
-            SizedType::PackedVec(v) => (v.byte_size().as_u64(), v.align(), TLS::PackedVector(*v)),
+            SizedType::PackedVec(v) => (v.byte_size().as_u64(), v.align(repr), TLS::PackedVector(*v)),
             SizedType::Struct(s) => {
                 let mut field_offsets = s.field_offsets(repr);
                 let fields = (&mut field_offsets)
@@ -136,7 +136,6 @@ impl TypeLayout {
             Some(s.into()),
         )
     }
-
 
     fn from_runtime_sized_array(ty: RuntimeSizedArray, repr: Repr) -> Self {
         Self::new(
@@ -206,7 +205,7 @@ impl<'a> TryFrom<&'a TypeLayout<repr::Storage>> for TypeLayout<repr::Uniform> {
                                 field_name: s_field.field.name.clone(),
                                 field_index: i,
                                 actual_offset: s_field.rel_byte_offset,
-                                expected_alignment: u_field.field.byte_align(),
+                                expected_alignment: u_field.field.align(),
                                 is_top_level,
                             }));
                         }

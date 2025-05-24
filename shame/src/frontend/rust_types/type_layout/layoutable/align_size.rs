@@ -4,6 +4,8 @@ use super::*;
 //              Size and align of layoutable types              //
 // https://www.w3.org/TR/WGSL/#address-space-layout-constraints //
 
+pub(crate) const PACKED_ALIGN: U32PowerOf2 = U32PowerOf2::_1;
+
 impl LayoutableType {
     /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
     pub fn byte_size(&self, repr: Repr) -> Option<u64> {
@@ -41,7 +43,7 @@ impl SizedType {
         match self {
             SizedType::Array(a) => a.byte_size(repr),
             SizedType::Vector(v) => v.byte_size(),
-            SizedType::Matrix(m) => m.byte_size(MatrixMajor::Row),
+            SizedType::Matrix(m) => m.byte_size(repr, MatrixMajor::Row),
             SizedType::Atomic(a) => a.byte_size(),
             SizedType::PackedVec(v) => u8::from(v.byte_size()) as u64,
             SizedType::Struct(s) => s.byte_size_and_align(repr).0,
@@ -52,10 +54,10 @@ impl SizedType {
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         match self {
             SizedType::Array(a) => a.align(repr),
-            SizedType::Vector(v) => v.align(),
+            SizedType::Vector(v) => v.align(repr),
             SizedType::Matrix(m) => m.align(repr, MatrixMajor::Row),
-            SizedType::Atomic(a) => a.align(),
-            SizedType::PackedVec(v) => v.align(),
+            SizedType::Atomic(a) => a.align(repr),
+            SizedType::PackedVec(v) => v.align(repr),
             SizedType::Struct(s) => s.byte_size_and_align(repr).1,
         }
     }
@@ -79,12 +81,12 @@ impl SizedStruct {
         FieldOffsets {
             fields: &self.fields,
             field_index: 0,
-            calc: LayoutCalculator::new(matches!(repr, Repr::Packed)),
+            calc: LayoutCalculator::new(repr),
             repr,
         }
     }
 
-    /// Returns (byte_size, byte_align)
+    /// Returns (byte_size, align)
     ///
     /// ### Careful!
     /// This is an expensive operation as it calculates byte size and align from scratch.
@@ -117,25 +119,11 @@ impl Iterator for FieldOffsets<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         self.field_index += 1;
         self.fields.get(self.field_index - 1).map(|field| {
-            let (size, align) = match &field.ty {
-                SizedType::Struct(s) => {
-                    let (size, align) = s.byte_size_and_align(self.repr);
-                    match self.repr {
-                        // Packedness is ensured by the `LayoutCalculator`.
-                        Repr::Storage | Repr::Packed => (size, align),
-                        // The uniform address space requires that:
-                        // - If a structure member itself has a structure type S, then the number of
-                        // bytes between the start of that member and the start of any following
-                        // member must be at least roundUp(16, SizeOf(S)).
-                        // -> We need to adjust size.
-                        Repr::Uniform => (round_up(16, size), align),
-                    }
-                }
-                non_struct => non_struct.byte_size_and_align(self.repr),
-            };
+            let (size, align) = field.ty.byte_size_and_align(self.repr);
+            let is_struct = matches!(field.ty, SizedType::Struct(_));
 
             self.calc
-                .extend(size, align, field.custom_min_size, field.custom_min_align)
+                .extend(size, align, field.custom_min_size, field.custom_min_align, is_struct)
         })
     }
 }
@@ -157,7 +145,7 @@ impl UnsizedStruct {
         FieldOffsets {
             fields: &self.sized_fields,
             field_index: 0,
-            calc: LayoutCalculator::new(matches!(repr, Repr::Packed)),
+            calc: LayoutCalculator::new(repr),
             repr,
         }
     }
@@ -187,8 +175,9 @@ impl UnsizedStruct {
 const fn struct_align(align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {
     match repr {
         // Packedness is ensured by the `LayoutCalculator`.
-        Repr::Storage | Repr::Packed => align,
+        Repr::Storage => align,
         Repr::Uniform => round_up_align(U32PowerOf2::_16, align),
+        Repr::Packed => PACKED_ALIGN,
     }
 }
 
@@ -198,12 +187,15 @@ impl Vector {
 
     pub const fn byte_size(&self) -> u64 { self.len.as_u64() * self.scalar.byte_size() }
 
-    pub const fn align(&self) -> U32PowerOf2 {
+    pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
+        if repr.is_packed() {
+            return PACKED_ALIGN;
+        }
+
         let len = match self.len {
             Len::X1 | Len::X2 | Len::X4 => self.len.as_u32(),
             Len::X3 => 4,
         };
-
         // len * self.scalar.align() = power of 2 * power of 2 = power of 2
         U32PowerOf2::try_from_u32(len * self.scalar.align().as_u32()).unwrap()
     }
@@ -237,15 +229,15 @@ pub enum MatrixMajor {
 
 #[allow(missing_docs)]
 impl Matrix {
-    pub const fn byte_size(&self, major: MatrixMajor) -> u64 {
+    pub const fn byte_size(&self, repr: Repr, major: MatrixMajor) -> u64 {
         let (vec, array_len) = self.as_vector_array(major);
-        let array_stride = array_stride(vec.align(), vec.byte_size());
+        let array_stride = array_stride(vec.align(repr), vec.byte_size());
         array_size(array_stride, array_len)
     }
 
     pub const fn align(&self, repr: Repr, major: MatrixMajor) -> U32PowerOf2 {
         let (vec, _) = self.as_vector_array(major);
-        array_align(vec.align(), repr)
+        array_align(vec.align(repr), repr)
     }
 
     const fn as_vector_array(&self, major: MatrixMajor) -> (Vector, NonZeroU32) {
@@ -266,7 +258,12 @@ impl Matrix {
 #[allow(missing_docs)]
 impl Atomic {
     pub const fn byte_size(&self) -> u64 { self.scalar.as_scalar_type().byte_size() }
-    pub const fn align(&self) -> U32PowerOf2 { self.scalar.as_scalar_type().align() }
+    pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
+        if repr.is_packed() {
+            return PACKED_ALIGN;
+        }
+        self.scalar.as_scalar_type().align()
+    }
 }
 
 #[allow(missing_docs)]
@@ -290,8 +287,9 @@ pub const fn array_size(array_stride: u64, len: NonZeroU32) -> u64 { array_strid
 pub const fn array_align(element_align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {
     match repr {
         // Packedness is ensured by the `LayoutCalculator`.
-        Repr::Storage | Repr::Packed => element_align,
+        Repr::Storage => element_align,
         Repr::Uniform => U32PowerOf2::try_from_u32(round_up(16, element_align.as_u64()) as u32).unwrap(),
+        Repr::Packed => PACKED_ALIGN,
     }
 }
 
@@ -312,12 +310,12 @@ impl RuntimeSizedArray {
 #[allow(missing_docs)]
 impl SizedField {
     pub fn byte_size(&self, repr: Repr) -> u64 { self.ty.byte_size(repr) }
-    pub fn byte_align(&self, repr: Repr) -> U32PowerOf2 { self.ty.align(repr) }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.ty.align(repr) }
 }
 
 #[allow(missing_docs)]
 impl RuntimeSizedArrayField {
-    pub fn byte_align(&self, repr: Repr) -> U32PowerOf2 { self.array.align(repr) }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.array.align(repr) }
 }
 
 pub const fn round_up(multiple_of: u64, n: u64) -> u64 {

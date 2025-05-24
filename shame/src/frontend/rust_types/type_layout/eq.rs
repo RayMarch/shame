@@ -129,7 +129,7 @@ impl LayoutMismatch {
                                     "{a_name}{SEP}{indent}{:3} {}: {a_ty_string} align={}",
                                     a_field.rel_byte_offset,
                                     a_field.field.name,
-                                    a_field.field.byte_align().as_u32()
+                                    a_field.field.align().as_u32()
                                 );
                                 color_b(f);
                                 writeln!(
@@ -137,7 +137,7 @@ impl LayoutMismatch {
                                     "{b_name}{SEP}{indent}{:3} {}: {b_ty_string} align={}",
                                     b_field.rel_byte_offset,
                                     b_field.field.name,
-                                    b_field.field.byte_align().as_u32()
+                                    b_field.field.align().as_u32()
                                 );
                                 color_reset(f);
                                 writeln!(
