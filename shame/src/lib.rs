@@ -464,58 +464,60 @@ pub mod any {
     pub use crate::ir::ir_type::StructureFieldNamesMustBeUnique;
 
     pub mod layout {
+        use crate::frontend::rust_types::type_layout;
         // type layout
-        pub use crate::frontend::rust_types::type_layout::TypeLayout;
-        pub use crate::frontend::rust_types::type_layout::TypeRepr;
-        pub use crate::frontend::rust_types::type_layout::Repr;
+        pub use type_layout::TypeLayout;
+        pub use type_layout::TypeRepr;
+        pub use type_layout::Repr;
         pub mod repr {
-            pub use crate::frontend::rust_types::type_layout::repr::Plain;
-            pub use crate::frontend::rust_types::type_layout::repr::Storage;
-            pub use crate::frontend::rust_types::type_layout::repr::Uniform;
-            pub use crate::frontend::rust_types::type_layout::repr::Packed;
+            use crate::frontend::rust_types::type_layout;
+            pub use type_layout::repr::Plain;
+            pub use type_layout::repr::Storage;
+            pub use type_layout::repr::Uniform;
+            pub use type_layout::repr::Packed;
         }
-        pub use crate::frontend::rust_types::type_layout::TypeLayoutSemantics;
-        pub use crate::frontend::rust_types::type_layout::StructLayout;
-        pub use crate::frontend::rust_types::type_layout::FieldLayoutWithOffset;
-        pub use crate::frontend::rust_types::type_layout::FieldLayout;
-        pub use crate::frontend::rust_types::type_layout::FieldOptions;
-        pub use crate::frontend::rust_types::type_layout::ElementLayout;
+        pub use type_layout::TypeLayoutSemantics;
+        pub use type_layout::StructLayout;
+        pub use type_layout::FieldLayoutWithOffset;
+        pub use type_layout::FieldLayout;
+        pub use type_layout::FieldOptions;
+        pub use type_layout::ElementLayout;
         // layoutable traits
-        pub use crate::frontend::rust_types::type_layout::layoutable::Layoutable;
-        pub use crate::frontend::rust_types::type_layout::layoutable::LayoutableSized;
+        pub use type_layout::layoutable::Layoutable;
+        pub use type_layout::layoutable::LayoutableSized;
         // layoutable types
-        pub use crate::frontend::rust_types::type_layout::layoutable::LayoutableType;
-        pub use crate::frontend::rust_types::type_layout::layoutable::UnsizedStruct;
-        pub use crate::frontend::rust_types::type_layout::layoutable::RuntimeSizedArray;
-        pub use crate::frontend::rust_types::type_layout::layoutable::SizedType;
-        pub use crate::frontend::rust_types::type_layout::layoutable::Vector;
-        pub use crate::frontend::rust_types::type_layout::layoutable::Matrix;
-        pub use crate::frontend::rust_types::type_layout::layoutable::MatrixMajor;
-        pub use crate::frontend::rust_types::type_layout::layoutable::SizedArray;
-        pub use crate::frontend::rust_types::type_layout::layoutable::Atomic;
-        pub use crate::frontend::rust_types::type_layout::layoutable::PackedVector;
-        pub use crate::frontend::rust_types::type_layout::layoutable::SizedStruct;
+        pub use type_layout::layoutable::LayoutableType;
+        pub use type_layout::layoutable::UnsizedStruct;
+        pub use type_layout::layoutable::RuntimeSizedArray;
+        pub use type_layout::layoutable::SizedType;
+        pub use type_layout::layoutable::Vector;
+        pub use type_layout::layoutable::Matrix;
+        pub use type_layout::layoutable::MatrixMajor;
+        pub use type_layout::layoutable::SizedArray;
+        pub use type_layout::layoutable::Atomic;
+        pub use type_layout::layoutable::PackedVector;
+        pub use type_layout::layoutable::SizedStruct;
         // layoutable type parts
-        pub use crate::frontend::rust_types::type_layout::layoutable::ScalarType;
-        pub use crate::frontend::rust_types::type_layout::layoutable::ScalarTypeFp;
-        pub use crate::frontend::rust_types::type_layout::layoutable::ScalarTypeInteger;
-        pub use crate::frontend::rust_types::type_layout::layoutable::Len;
-        pub use crate::frontend::rust_types::type_layout::layoutable::Len2;
-        pub use crate::frontend::rust_types::type_layout::layoutable::SizedField;
-        pub use crate::frontend::rust_types::type_layout::layoutable::RuntimeSizedArrayField;
-        pub use crate::frontend::rust_types::type_layout::layoutable::CanonName;
-        pub use crate::frontend::rust_types::type_layout::layoutable::SizedOrArray;
+        pub use type_layout::layoutable::ScalarType;
+        pub use type_layout::layoutable::ScalarTypeFp;
+        pub use type_layout::layoutable::ScalarTypeInteger;
+        pub use type_layout::layoutable::Len;
+        pub use type_layout::layoutable::Len2;
+        pub use type_layout::layoutable::SizedField;
+        pub use type_layout::layoutable::RuntimeSizedArrayField;
+        pub use type_layout::layoutable::CanonName;
+        pub use type_layout::layoutable::SizedOrArray;
         // layout calculation utility
-        pub use crate::frontend::rust_types::type_layout::LayoutCalculator;
-        pub use crate::frontend::rust_types::type_layout::layoutable::array_stride;
-        pub use crate::frontend::rust_types::type_layout::layoutable::array_size;
-        pub use crate::frontend::rust_types::type_layout::layoutable::array_align;
-        pub use crate::frontend::rust_types::type_layout::layoutable::FieldOffsets;
+        pub use type_layout::LayoutCalculator;
+        pub use type_layout::layoutable::array_stride;
+        pub use type_layout::layoutable::array_size;
+        pub use type_layout::layoutable::array_align;
+        pub use type_layout::layoutable::FieldOffsets;
         // conversion and builder errors
-        pub use crate::frontend::rust_types::type_layout::layoutable::LayoutableConversionError;
-        pub use crate::frontend::rust_types::type_layout::layoutable::ContainsBoolsError;
-        pub use crate::frontend::rust_types::type_layout::layoutable::builder::IsUnsizedStructError;
-        pub use crate::frontend::rust_types::type_layout::layoutable::builder::StructFromPartsError;
+        pub use type_layout::layoutable::ir_compat::LayoutableConversionError;
+        pub use type_layout::layoutable::ir_compat::ContainsBoolsError;
+        pub use type_layout::layoutable::builder::IsUnsizedStructError;
+        pub use type_layout::layoutable::builder::StructFromPartsError;
     }
 
     // runtime binding api

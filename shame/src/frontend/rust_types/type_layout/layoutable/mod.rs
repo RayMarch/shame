@@ -1,17 +1,20 @@
 //! This module defines types that can be laid out in memory.
 
-use std::{num::NonZeroU32, rc::Rc};
+use std::{fmt::Formatter, num::NonZeroU32, rc::Rc};
 
 use crate::{
     any::U32PowerOf2,
-    ir::{self, ir_type::BufferBlockDefinitionError, StructureFieldNamesMustBeUnique},
+    call_info,
+    common::prettify::set_color,
+    ir::{self, ir_type::BufferBlockDefinitionError, recording::Context, StructureFieldNamesMustBeUnique},
 };
 
 pub use crate::ir::{Len, Len2, PackedVector, ScalarTypeFp, ScalarTypeInteger, ir_type::CanonName};
-use super::FieldOptions;
+use super::{builder::StructKind, FieldOptions};
 
 pub(crate) mod align_size;
 pub(crate) mod builder;
+pub(crate) mod ir_compat;
 
 pub use align_size::{FieldOffsets, MatrixMajor, array_size, array_stride, array_align};
 pub use builder::SizedOrArray;
@@ -258,274 +261,69 @@ impl From<ScalarTypeFp> for ScalarType {
     fn from(int: ScalarTypeFp) -> Self { int.as_scalar_type() }
 }
 
-
-//     Conversions to ir types     //
-
-impl From<LayoutableType> for ir::StoreType {
-    fn from(host: LayoutableType) -> Self {
-        match host {
-            LayoutableType::Sized(s) => ir::StoreType::Sized(s.into()),
-            LayoutableType::RuntimeSizedArray(s) => ir::StoreType::RuntimeSizedArray(s.element.into()),
-            LayoutableType::UnsizedStruct(s) => ir::StoreType::BufferBlock(s.into()),
-        }
-    }
-}
-
-impl From<SizedType> for ir::SizedType {
-    fn from(host: SizedType) -> Self {
-        match host {
-            SizedType::Vector(v) => ir::SizedType::Vector(v.len, v.scalar.into()),
-            SizedType::Matrix(m) => ir::SizedType::Matrix(m.columns, m.rows, m.scalar),
-            SizedType::Array(a) => ir::SizedType::Array(Rc::new(Rc::unwrap_or_clone(a.element).into()), a.len),
-            SizedType::Atomic(i) => ir::SizedType::Atomic(i.scalar),
-            SizedType::PackedVec(v) => SizedType::Vector(match v.byte_size() {
-                ir::ir_type::PackedVectorByteSize::_2 => Vector::new(ScalarType::F16, Len::X1),
-                ir::ir_type::PackedVectorByteSize::_4 => Vector::new(ScalarType::U32, Len::X1),
-                ir::ir_type::PackedVectorByteSize::_8 => Vector::new(ScalarType::U32, Len::X2),
-            })
-            .into(),
-            SizedType::Struct(s) => ir::SizedType::Structure(s.into()),
-        }
-    }
-}
-
-impl From<ScalarType> for ir::ScalarType {
-    fn from(scalar_type: ScalarType) -> Self {
-        match scalar_type {
-            ScalarType::F16 => ir::ScalarType::F16,
-            ScalarType::F32 => ir::ScalarType::F32,
-            ScalarType::F64 => ir::ScalarType::F64,
-            ScalarType::U32 => ir::ScalarType::U32,
-            ScalarType::I32 => ir::ScalarType::I32,
-        }
-    }
-}
-
-impl From<SizedStruct> for ir::ir_type::SizedStruct {
-    fn from(host: SizedStruct) -> Self {
-        let mut fields: Vec<ir::ir_type::SizedField> = host.fields.into_iter().map(Into::into).collect();
-        // has at least one field
-        let last_field = fields.pop().unwrap();
-
-        // Note: This might throw an error in real usage if the fields aren't valid
-        // We're assuming they're valid in the conversion
-        match ir::ir_type::SizedStruct::new_nonempty(host.name, fields, last_field) {
-            Ok(s) => s,
-            Err(StructureFieldNamesMustBeUnique) => {
-                // TODO(chronicl) this isn't true
-                unreachable!("field names are unique for `LayoutType`")
-            }
-        }
-    }
-}
-
-impl From<UnsizedStruct> for ir::ir_type::BufferBlock {
-    fn from(host: UnsizedStruct) -> Self {
-        let sized_fields: Vec<ir::ir_type::SizedField> = host.sized_fields.into_iter().map(Into::into).collect();
-
-        let last_unsized = host.last_unsized.into();
-
-        // TODO(chronicl)
-        // Note: This might throw an error in real usage if the struct isn't valid
-        // We're assuming it's valid in the conversion
-        match ir::ir_type::BufferBlock::new(host.name, sized_fields, Some(last_unsized)) {
-            Ok(b) => b,
-            Err(BufferBlockDefinitionError::FieldNamesMustBeUnique) => {
-                // TODO(chronicl) this isn't true
-                unreachable!("field names are unique for `UnsizedStruct`")
-            }
-            Err(BufferBlockDefinitionError::MustHaveAtLeastOneField) => {
-                unreachable!("`UnsizedStruct` has at least one field.")
-            }
-        }
-    }
-}
-
-impl From<RuntimeSizedArray> for ir::StoreType {
-    fn from(array: RuntimeSizedArray) -> Self { ir::StoreType::RuntimeSizedArray(array.element.into()) }
-}
-
-impl From<SizedField> for ir::ir_type::SizedField {
-    fn from(f: SizedField) -> Self { ir::SizedField::new(f.name, f.custom_min_size, f.custom_min_align, f.ty.into()) }
-}
-
-impl From<RuntimeSizedArrayField> for ir::ir_type::RuntimeSizedArrayField {
-    fn from(f: RuntimeSizedArrayField) -> Self {
-        ir::RuntimeSizedArrayField::new(f.name, f.custom_min_align, f.array.element.into())
-    }
-}
-
-
-//     Conversions from ir types     //
-
-/// Type contains bools, which doesn't have a known layout.
-#[derive(thiserror::Error, Debug)]
-#[error("Type contains bools, which doesn't have a known layout.")]
-pub struct ContainsBoolsError;
-
-impl TryFrom<ir::ScalarType> for ScalarType {
-    type Error = ContainsBoolsError;
-
-    fn try_from(value: ir::ScalarType) -> Result<Self, Self::Error> {
-        Ok(match value {
-            ir::ScalarType::F16 => ScalarType::F16,
-            ir::ScalarType::F32 => ScalarType::F32,
-            ir::ScalarType::F64 => ScalarType::F64,
-            ir::ScalarType::U32 => ScalarType::U32,
-            ir::ScalarType::I32 => ScalarType::I32,
-            ir::ScalarType::Bool => return Err(ContainsBoolsError),
-        })
-    }
-}
-
-impl TryFrom<ir::SizedType> for SizedType {
-    type Error = ContainsBoolsError;
-
-    fn try_from(value: ir::SizedType) -> Result<Self, Self::Error> {
-        Ok(match value {
-            ir::SizedType::Vector(len, scalar) => SizedType::Vector(Vector {
-                scalar: scalar.try_into()?,
-                len,
-            }),
-            ir::SizedType::Matrix(columns, rows, scalar) => SizedType::Matrix(Matrix { scalar, columns, rows }),
-            ir::SizedType::Array(element, len) => SizedType::Array(SizedArray {
-                element: Rc::new((*element).clone().try_into()?),
-                len,
-            }),
-            ir::SizedType::Atomic(scalar_type) => SizedType::Atomic(Atomic { scalar: scalar_type }),
-            ir::SizedType::Structure(structure) => SizedType::Struct(structure.try_into()?),
-        })
-    }
-}
-
-impl TryFrom<ir::ir_type::SizedStruct> for SizedStruct {
-    type Error = ContainsBoolsError;
-
-    fn try_from(structure: ir::ir_type::SizedStruct) -> Result<Self, Self::Error> {
-        let mut fields = Vec::new();
-
-        for field in structure.sized_fields() {
-            fields.push(SizedField {
-                name: field.name.clone(),
-                custom_min_size: field.custom_min_size,
-                custom_min_align: field.custom_min_align,
-                ty: field.ty.clone().try_into()?,
-            });
-        }
-
-        Ok(SizedStruct {
-            name: structure.name().clone(),
-            fields,
-        })
-    }
-}
-
-/// Errors that can occur when converting IR types to layoutable types.
-#[derive(thiserror::Error, Debug)]
-pub enum LayoutableConversionError {
-    /// Type contains bools, which don't have a standardized memory layout.
-    #[error("Type contains bools, which don't have a standardized memory layout.")]
-    ContainsBool,
-    /// Type is a handle, which don't have a standardized memory layout.
-    #[error("Type is a handle, which don't have a standardized memory layout.")]
-    IsHandle,
-}
-
-impl From<ContainsBoolsError> for LayoutableConversionError {
-    fn from(_: ContainsBoolsError) -> Self { Self::ContainsBool }
-}
-
-impl TryFrom<ir::StoreType> for LayoutableType {
-    type Error = LayoutableConversionError;
-
-    fn try_from(value: ir::StoreType) -> Result<Self, Self::Error> {
-        Ok(match value {
-            ir::StoreType::Sized(sized_type) => LayoutableType::Sized(sized_type.try_into()?),
-            ir::StoreType::RuntimeSizedArray(element) => LayoutableType::RuntimeSizedArray(RuntimeSizedArray {
-                element: element.try_into()?,
-            }),
-            ir::StoreType::BufferBlock(buffer_block) => buffer_block.try_into()?,
-            ir::StoreType::Handle(_) => return Err(LayoutableConversionError::IsHandle),
-        })
-    }
-}
-
-impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
-    type Error = ContainsBoolsError;
-
-    fn try_from(buffer_block: ir::ir_type::BufferBlock) -> Result<Self, Self::Error> {
-        let mut sized_fields = Vec::new();
-
-        for field in buffer_block.sized_fields() {
-            sized_fields.push(SizedField {
-                name: field.name.clone(),
-                custom_min_size: field.custom_min_size,
-                custom_min_align: field.custom_min_align,
-                ty: field.ty.clone().try_into()?,
-            });
-        }
-
-        let last_unsized = if let Some(last_field) = buffer_block.last_unsized_field() {
-            RuntimeSizedArrayField {
-                name: last_field.name.clone(),
-                custom_min_align: last_field.custom_min_align,
-                array: RuntimeSizedArray {
-                    element: last_field.element_ty.clone().try_into()?,
-                },
-            }
-        } else {
-            return Ok(SizedStruct {
-                name: buffer_block.name().clone(),
-                fields: sized_fields,
-            }
-            .into());
-        };
-
-        Ok(UnsizedStruct {
-            name: buffer_block.name().clone(),
-            sized_fields,
-            last_unsized,
-        }
-        .into())
-    }
-}
-
 // Display impls
 
 impl std::fmt::Display for LayoutableType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            LayoutableType::Sized(s) => write!(f, "{s}"),
-            LayoutableType::RuntimeSizedArray(a) => write!(f, "Array<{}>", a.element),
-            LayoutableType::UnsizedStruct(s) => write!(f, "{}", s.name),
+            LayoutableType::Sized(s) => s.fmt(f),
+            LayoutableType::RuntimeSizedArray(a) => a.fmt(f),
+            LayoutableType::UnsizedStruct(s) => s.fmt(f),
         }
     }
 }
 
 impl std::fmt::Display for SizedType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            SizedType::Vector(v) => write!(f, "{}{}", ir::ScalarType::from(v.scalar), v.len),
-            SizedType::Matrix(m) => {
-                write!(
-                    f,
-                    "mat<{}, {}, {}>",
-                    ir::ScalarType::from(m.scalar),
-                    Len::from(m.columns),
-                    Len::from(m.rows)
-                )
-            }
-            SizedType::Array(a) => write!(f, "Array<{}, {}>", &*a.element, a.len),
-            SizedType::Atomic(a) => write!(f, "Atomic<{}>", ir::ScalarType::from(a.scalar)),
-            // TODO(chronicl) figure out scalar type display
-            SizedType::PackedVec(p) => write!(f, "PackedVec<{:?}, {}>", p.scalar_type, Len::from(p.len)),
-            SizedType::Struct(s) => write!(f, "{}", s.name),
+            SizedType::Vector(v) => v.fmt(f),
+            SizedType::Matrix(m) => m.fmt(f),
+            SizedType::Array(a) => a.fmt(f),
+            SizedType::Atomic(a) => a.fmt(f),
+            SizedType::PackedVec(p) => p.fmt(f),
+            SizedType::Struct(s) => s.fmt(f),
         }
     }
 }
 
+impl std::fmt::Display for Vector {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "{}x{}", self.scalar, self.len) }
+}
+
+impl std::fmt::Display for Matrix {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "mat<{}, {}, {}>",
+            self.scalar,
+            Len::from(self.columns),
+            Len::from(self.rows)
+        )
+    }
+}
+
+impl std::fmt::Display for SizedArray {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "Array<{}, {}>", &*self.element, self.len) }
+}
+
+impl std::fmt::Display for Atomic {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "Atomic<{}>", ScalarType::from(self.scalar)) }
+}
+
+impl std::fmt::Display for SizedStruct {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.name) }
+}
+
+impl std::fmt::Display for UnsizedStruct {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.name) }
+}
+
+impl std::fmt::Display for RuntimeSizedArray {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "Array<{}>", self.element) }
+}
+
 impl std::fmt::Display for ScalarType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             ScalarType::F16 => "f16",
             ScalarType::F32 => "f32",

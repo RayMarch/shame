@@ -475,7 +475,9 @@ impl TypeLayout {
     }
 
     // TODO(chronicl) this should be removed with improved any api for storage/uniform bindings
-    pub(crate) fn from_store_ty(store_type: ir::StoreType) -> Result<Self, layoutable::LayoutableConversionError> {
+    pub(crate) fn from_store_ty(
+        store_type: ir::StoreType,
+    ) -> Result<Self, layoutable::ir_compat::LayoutableConversionError> {
         let t: layoutable::LayoutableType = store_type.try_into()?;
         Ok(TypeLayout::new_storage_layout_for(t).into())
     }

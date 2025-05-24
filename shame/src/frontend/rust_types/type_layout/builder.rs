@@ -318,7 +318,7 @@ pub struct ArrayStrideError {
 impl std::error::Error for WithContext<ArrayStrideError> {}
 impl Display for WithContext<ArrayStrideError> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let top_level: StoreType = self.ctx.s_layout.layoutable_type().clone().into();
+        let top_level = self.ctx.s_layout.layoutable_type();
         writeln!(
             f,
             "array elements within type `{}` do not satisfy uniform layout requirements.",
@@ -327,9 +327,7 @@ impl Display for WithContext<ArrayStrideError> {
         writeln!(
             f,
             "The array with `{}` elements requires stride {}, but has stride {}.",
-            Into::<ir::SizedType>::into(self.element_ty.clone()),
-            self.expected,
-            self.actual
+            self.element_ty, self.expected, self.actual
         )?;
         writeln!(f, "The full layout of `{}` is:", top_level)?;
         self.ctx.s_layout.write("", self.ctx.use_color, f)?;
@@ -451,10 +449,7 @@ where
     let struct_name = &*struct_layout.name;
 
     let indent = "  ";
-    let field_decl_line = |field: &SizedField| {
-        let sized: ir::SizedType = field.ty.clone().into();
-        format!("{indent}{}: {},", field.name, sized)
-    };
+    let field_decl_line = |field: &SizedField| format!("{indent}{}: {},", field.name, field.ty);
     let header = format!("struct {} {{", struct_name);
     let table_start_column = 1 + sized_fields
         .iter()
@@ -487,8 +482,7 @@ where
     if let Some(last_field) = last_unsized {
         let layout = struct_layout.fields.last().expect("structs have at least one field");
 
-        let store_type: ir::StoreType = last_field.array.clone().into();
-        let decl_line = format!("{indent}{}: {},", last_field.name, store_type);
+        let decl_line = format!("{indent}{}: {},", last_field.name, last_field.array);
         f.write_str(&decl_line)?;
         // write spaces to table on the right
         for _ in decl_line.len()..table_start_column {
