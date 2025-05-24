@@ -86,9 +86,9 @@ fn check_for_duplicate_field_names(
     // we'd usually deal with.
     let mut duplicate_fields = None;
     for (i, field1) in sized_fields.iter().enumerate() {
-        for (j, field2) in sized_fields[i..].iter().enumerate() {
+        for (j, field2) in sized_fields.iter().skip(i + 1).enumerate() {
             if field1.name == field2.name {
-                duplicate_fields = Some((i, j));
+                duplicate_fields = Some((i, i + 1 + j));
                 break;
             }
         }
@@ -371,4 +371,29 @@ impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
         }
         .into())
     }
+}
+
+
+#[test]
+fn test_ir_conversion_error() {
+    use crate::{f32x1, packed::unorm8x2};
+
+    let ty: LayoutableType = SizedStruct::new("A", "a", f32x1::layoutable_type_sized())
+        .extend("b", f32x1::layoutable_type_sized())
+        .extend("a", f32x1::layoutable_type_sized())
+        .into();
+    let result: Result<ir::StoreType, _> = ty.try_into();
+    assert!(matches!(
+        result,
+        Err(IRConversionError::DuplicateFieldName(DuplicateFieldNameError {
+            struct_type: StructKind::Sized(_),
+            first_field: 0,
+            second_field: 2,
+            ..
+        }))
+    ));
+
+    let ty: LayoutableType = SizedStruct::new("A", "a", unorm8x2::layoutable_type_sized()).into();
+    let result: Result<ir::StoreType, _> = ty.try_into();
+    assert!(matches!(result, Err(IRConversionError::ContainsPackedVector)));
 }
