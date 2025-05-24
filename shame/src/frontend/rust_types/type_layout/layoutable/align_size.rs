@@ -92,8 +92,8 @@ impl SizedStruct {
     /// This is an expensive operation as it calculates byte size and align from scratch.
     /// If you also need field offsets, use [`SizedStruct::field_offsets`] instead and
     /// read the documentation of [`FieldOffsets`] on how to obtain the byte size and align from it.
-    pub fn byte_size_and_align(&self, layout: Repr) -> (u64, U32PowerOf2) {
-        let mut field_offsets = self.field_offsets(layout);
+    pub fn byte_size_and_align(&self, repr: Repr) -> (u64, U32PowerOf2) {
+        let mut field_offsets = self.field_offsets(repr);
         (&mut field_offsets).count(); // &mut so it doesn't consume
         (field_offsets.byte_size(), field_offsets.align())
     }
@@ -288,7 +288,7 @@ pub const fn array_align(element_align: U32PowerOf2, repr: Repr) -> U32PowerOf2 
     match repr {
         // Packedness is ensured by the `LayoutCalculator`.
         Repr::Storage => element_align,
-        Repr::Uniform => U32PowerOf2::try_from_u32(round_up(16, element_align.as_u64()) as u32).unwrap(),
+        Repr::Uniform => round_up_align(U32PowerOf2::_16, element_align),
         Repr::Packed => PACKED_ALIGN,
     }
 }

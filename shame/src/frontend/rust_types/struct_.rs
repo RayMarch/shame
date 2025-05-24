@@ -135,19 +135,15 @@ impl<T: SizedFields + GpuStore> Deref for Struct<T> {
     fn deref(&self) -> &Self::Target { &self.fields }
 }
 
-impl<T: SizedFields + GpuStore + NoBools> LayoutableSized for Struct<T> {
-    fn layoutable_type_sized() -> layoutable::SizedType {
-        layoutable::SizedStruct::try_from(T::get_sizedstruct_type())
-            .expect("no bools")
-            .into()
-    }
+impl<T: SizedFields + GpuStore + NoBools + LayoutableSized> LayoutableSized for Struct<T> {
+    fn layoutable_type_sized() -> layoutable::SizedType { T::layoutable_type_sized() }
 }
-impl<T: SizedFields + GpuStore + NoBools> Layoutable for Struct<T> {
-    fn layoutable_type() -> layoutable::LayoutableType { Self::layoutable_type_sized().into() }
+impl<T: SizedFields + GpuStore + NoBools + Layoutable> Layoutable for Struct<T> {
+    fn layoutable_type() -> layoutable::LayoutableType { T::layoutable_type() }
 }
 
-impl<T: SizedFields + GpuStore + NoBools> GpuLayout for Struct<T> {
-    fn gpu_repr() -> type_layout::Repr { type_layout::Repr::Storage }
+impl<T: SizedFields + GpuStore + NoBools + GpuLayout> GpuLayout for Struct<T> {
+    fn gpu_repr() -> type_layout::Repr { T::gpu_repr() }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         T::cpu_type_name_and_layout().map(|x| x.map(|(name, l)| (format!("Struct<{name}>").into(), l)))
