@@ -38,10 +38,11 @@ pub enum U32PowerOf2 {
     _2147483648,
 }
 
-impl From<U32PowerOf2> for u32 {
+impl U32PowerOf2 {
+    /// Returns the corresponding u32.
     #[rustfmt::skip]
-    fn from(value: U32PowerOf2) -> Self {
-        match value {
+    pub const fn as_u32(self) -> u32 {
+        match self {
             U32PowerOf2::_1          => 1_u32         ,
             U32PowerOf2::_2          => 2_u32         ,
             U32PowerOf2::_4          => 4_u32         ,
@@ -76,6 +77,18 @@ impl From<U32PowerOf2> for u32 {
             U32PowerOf2::_2147483648 => 2147483648_u32,
         }
     }
+
+    /// Returns the corresponding u64.
+    pub const fn as_u64(self) -> u64 { self.as_u32() as u64 }
+}
+
+impl From<U32PowerOf2> for u32 {
+    fn from(value: U32PowerOf2) -> Self { value.as_u32() }
+}
+
+impl U32PowerOf2 {
+    /// Returns the maximum between `self` and `other`.
+    pub const fn max(self, other: Self) -> Self { if self as u32 > other as u32 { self } else { other } }
 }
 
 #[derive(Debug)]
@@ -89,11 +102,10 @@ impl Display for NotAU32PowerOf2 {
 
 impl std::error::Error for NotAU32PowerOf2 {}
 
-impl TryFrom<u32> for U32PowerOf2 {
-    type Error = NotAU32PowerOf2;
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        Ok(match value {
+impl U32PowerOf2 {
+    /// Tries to convert a u32 to U32PowerOf2.
+    pub const fn try_from_u32(value: u32) -> Option<Self> {
+        Some(match value {
             1 => U32PowerOf2::_1,
             2 => U32PowerOf2::_2,
             4 => U32PowerOf2::_4,
@@ -126,8 +138,16 @@ impl TryFrom<u32> for U32PowerOf2 {
             536870912 => U32PowerOf2::_536870912,
             1073741824 => U32PowerOf2::_1073741824,
             2147483648 => U32PowerOf2::_2147483648,
-            n => return Err(NotAU32PowerOf2(n)),
+            n => return None,
         })
+    }
+}
+
+impl TryFrom<u32> for U32PowerOf2 {
+    type Error = NotAU32PowerOf2;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        U32PowerOf2::try_from_u32(value).ok_or(NotAU32PowerOf2(value))
     }
 }
 

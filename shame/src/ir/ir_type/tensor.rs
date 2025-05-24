@@ -1,7 +1,9 @@
 use std::{fmt::Display, num::NonZeroU32};
 
 use crate::{
+    any::U32PowerOf2,
     common::floating_point::{f16, f32_eq_where_nans_are_equal, f64_eq_where_nans_are_equal},
+    frontend::rust_types::type_layout::{self, layoutable::align_size::PACKED_ALIGN},
     ir::Comp4,
 };
 
@@ -73,23 +75,11 @@ impl PartialEq<Len2> for Len {
 }
 
 impl From<Len2> for u64 {
-    fn from(value: Len2) -> Self {
-        match value {
-            Len2::X2 => 2,
-            Len2::X3 => 3,
-            Len2::X4 => 4,
-        }
-    }
+    fn from(value: Len2) -> Self { value.as_u64() }
 }
 
 impl From<Len2> for NonZeroU32 {
-    fn from(value: Len2) -> Self {
-        match value {
-            Len2::X2 => NonZeroU32::new(2).unwrap(),
-            Len2::X3 => NonZeroU32::new(3).unwrap(),
-            Len2::X4 => NonZeroU32::new(4).unwrap(),
-        }
-    }
+    fn from(value: Len2) -> Self { value.as_non_zero_u32() }
 }
 
 impl PartialEq<Len> for Len2 {
@@ -101,6 +91,54 @@ impl Len {
     pub fn iter_components(self) -> impl ExactSizeIterator<Item = Comp4> {
         use Comp4::*;
         [X, Y, Z, W].into_iter().take(self.into())
+    }
+
+    /// as u8
+    pub const fn as_u8(self) -> u8 {
+        match self {
+            Len::X1 => 1,
+            Len::X2 => 2,
+            Len::X3 => 3,
+            Len::X4 => 4,
+        }
+    }
+    /// as u32
+    pub const fn as_u32(self) -> u32 { self.as_u8() as u32 }
+    /// as u64
+    pub const fn as_u64(self) -> u64 { self.as_u8() as u64 }
+    /// as `NonZeroU32`
+    pub const fn as_non_zero_u32(self) -> NonZeroU32 {
+        match self {
+            Len::X1 => NonZeroU32::new(1).unwrap(),
+            Len::X2 => NonZeroU32::new(2).unwrap(),
+            Len::X3 => NonZeroU32::new(3).unwrap(),
+            Len::X4 => NonZeroU32::new(4).unwrap(),
+        }
+    }
+}
+
+impl Len2 {
+    /// as u8
+    pub const fn as_u8(self) -> u8 {
+        match self {
+            Len2::X2 => 2,
+            Len2::X3 => 3,
+            Len2::X4 => 4,
+        }
+    }
+    /// as u32
+    pub const fn as_u32(self) -> u32 { self.as_u8() as u32 }
+    /// as u64
+    pub const fn as_u64(self) -> u64 { self.as_u8() as u64 }
+    /// as `NonZeroU32`
+    pub const fn as_non_zero_u32(self) -> NonZeroU32 { self.as_len().as_non_zero_u32() }
+    /// as [`Len`]
+    pub const fn as_len(self) -> Len {
+        match self {
+            Len2::X2 => Len::X2,
+            Len2::X3 => Len::X3,
+            Len2::X4 => Len::X4,
+        }
     }
 }
 
@@ -442,6 +480,7 @@ pub struct PackedVector {
 }
 
 /// exhaustive list of all byte sizes a `packed_vec` can have
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PackedVectorByteSize {
     _2,
     _4,
@@ -456,6 +495,12 @@ impl From<PackedVectorByteSize> for u8 {
             PackedVectorByteSize::_8 => 8,
         }
     }
+}
+
+impl PackedVectorByteSize {
+    pub fn as_u32(self) -> u32 { u8::from(self) as u32 }
+
+    pub fn as_u64(self) -> u64 { u8::from(self) as u64 }
 }
 
 impl Display for PackedVector {
@@ -485,12 +530,17 @@ impl PackedVector {
         }
     }
 
-    pub fn align(&self) -> u64 {
-        match self.byte_size() {
+    pub fn align(&self, repr: type_layout::Repr) -> U32PowerOf2 {
+        if repr.is_packed() {
+            return PACKED_ALIGN;
+        }
+
+        let align = match self.byte_size() {
             PackedVectorByteSize::_2 => SizedType::Vector(Len::X1, ScalarType::F16).align(),
             PackedVectorByteSize::_4 => SizedType::Vector(Len::X1, ScalarType::U32).align(),
             PackedVectorByteSize::_8 => SizedType::Vector(Len::X2, ScalarType::U32).align(),
-        }
+        };
+        U32PowerOf2::try_from(align as u32).expect("the above all have power of 2 align")
     }
 }
 
