@@ -508,7 +508,7 @@ pub mod any {
         pub use type_layout::layoutable::CanonName;
         pub use type_layout::layoutable::SizedOrArray;
         // layout calculation utility
-        pub use type_layout::LayoutCalculator;
+        pub use type_layout::layoutable::LayoutCalculator;
         pub use type_layout::layoutable::array_stride;
         pub use type_layout::layoutable::array_size;
         pub use type_layout::layoutable::array_align;

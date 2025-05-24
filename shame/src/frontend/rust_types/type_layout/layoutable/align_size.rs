@@ -1,4 +1,4 @@
-use super::super::{LayoutCalculator, Repr};
+use super::super::{Repr};
 use super::*;
 
 //              Size and align of layoutable types              //
@@ -335,4 +335,127 @@ pub const fn round_up_align(multiple_of: U32PowerOf2, n: U32PowerOf2) -> U32Powe
     //                                       be a multiple of multiple_of
     // In both cases rounded_up is a power of 2
     U32PowerOf2::try_from_u32(rounded_up as u32).unwrap()
+}
+
+/// `LayoutCalculator` helps calculate the size, align and the field offsets of a struct.
+///
+/// If `LayoutCalculator` is created with `packed = true`, provided `field_align`s
+/// are ignored and the field is inserted directly after the previous field. However,
+/// a `custom_min_align` that is `Some` overwrites the "packedness" of the field.
+#[derive(Debug, Clone)]
+pub struct LayoutCalculator {
+    next_offset_min: u64,
+    align: U32PowerOf2,
+    repr: Repr,
+}
+
+impl LayoutCalculator {
+    /// Creates a new `LayoutCalculator`, which calculates the size, align and
+    /// the field offsets of a gpu struct.
+    pub const fn new(repr: Repr) -> Self {
+        Self {
+            next_offset_min: 0,
+            align: U32PowerOf2::_1,
+            repr,
+        }
+    }
+
+    /// Extends the layout by a field.
+    ///
+    /// `is_struct` must be true if the field is a struct.
+    ///
+    /// Returns the field's offset.
+    pub const fn extend(
+        &mut self,
+        field_size: u64,
+        mut field_align: U32PowerOf2,
+        custom_min_size: Option<u64>,
+        custom_min_align: Option<U32PowerOf2>,
+        is_struct: bool,
+    ) -> u64 {
+        // Just in case the user didn't already do this.
+        if self.repr.is_packed() {
+            field_align = PACKED_ALIGN;
+        }
+
+        let size = Self::calculate_byte_size(field_size, custom_min_size);
+        let align = Self::calculate_align(field_align, custom_min_align);
+
+        let offset = self.next_field_offset(align, custom_min_align);
+        self.next_offset_min = match (self.repr, is_struct) {
+            // The uniform address space requires that:
+            // - If a structure member itself has a structure type S, then the number of
+            // bytes between the start of that member and the start of any following
+            // member must be at least roundUp(16, SizeOf(S)).
+            (Repr::Uniform, true) => round_up(16, offset + size),
+            _ => offset + size,
+        };
+        self.align = self.align.max(align);
+
+        offset
+    }
+
+    /// Extends the layout by an runtime sized array field given it's align.
+    ///
+    /// Returns (last field offset, align)
+    ///
+    /// `self` is consumed, so that no further fields may be extended, because
+    /// only the last field may be unsized.
+    pub const fn extend_unsized(
+        mut self,
+        mut field_align: U32PowerOf2,
+        custom_min_align: Option<U32PowerOf2>,
+    ) -> (u64, U32PowerOf2) {
+        // Just in case the user didn't already do this.
+        if self.repr.is_packed() {
+            field_align = PACKED_ALIGN;
+        }
+
+        let align = Self::calculate_align(field_align, custom_min_align);
+
+        let offset = self.next_field_offset(align, custom_min_align);
+        self.align = self.align.max(align);
+
+        (offset, self.align)
+    }
+
+    /// Returns the byte size of the struct.
+    // wgsl spec:
+    //   roundUp(AlignOf(S), justPastLastMember)
+    //   where justPastLastMember = OffsetOfMember(S,N) + SizeOfMember(S,N)
+    //
+    // self.next_offset_min is justPastLastMember already.
+    pub const fn byte_size(&self) -> u64 { round_up(self.align.as_u64(), self.next_offset_min) }
+
+    /// Returns the align of the struct.
+    pub const fn align(&self) -> U32PowerOf2 { self.align }
+
+    /// field_align should already respect field_custom_min_align.
+    /// field_custom_min_align is used to overwrite packing if self is packed.
+    const fn next_field_offset(&self, field_align: U32PowerOf2, field_custom_min_align: Option<U32PowerOf2>) -> u64 {
+        match (self.repr, field_custom_min_align) {
+            (Repr::Packed, None) => self.next_offset_min,
+            (Repr::Packed, Some(custom_align)) => round_up(custom_align.as_u64(), self.next_offset_min),
+            (_, _) => round_up(field_align.as_u64(), self.next_offset_min),
+        }
+    }
+
+    pub(crate) const fn calculate_byte_size(byte_size: u64, custom_min_size: Option<u64>) -> u64 {
+        // const byte_size.max(custom_min_size.unwrap_or(0))
+        if let Some(min_size) = custom_min_size {
+            if min_size > byte_size {
+                return min_size;
+            }
+        }
+        byte_size
+    }
+
+    pub(crate) const fn calculate_align(align: U32PowerOf2, custom_min_align: Option<U32PowerOf2>) -> U32PowerOf2 {
+        // const align.max(custom_min_align.unwrap_or(U32PowerOf2::_1))
+        if let Some(min_align) = custom_min_align {
+            align.max(min_align)
+        } else {
+            align
+        }
+    }
 }
