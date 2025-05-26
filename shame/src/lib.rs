@@ -514,8 +514,6 @@ pub mod any {
         pub use type_layout::layoutable::array_align;
         pub use type_layout::layoutable::FieldOffsets;
         // conversion and builder errors
-        pub use type_layout::layoutable::ir_compat::LayoutableConversionError;
-        pub use type_layout::layoutable::ir_compat::ContainsBoolsError;
         pub use type_layout::layoutable::builder::IsUnsizedStructError;
         pub use type_layout::layoutable::builder::StructFromPartsError;
     }

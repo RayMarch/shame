@@ -151,11 +151,10 @@ impl<T: PackedScalarType, L: LenEven> GpuLayout for PackedVec<T, L> {
     type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
-        let sized_ty = Self::sized_ty_equivalent();
+        let sized_ty: layoutable::SizedType = Self::layoutable_type_sized();
         let name = sized_ty.to_string().into();
-        let sized_ty: layoutable::SizedType = sized_ty.try_into().expect("PackedVec is NoBools and NoHandles");
         let layout = TypeLayout::new_layout_for(&sized_ty.into(), Repr::Storage);
-        Some(Ok((name, layout.into())))
+        Some(Ok((name, layout)))
     }
 }
 
