@@ -112,11 +112,16 @@ impl TypeLayout {
 }
 
 fn sized_field_to_field_layout(field: &SizedField, offset: u64, repr: Repr) -> FieldLayoutWithOffset {
+    let mut ty = TypeLayout::from_sized_type(&field.ty, repr);
+    // VERY IMPORTANT: TypeLayout::from_sized_type does not take into account
+    // custom_min_align and custom_min_size, but field.byte_size and field.align do.
+    ty.byte_size = Some(field.byte_size(repr));
+    ty.align = field.align(repr);
     FieldLayoutWithOffset {
         rel_byte_offset: offset,
         field: FieldLayout {
             name: field.name.clone(),
-            ty: TypeLayout::from_sized_type(&field.ty, repr),
+            ty,
         },
     }
 }
@@ -302,7 +307,7 @@ pub struct LayoutErrorContext {
     use_color: bool,
 }
 
-impl<'a> From<LayoutContext<'a>> for LayoutErrorContext {
+impl From<LayoutContext<'_>> for LayoutErrorContext {
     fn from(ctx: LayoutContext) -> Self {
         LayoutErrorContext {
             top_level_type: ctx.top_level_type.clone(),
@@ -398,11 +403,11 @@ impl Display for StructFieldOffsetError {
             match &self.struct_type {
                 StructKind::Sized(s) => {
                     let s: ir::SizedStruct = s.clone().try_into().ok()?;
-                    ctx.struct_registry().get(&*s).map(|def| def.call_info())
+                    ctx.struct_registry().get(&s).map(|def| def.call_info())
                 }
                 StructKind::Unsized(s) => {
                     let s: ir::BufferBlock = s.clone().try_into().ok()?;
-                    ctx.struct_registry().get(&*s).map(|def| def.call_info())
+                    ctx.struct_registry().get(&s).map(|def| def.call_info())
                 }
             }
         })

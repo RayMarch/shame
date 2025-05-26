@@ -363,7 +363,7 @@ impl TypeLayout {
         store_type: ir::StoreType,
     ) -> Result<Self, layoutable::ir_compat::LayoutableConversionError> {
         let t: layoutable::LayoutableType = store_type.try_into()?;
-        Ok(TypeLayout::new_layout_for(&t, Repr::Storage).into())
+        Ok(TypeLayout::new_layout_for(&t, Repr::Storage))
     }
 }
 
