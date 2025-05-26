@@ -176,9 +176,7 @@ pub trait GpuLayout: Layoutable {
 /// println!("OnGpu:\n{}\n", OnGpu::gpu_layout());
 /// println!("OnCpu:\n{}\n", OnCpu::cpu_layout());
 /// ```
-pub fn gpu_layout<T: GpuLayout + ?Sized>() -> TypeLayout {
-    TypeLayout::new_layout_for(&T::layoutable_type(), <T::GpuRepr as TypeRepr>::REPR)
-}
+pub fn gpu_layout<T: GpuLayout + ?Sized>() -> TypeLayout { gpu_type_layout::<T>().layout() }
 
 pub fn gpu_type_layout<T: GpuLayout + ?Sized>() -> GpuTypeLayout<T::GpuRepr> {
     GpuTypeLayout::new(T::layoutable_type())
