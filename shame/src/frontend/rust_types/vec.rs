@@ -7,6 +7,7 @@ use super::{
     mem::AddressSpace,
     reference::{AccessMode, AccessModeReadable},
     scalar_type::{dtype_as_scalar_from_f64, ScalarType, ScalarTypeInteger, ScalarTypeNumber},
+    type_layout::repr,
     type_traits::{BindingArgs, GpuAligned, GpuStoreImplCategory, NoAtomics, NoHandles, VertexAttribute},
     AsAny, GpuType, To, ToGpuType,
 };
@@ -592,7 +593,7 @@ impl<T: ScalarType, L: Len> GpuLayout for vec<T, L>
 where
     vec<T, L>: NoBools,
 {
-    fn gpu_repr() -> layout::Repr { layout::Repr::Storage }
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout()
     -> Option<Result<(std::borrow::Cow<'static, str>, TypeLayout), super::layout_traits::ArrayElementsUnsizedError>>

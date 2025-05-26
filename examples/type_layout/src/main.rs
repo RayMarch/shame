@@ -7,7 +7,7 @@ use shame::{
         self,
         layout::{
             self, FieldOptions, LayoutableSized, Len, RuntimeSizedArrayField, ScalarType, SizedField, SizedType,
-            UnsizedStruct, Vector,
+            UnsizedStruct, Vector, GpuTypeLayout,
         },
         U32PowerOf2,
     },
@@ -16,7 +16,7 @@ use shame::{
 };
 
 fn main() {
-    // We'll start by building a `TypeLayout`, which for this Vertex type.
+    // We'll start by replicating this struct using `any::layout` types.
     #[derive(GpuLayout)]
     struct Vertex {
         position: f32x3,
@@ -29,105 +29,28 @@ fn main() {
     let sized_struct = SizedStruct::new("Vertex", "position", f32x3::layoutable_type_sized())
         .extend("normal", f32x3::layoutable_type_sized())
         .extend("uv", f32x1::layoutable_type_sized());
-    // A layout that follows the storage layout rules
-    let layout: TypeLayout = TypeLayout::new_layout_for(sized_struct.clone(), Repr::Storage);
-    // Or we can get a TypeLayout<Storage>, which guarantees the storage layout rules.
-    let layout_storage: TypeLayout<repr::Storage> = TypeLayout::new_storage_layout_for(sized_struct.clone());
-    assert_eq!(layout, layout_storage);
-    // Or we get it as a packed layout
-    let layout_packed: TypeLayout<repr::Packed> = TypeLayout::new_packed_layout_for(sized_struct);
-    assert_ne!(layout_storage, layout_packed);
 
+    let storage = GpuTypeLayout::<repr::Storage>::new(sized_struct.clone());
+    let packed = GpuTypeLayout::<repr::Packed>::new(sized_struct);
+    assert_ne!(storage.layout(), packed.layout());
 
-    // Now we'll replicate the layout of this struct
-    #[derive(GpuLayout)]
-    struct A {
-        a: f32x4,
-        b: f32x3,
-        c: Array<f32x1>,
-    }
+    // Does not exist:
+    // let uniform = GpuTypeLayout::<repr::Uniform>::new(sized_struct.clone());
 
-    // By default structs are #[gpu_repr(Storage)], which means that it follows
-    // the wgsl storage layout rules (std430). To obtain a corresponding TypeLayout<Storage>
-    // we first need to build a `CpuShareableType`, in our case an `UnsizedStruct`.
-    let unsized_struct = UnsizedStruct {
-        name: "A".into(),
-        sized_fields: vec![
-            SizedField::new("a", Vector::new(ScalarType::F32, Len::X4)),
-            SizedField::new("b", f32x3::layoutable_type_sized()),
-        ],
-        last_unsized: RuntimeSizedArrayField::new("c", None, f32x1::layoutable_type_sized()),
-    };
-    // And now we can get the `TypeLayout<Storage>`.
-    let s_layout = TypeLayout::new_storage_layout_for(unsized_struct.clone());
-    // For now `TypeLayout::<constraint::Uniform>::new_layout_for` only accepts sized types,
-    // however `TypeLayout::<constraint::Uniform>::new_layout_for_unchecked` allows to obtain the
-    // the uniform layout of an unsized cpu-shareable. Using that layout with wgsl as your
-    // target language will cause an error.
-    let u_layout = TypeLayout::new_uniform_layout_for(unsized_struct);
-    // This struct's field offsets are different for storage and uniform layout rules. The array
-    // has an alignment of 4 with storage alignment and an alignment of 16 with uniform alignment.
-    assert_ne!(s_layout, u_layout);
+    // However we can try to upgrade a GpuTypeLayout::<repr::Storage>
+    let uniform = GpuTypeLayout::<repr::Uniform>::try_from(storage.clone()).unwrap();
 
-    #[derive(GpuLayout)]
-    struct B {
-        a: f32x4,
-        b: f32x3,
-        c: f32x1,
-    }
+    // Which if it succeeds, guarantees:
+    assert_eq!(storage.layout(), uniform.layout());
 
-    // Sized structs require a builder to ensure it always contains at least one field.
-    let mut sized_struct = SizedStruct::new("B", "b", f32x4::layoutable_type_sized())
-        .extend("b", f32x3::layoutable_type_sized())
-        .extend("c", f32x1::layoutable_type_sized());
-    // Since this struct is sized we can use TypeLayout::<constraint::Uniform>::new_layout_for.
-    let u_layout = TypeLayout::new_uniform_layout_for(sized_struct.clone());
-    let s_layout = TypeLayout::new_storage_layout_for(sized_struct);
-    // And this time they are equal, despite different layout rules.
-    assert_eq!(s_layout, u_layout);
-    // Using `TryFrom::try_from` we can check whether the storage type layout also follows
-    // uniform layout rules despite not being `TypeLayout<constraint::Uniform>`,
-    // which in this case will succeed, but if it doesn't we get a very nice error message about
-    // why the layout is not compatible with the uniform layout rules.
-    let u_layout = TypeLayout::<repr::Uniform>::try_from(&s_layout).unwrap();
-
-    // Let's replicate a more complex example with explicit field size and align.
-    #[derive(shame::GpuLayout)]
-    struct C {
-        a: f32x2,
-        #[size(16)]
-        b: f32x1,
-        #[align(16)]
-        c: f32x2,
-    }
-
-    let mut sized_struct = SizedStruct::new("C", "a", f32x3::layoutable_type_sized())
-        .extend(FieldOptions::new("b", None, Some(16)), f32x3::layoutable_type_sized())
-        .extend(
-            FieldOptions::new("c", Some(U32PowerOf2::_16), None),
-            f32x1::layoutable_type_sized(),
-        );
-    let layout = TypeLayout::new_storage_layout_for(sized_struct);
-    assert!(layout.align.as_u32() == 16);
-
-    // gpu_repr(uniform) and gpu_repr(storage), which is the default, are now supported
-    #[derive(shame::GpuLayout)]
-    #[gpu_repr(uniform)]
-    struct D {
-        a: f32x2,
-        b: Array<f32x1>,
-    }
-
-    // this would be 8 for storage layout rules
-    assert!(gpu_layout::<D>().align.as_u32() == 16);
-
-    // Let's end on a pretty error message
+    // // Let's end on a pretty error message
     let mut sized_struct = SizedStruct::new("D", "a", f32x2::layoutable_type_sized())
         // This has align of 4 for storage and align of 16 for uniform.
         .extend("b", Array::<f32x1, shame::Size<1>>::layoutable_type_sized());
-    let s_layout = TypeLayout::new_storage_layout_for(sized_struct);
-    let result = TypeLayout::<repr::Uniform>::try_from(&s_layout);
-    match result {
+
+    let storage = GpuTypeLayout::<repr::Storage>::new(sized_struct.clone());
+    let uniform_result = GpuTypeLayout::<repr::Uniform>::try_from(storage.clone());
+    match uniform_result {
         Err(e) => println!("This error is a showcase:\n{}", e),
         Ok(u_layout) => println!("It unexpectedly worked, ohh no."),
     }

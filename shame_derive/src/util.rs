@@ -30,7 +30,6 @@ pub fn find_literal_list_attr<T: syn::parse::Parse>(
 pub enum Repr {
     Packed,
     Storage,
-    Uniform,
 }
 
 pub fn determine_gpu_repr(attribs: &[syn::Attribute]) -> Result<Option<(Span, Repr)>> {
@@ -43,9 +42,6 @@ pub fn determine_gpu_repr(attribs: &[syn::Attribute]) -> Result<Option<(Span, Re
                     return Ok(());
                 } else if meta.path.is_ident("storage") {
                     repr = Repr::Storage;
-                    return Ok(());
-                } else if meta.path.is_ident("uniform") {
-                    repr = Repr::Uniform;
                     return Ok(());
                 }
 

@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub use crate::ir::{Len, Len2, PackedVector, ScalarTypeFp, ScalarTypeInteger, ir_type::CanonName};
-use super::{builder::StructKind, FieldOptions};
+use super::{construction::StructKind, FieldOptions};
 
 pub(crate) mod align_size;
 pub(crate) mod builder;

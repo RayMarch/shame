@@ -89,9 +89,8 @@ pub fn impl_for_struct(
     }
     let gpu_repr = gpu_repr.map(|(_, repr)| repr).unwrap_or(util::Repr::Storage);
     let gpu_repr_shame = match gpu_repr {
-        Repr::Packed => quote!( #re::Repr::Packed ),
-        Repr::Storage => quote!( #re::Repr::Storage ),
-        Repr::Uniform => quote!( #re::Repr::Uniform ),
+        Repr::Packed => quote!( #re::repr::Packed ),
+        Repr::Storage => quote!( #re::repr::Storage ),
     };
 
     // #[repr(...)]
@@ -260,9 +259,7 @@ pub fn impl_for_struct(
                     #last_field_type: #re::Layoutable,
                     #where_clause_predicates
                 {
-                    fn gpu_repr() -> #re::Repr {
-                        #gpu_repr_shame
-                    }
+                    type GpuRepr = #gpu_repr_shame;
 
                     fn cpu_type_name_and_layout() -> Option<Result<(std::borrow::Cow<'static, str>, #re::TypeLayout), #re::ArrayElementsUnsizedError>> {
                         use #re::CpuLayout as _;

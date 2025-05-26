@@ -107,7 +107,7 @@ impl<T: VertexLayout> VertexBuffer<'_, T> {
         let call_info = call_info!();
         let attribs_and_stride = Context::try_with(call_info, |ctx| {
             let skip_stride_check = false; // it is implied that T is in an array, the strides must match
-            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check).into_plain();
+            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check);
 
             let attribs_and_stride = Attrib::get_attribs_and_stride(&gpu_layout, &location_counter).ok_or_else(|| {
                 ctx.push_error(FrontendError::MalformedVertexBufferLayout(gpu_layout).into());

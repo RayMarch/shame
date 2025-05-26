@@ -467,11 +467,11 @@ pub mod any {
         use crate::frontend::rust_types::type_layout;
         // type layout
         pub use type_layout::TypeLayout;
+        pub use type_layout::GpuTypeLayout;
         pub use type_layout::TypeRepr;
         pub use type_layout::Repr;
         pub mod repr {
             use crate::frontend::rust_types::type_layout;
-            pub use type_layout::repr::Plain;
             pub use type_layout::repr::Storage;
             pub use type_layout::repr::Uniform;
             pub use type_layout::repr::Packed;

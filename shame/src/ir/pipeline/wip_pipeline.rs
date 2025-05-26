@@ -10,6 +10,7 @@ use thiserror::Error;
 
 use super::{PossibleStages, ShaderStage, StageMask};
 use crate::{
+    any::layout::Repr,
     call_info,
     common::{
         integer::post_inc_usize,
@@ -355,7 +356,7 @@ impl WipPushConstantsField {
         let sized_struct: layoutable::SizedStruct = sized_struct
             .try_into()
             .expect("push constants are NoBools and NoHandles");
-        let layout = TypeLayout::new_storage_layout_for(sized_struct);
+        let layout = TypeLayout::new_layout_for(&sized_struct.into(), Repr::Storage);
         let layout = match &layout.kind {
             type_layout::TypeLayoutSemantics::Structure(layout) => &**layout,
             _ => unreachable!("expected struct layout for type layout of struct"),

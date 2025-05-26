@@ -28,6 +28,7 @@ pub use crate::frontend::rust_types::type_layout::FieldLayoutWithOffset;
 pub use crate::frontend::rust_types::type_layout::FieldOptions;
 pub use crate::frontend::rust_types::type_layout::StructLayout;
 pub use crate::frontend::rust_types::type_layout::Repr;
+pub use crate::frontend::rust_types::type_layout::repr;
 pub use crate::frontend::rust_types::type_layout::TypeLayout;
 pub use crate::frontend::rust_types::type_layout::TypeLayoutSemantics;
 pub use crate::frontend::rust_types::type_traits::BindingArgs;

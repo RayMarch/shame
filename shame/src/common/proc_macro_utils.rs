@@ -54,6 +54,7 @@ pub fn collect_into_array_exact<T, const N: usize>(mut it: impl Iterator<Item = 
     }
 }
 
+#[derive(Clone)]
 pub struct ReprCField {
     pub name: &'static str,
     pub alignment: usize,
@@ -68,7 +69,7 @@ pub fn repr_c_struct_layout(
     repr_c_align_attribute: Option<u64>,
     struct_name: &'static str,
     first_fields_with_offsets_and_sizes: &[(ReprCField, usize, usize)],
-    last_field: ReprCField,
+    mut last_field: ReprCField,
     last_field_size: Option<usize>,
 ) -> Result<TypeLayout, ReprCError> {
     let last_field_offset = match first_fields_with_offsets_and_sizes.last() {
@@ -99,29 +100,31 @@ pub fn repr_c_struct_layout(
     let total_struct_size =
         last_field_size.map(|last_size| round_up(struct_alignment.as_u64(), last_field_offset + last_size));
 
+    let new_size = |layout_size: Option<u64>, actual_size: Option<u64>| {
+        (layout_size != actual_size).then_some(actual_size).flatten()
+    };
     let mut fields = first_fields_with_offsets_and_sizes
         .iter()
-        .map(|(field, offset, size)| (field, *offset as u64, *size as u64))
-        .map(|(field, offset, size)| FieldLayoutWithOffset {
-            field: FieldLayout {
-                custom_min_align: None.into(),
-                custom_min_size: (field.layout.byte_size() != Some(size)).then_some(size).into(),
-                name: field.name.into(),
-                ty: field.layout.clone(),
-            },
-            rel_byte_offset: offset,
+        .map(|(field, offset, size)| (field.clone(), *offset as u64, *size as u64))
+        .map(|(mut field, offset, size)| {
+            field.layout.byte_size = new_size(field.layout.byte_size(), Some(size));
+            FieldLayoutWithOffset {
+                field: FieldLayout {
+                    name: field.name.into(),
+                    ty: field.layout.clone(),
+                },
+                rel_byte_offset: offset,
+            }
         })
-        .chain(std::iter::once(FieldLayoutWithOffset {
-            field: FieldLayout {
-                custom_min_align: None.into(),
-                custom_min_size: (last_field.layout.byte_size() != last_field_size)
-                    .then_some(last_field_size)
-                    .flatten()
-                    .into(),
-                name: last_field.name.into(),
-                ty: last_field.layout,
-            },
-            rel_byte_offset: last_field_offset,
+        .chain(std::iter::once({
+            last_field.layout.byte_size = new_size(last_field.layout.byte_size(), last_field_size);
+            FieldLayoutWithOffset {
+                field: FieldLayout {
+                    name: last_field.name.into(),
+                    ty: last_field.layout,
+                },
+                rel_byte_offset: last_field_offset,
+            }
         }))
         .collect::<Vec<_>>();
 
@@ -132,7 +135,6 @@ pub fn repr_c_struct_layout(
             name: struct_name.into(),
             fields,
         })),
-        None,
     ))
 }
 

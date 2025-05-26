@@ -43,7 +43,7 @@ impl SizedType {
         match self {
             SizedType::Array(a) => a.byte_size(repr),
             SizedType::Vector(v) => v.byte_size(),
-            SizedType::Matrix(m) => m.byte_size(repr, MatrixMajor::Row),
+            SizedType::Matrix(m) => m.byte_size(repr, MatrixMajor::Column),
             SizedType::Atomic(a) => a.byte_size(),
             SizedType::PackedVec(v) => u8::from(v.byte_size()) as u64,
             SizedType::Struct(s) => s.byte_size_and_align(repr).0,
@@ -55,7 +55,7 @@ impl SizedType {
         match self {
             SizedType::Array(a) => a.align(repr),
             SizedType::Vector(v) => v.align(repr),
-            SizedType::Matrix(m) => m.align(repr, MatrixMajor::Row),
+            SizedType::Matrix(m) => m.align(repr, MatrixMajor::Column),
             SizedType::Atomic(a) => a.align(repr),
             SizedType::PackedVec(v) => v.align(repr),
             SizedType::Struct(s) => s.byte_size_and_align(repr).1,
@@ -237,13 +237,14 @@ impl Matrix {
 
     pub const fn align(&self, repr: Repr, major: MatrixMajor) -> U32PowerOf2 {
         let (vec, _) = self.as_vector_array(major);
-        array_align(vec.align(repr), repr)
+        // AlignOf(vecR)
+        vec.align(repr)
     }
 
     const fn as_vector_array(&self, major: MatrixMajor) -> (Vector, NonZeroU32) {
         let (vec_len, array_len): (Len, NonZeroU32) = match major {
-            MatrixMajor::Row => (self.rows.as_len(), self.columns.as_non_zero_u32()),
-            MatrixMajor::Column => (self.columns.as_len(), self.rows.as_non_zero_u32()),
+            MatrixMajor::Column => (self.rows.as_len(), self.columns.as_non_zero_u32()),
+            MatrixMajor::Row => (self.columns.as_len(), self.rows.as_non_zero_u32()),
         };
         (
             Vector {
@@ -309,13 +310,23 @@ impl RuntimeSizedArray {
 
 #[allow(missing_docs)]
 impl SizedField {
-    pub fn byte_size(&self, repr: Repr) -> u64 { self.ty.byte_size(repr) }
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.ty.align(repr) }
+    pub fn byte_size(&self, repr: Repr) -> u64 {
+        LayoutCalculator::calculate_byte_size(self.ty.byte_size(repr), self.custom_min_size)
+    }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
+        // In case of Repr::Packed, the field's align of 1 is overwritten here by custom_min_align.
+        // This is intended!
+        LayoutCalculator::calculate_align(self.ty.align(repr), self.custom_min_align)
+    }
 }
 
 #[allow(missing_docs)]
 impl RuntimeSizedArrayField {
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.array.align(repr) }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
+        // In case of Repr::Packed, the field's align of 1 is overwritten here by custom_min_align.
+        // This is intended!
+        LayoutCalculator::calculate_align(self.array.align(repr), self.custom_min_align)
+    }
 }
 
 pub const fn round_up(multiple_of: u64, n: u64) -> u64 {

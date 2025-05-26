@@ -22,10 +22,11 @@ use super::error::FrontendError;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable};
 use super::struct_::{BufferFields, SizedFields, Struct};
-use super::type_layout::repr::TypeRepr;
+use super::type_layout::repr::{TypeRepr, TypeReprStorageOrPacked};
 use super::type_layout::layoutable::{self, array_stride, Vector};
 use super::type_layout::{
-    self, repr, ElementLayout, FieldLayout, FieldLayoutWithOffset, StructLayout, TypeLayout, TypeLayoutSemantics,
+    self, repr, ElementLayout, FieldLayout, FieldLayoutWithOffset, GpuTypeLayout, StructLayout, TypeLayout,
+    TypeLayoutSemantics,
 };
 use super::type_traits::{
     BindingArgs, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles, VertexAttribute,
@@ -139,7 +140,8 @@ use std::rc::Rc;
 ///
 pub trait GpuLayout: Layoutable {
     /// Returns the `Repr` of the `TypeLayout` from `GpuLayout::gpu_layout`.
-    fn gpu_repr() -> Repr;
+    // fn gpu_repr() -> Repr;
+    type GpuRepr: TypeReprStorageOrPacked;
 
     /// the `#[cpu(...)]` in `#[derive(GpuLayout)]` allows the definition of a
     /// corresponding Cpu type to the Gpu type that the derive macro is used on.
@@ -175,7 +177,11 @@ pub trait GpuLayout: Layoutable {
 /// println!("OnCpu:\n{}\n", OnCpu::cpu_layout());
 /// ```
 pub fn gpu_layout<T: GpuLayout + ?Sized>() -> TypeLayout {
-    TypeLayout::new_layout_for(T::layoutable_type(), T::gpu_repr())
+    TypeLayout::new_layout_for(&T::layoutable_type(), <T::GpuRepr as TypeRepr>::REPR)
+}
+
+pub fn gpu_type_layout<T: GpuLayout + ?Sized>() -> GpuTypeLayout<T::GpuRepr> {
+    GpuTypeLayout::new(T::layoutable_type())
 }
 
 /// (no documentation yet)
@@ -214,11 +220,11 @@ pub(crate) fn get_layout_compare_with_cpu_push_error<T: GpuLayout>(
     gpu_layout
 }
 
-pub(crate) fn check_layout_push_error<L: TypeRepr, R: TypeRepr>(
+pub(crate) fn check_layout_push_error(
     ctx: &Context,
     cpu_name: &str,
-    cpu_layout: &TypeLayout<L>,
-    gpu_layout: &TypeLayout<R>,
+    cpu_layout: &TypeLayout,
+    gpu_layout: &TypeLayout,
     skip_stride_check: bool,
     comment_on_mismatch_error: &str,
 ) -> Result<(), InvalidReason> {
@@ -554,7 +560,8 @@ impl Layoutable for GpuT {
 }
 
 impl GpuLayout for GpuT {
-    fn gpu_repr() -> Repr { todo!() }
+    // fn gpu_repr() -> Repr { todo!() }
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         Some(Ok((
@@ -775,7 +782,6 @@ impl<T: CpuLayout + Sized, const N: usize> CpuLayout for [T; N] {
                 }),
                 Some(u32::try_from(N).expect("arrays larger than u32::MAX elements are not supported by WGSL")),
             ),
-            None,
         )
     }
 
@@ -819,7 +825,6 @@ impl<T: CpuLayout + Sized> CpuLayout for [T] {
                 }),
                 None,
             ),
-            None,
         )
     }
 

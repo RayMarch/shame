@@ -4,7 +4,7 @@ use super::*;
 #[derive(Clone)]
 pub struct LayoutMismatch {
     /// 2 (name, layout) pairs
-    layouts: [(String, TypeLayout<repr::Plain>); 2],
+    layouts: [(String, TypeLayout); 2],
     colored_error: bool,
 }
 
@@ -65,7 +65,7 @@ impl LayoutMismatch {
     #[allow(clippy::needless_return)]
     pub(crate) fn write<W: Write>(
         indent: &str,
-        layouts: [(&str, &TypeLayout<repr::Plain>); 2],
+        layouts: [(&str, &TypeLayout); 2],
         colored: bool,
         f: &mut W,
     ) -> Result<KeepWriting, MismatchWasFound> {
@@ -431,20 +431,14 @@ impl LayoutMismatch {
 ///
 /// if the two layouts are not equal it uses the debug names in the returned
 /// error to tell the two layouts apart.
-pub(crate) fn check_eq<L: TypeRepr, R: TypeRepr>(
-    a: (&str, &TypeLayout<L>),
-    b: (&str, &TypeLayout<R>),
-) -> Result<(), LayoutMismatch>
+pub(crate) fn check_eq(a: (&str, &TypeLayout), b: (&str, &TypeLayout)) -> Result<(), LayoutMismatch>
 where
-    TypeLayout<L>: PartialEq<TypeLayout<R>>,
+    TypeLayout: PartialEq<TypeLayout>,
 {
     match a.1 == b.1 {
         true => Ok(()),
         false => Err(LayoutMismatch {
-            layouts: [
-                (a.0.into(), a.1.to_owned().into_plain()),
-                (b.0.into(), b.1.to_owned().into_plain()),
-            ],
+            layouts: [(a.0.into(), a.1.to_owned()), (b.0.into(), b.1.to_owned())],
             colored_error: Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages)
                 .unwrap_or(false),
         }),

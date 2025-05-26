@@ -5,7 +5,7 @@ use super::len::x1;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable, AccessModeWritable, Read};
 use super::scalar_type::ScalarTypeInteger;
-use super::type_layout::{self, layoutable, ElementLayout, TypeLayout, TypeLayoutSemantics};
+use super::type_layout::{self, layoutable, repr, ElementLayout, TypeLayout, TypeLayoutSemantics};
 use super::type_traits::{
     BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles,
 };
@@ -179,7 +179,7 @@ impl<T: GpuType + GpuStore + GpuSized, N: ArrayLen> ToGpuType for Array<T, N> {
 }
 
 impl<T: GpuType + GpuSized + GpuLayout + LayoutableSized, N: ArrayLen> GpuLayout for Array<T, N> {
-    fn gpu_repr() -> type_layout::Repr { type_layout::Repr::Storage }
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         let (t_cpu_name, t_cpu_layout) = match T::cpu_type_name_and_layout()? {
@@ -207,7 +207,6 @@ impl<T: GpuType + GpuSized + GpuLayout + LayoutableSized, N: ArrayLen> GpuLayout
                     }),
                     N::LEN.map(NonZeroU32::get),
                 ),
-                None,
             ),
         );
 

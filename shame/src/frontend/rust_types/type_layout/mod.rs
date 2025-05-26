@@ -23,7 +23,7 @@ use layoutable::{
     LayoutableType, Matrix, Vector,
 };
 
-pub(crate) mod builder;
+pub(crate) mod construction;
 pub(crate) mod eq;
 pub(crate) mod layoutable;
 
@@ -97,7 +97,7 @@ pub enum TypeLayoutSemantics {
 /// );
 /// ```
 #[derive(Clone)]
-pub struct TypeLayout<T: TypeRepr = repr::Plain> {
+pub struct TypeLayout {
     /// size in bytes (Some), or unsized (None)
     pub byte_size: Option<u64>,
     /// the byte alignment
@@ -106,24 +106,35 @@ pub struct TypeLayout<T: TypeRepr = repr::Plain> {
     pub align: U32PowerOf2,
     /// the type contained in the bytes of this type layout
     pub kind: TypeLayoutSemantics,
-
-    /// Is some for `constraint::Storage` and `constraint::Uniform`. Can be converted to a `StoreType`.
-    pub(crate) layoutable_type: Option<LayoutableType>,
-    _phantom: PhantomData<T>,
 }
 
 // PartialEq, Eq, Hash for TypeLayout
-impl<L: TypeRepr, R: TypeRepr> PartialEq<TypeLayout<R>> for TypeLayout<L> {
-    fn eq(&self, other: &TypeLayout<R>) -> bool { self.byte_size() == other.byte_size() && self.kind == other.kind }
+impl PartialEq<TypeLayout> for TypeLayout {
+    fn eq(&self, other: &TypeLayout) -> bool { self.byte_size() == other.byte_size() && self.kind == other.kind }
 }
-impl<T: TypeRepr> Eq for TypeLayout<T> {}
-impl<T: TypeRepr> Hash for TypeLayout<T> {
+impl Eq for TypeLayout {}
+impl Hash for TypeLayout {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.byte_size.hash(state);
         self.kind.hash(state);
     }
 }
 
+/// TODO(chronicl)
+#[derive(Debug, Clone)]
+pub struct GpuTypeLayout<T: TypeRepr = repr::Storage> {
+    ty: LayoutableType,
+    _repr: PhantomData<T>,
+}
+
+impl<T: TypeRepr> GpuTypeLayout<T> {
+    /// TODO(chronicl)
+    pub fn layout(&self) -> TypeLayout { TypeLayout::new_layout_for(&self.ty, T::REPR) }
+    /// TODO(chronicl)
+    pub fn layoutable_type(&self) -> &LayoutableType { &self.ty }
+}
+
+use repr::TypeReprStorageOrPacked;
 pub use repr::{TypeRepr, Repr};
 /// Module for all restrictions on `TypeLayout<T: TypeRestriction>`.
 pub mod repr {
@@ -132,7 +143,14 @@ pub mod repr {
     /// Type representation used by `TypeLayout<T: TypeRepr>`. This provides guarantees
     /// about the alignment rules that the type layout adheres to.
     /// See [`TypeLayout`] documentation for more details.
-    pub trait TypeRepr: Clone + PartialEq + Eq {}
+    pub trait TypeRepr: Clone + PartialEq + Eq {
+        /// The corresponding enum variant of `Repr`.
+        const REPR: Repr;
+    }
+    /// TODO(chronicl)
+    pub trait TypeReprStorageOrPacked: TypeRepr {}
+    impl TypeReprStorageOrPacked for Storage {}
+    impl TypeReprStorageOrPacked for Packed {}
 
     /// Enum of layout rules.
     #[derive(Debug, Clone, Copy)]
@@ -156,64 +174,38 @@ pub mod repr {
         pub const fn is_packed(self) -> bool { matches!(self, Repr::Packed) }
     }
 
+    impl std::fmt::Display for Repr {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Repr::Storage => write!(f, "storage"),
+                Repr::Uniform => write!(f, "uniform"),
+                Repr::Packed => write!(f, "packed"),
+            }
+        }
+    }
+
     macro_rules! type_repr {
-        ($($constraint:ident),*) => {
+        ($($repr:ident),*) => {
             $(
                 /// A type representation used by `TypeLayout<T: TypeRepr>`.
                 /// See [`TypeLayout`] documentation for more details.
                 #[derive(Clone, PartialEq, Eq, Hash)]
-                pub struct $constraint;
-                impl TypeRepr for $constraint {}
-            )*
-        };
-    }
-    type_repr!(Plain, Storage, Uniform, Packed);
-
-    macro_rules! impl_from_into {
-        ($from:ident -> $($into:ident),*) => {
-            $(
-                impl From<TypeLayout<$from>> for TypeLayout<$into> {
-                    fn from(layout: TypeLayout<$from>) -> Self { type_layout_internal::cast_unchecked(layout) }
+                pub struct $repr;
+                impl TypeRepr for $repr {
+                    const REPR: Repr = Repr::$repr;
                 }
             )*
         };
     }
-
-    impl_from_into!(Storage -> Plain);
-    impl_from_into!(Uniform -> Plain, Storage);
-    impl_from_into!(Packed  -> Plain);
+    type_repr!(Storage, Uniform, Packed);
 }
 
 impl TypeLayout {
-    pub(crate) fn new(
-        byte_size: Option<u64>,
-        byte_align: U32PowerOf2,
-        kind: TypeLayoutSemantics,
-        layoutable_type: Option<LayoutableType>,
-    ) -> Self {
+    pub(crate) fn new(byte_size: Option<u64>, byte_align: U32PowerOf2, kind: TypeLayoutSemantics) -> Self {
         TypeLayout {
             byte_size,
             align: byte_align,
             kind,
-            layoutable_type,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-/// This module offers helper methods that do not adhere to the restriction of `TypeLayout<T: TypeRestriction>.
-/// The caller must uphold these restrictions themselves.
-/// The main purpose of this module is to avoid repetition.
-pub(in super::super::rust_types) mod type_layout_internal {
-    use super::*;
-
-    pub fn cast_unchecked<From: TypeRepr, Into: TypeRepr>(layout: TypeLayout<From>) -> TypeLayout<Into> {
-        TypeLayout {
-            byte_size: layout.byte_size,
-            align: layout.align,
-            kind: layout.kind,
-            layoutable_type: layout.layoutable_type,
-            _phantom: PhantomData,
         }
     }
 }
@@ -257,10 +249,10 @@ pub struct ElementLayout {
     ///
     /// The element layout must be constraint::Plain because it's shared by all constraints.
     /// `ElementLayout` could possibly be made generic too, but it would complicate a lot.
-    pub ty: TypeLayout<repr::Plain>,
+    pub ty: TypeLayout,
 }
 
-impl<T: TypeRepr> TypeLayout<T> {
+impl TypeLayout {
     /// Returns the byte size of the represented type.
     ///
     /// For sized types, this returns Some(size), while for unsized types
@@ -269,16 +261,6 @@ impl<T: TypeRepr> TypeLayout<T> {
 
     /// Returns the alignment requirement of the represented type.
     pub fn align(&self) -> U32PowerOf2 { self.align }
-
-    /// Although all TypeLayout<T> always implement Into<TypeLayout<marker::MaybeInvalid>, this method
-    /// is offered to avoid having to declare that as a bound when handling generic TypeLayout<T>.
-    pub fn into_plain(self) -> TypeLayout<repr::Plain> { type_layout_internal::cast_unchecked(self) }
-
-    /// Get the `LayoutableType` this layout is based on.
-    ///
-    /// This may be `None` for `TypeLayout<Plain>`.
-    /// `TypeLayout<Storage | Uniform | Packed>` may use [`TypeLayout::layoutable_type`].
-    pub fn get_layoutable_type(&self) -> Option<&LayoutableType> { self.layoutable_type.as_ref() }
 
     /// a short name for this `TypeLayout`, useful for printing inline
     pub fn short_name(&self) -> String {
@@ -345,7 +327,6 @@ impl<T: TypeRepr> TypeLayout<T> {
                         write!(f, "{indent}{offset:3} {}: ", field.name)?;
                         field.ty.write(&(indent.to_string() + tab), colored, f)?;
                         if let Some(size) = field.ty.byte_size {
-                            let size = size.max(field.custom_min_size.unwrap_or(0));
                             write!(f, " size={size}")?;
                         } else {
                             write!(f, " size=?")?;
@@ -374,7 +355,6 @@ impl TypeLayout {
             // https://doc.rust-lang.org/reference/type-layout.html#r-layout.properties.align
             U32PowerOf2::try_from(align_of::<T>() as u32).unwrap(),
             kind,
-            None,
         )
     }
 
@@ -383,7 +363,7 @@ impl TypeLayout {
         store_type: ir::StoreType,
     ) -> Result<Self, layoutable::ir_compat::LayoutableConversionError> {
         let t: layoutable::LayoutableType = store_type.try_into()?;
-        Ok(TypeLayout::new_storage_layout_for(t).into())
+        Ok(TypeLayout::new_layout_for(&t, Repr::Storage).into())
     }
 }
 
@@ -391,25 +371,17 @@ impl TypeLayout {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldLayout {
     pub name: CanonName,
-    // whether size/align is custom doesn't matter for the layout equality.
-    pub custom_min_size: IgnoreInEqOrdHash<Option<u64>>,
-    pub custom_min_align: IgnoreInEqOrdHash<Option<U32PowerOf2>>,
-    /// The fields layout must be constraint::Plain,
-    /// because that's the most it can be while supporting all possible constraints.
-    pub ty: TypeLayout<repr::Plain>,
+    pub ty: TypeLayout,
 }
 
 impl FieldLayout {
-    fn byte_size(&self) -> Option<u64> {
-        self.ty
-            .byte_size()
-            .map(|byte_size| LayoutCalculator::calculate_byte_size(byte_size, self.custom_min_size.0))
-    }
+    fn byte_size(&self) -> Option<u64> { self.ty.byte_size() }
 
     /// The alignment of the field with `custom_min_align` taken into account.
-    fn align(&self) -> U32PowerOf2 { LayoutCalculator::calculate_align(self.ty.align(), self.custom_min_align.0) }
+    fn align(&self) -> U32PowerOf2 { self.ty.align() }
 }
 
+// TODO(chronicl) move into layoutable/builder.rs
 /// Options for the field of a struct.
 ///
 /// If you only want to customize the field's name, you can convert most string types
@@ -448,13 +420,13 @@ impl<T: Into<CanonName>> From<T> for FieldOptions {
     fn from(name: T) -> Self { Self::new(name, None, None) }
 }
 
-impl<T: TypeRepr> Display for TypeLayout<T> {
+impl Display for TypeLayout {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let colored = Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages).unwrap_or(false);
         self.write("", colored, f)
     }
 }
 
-impl<T: TypeRepr> Debug for TypeLayout<T> {
+impl Debug for TypeLayout {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.write("", false, f) }
 }

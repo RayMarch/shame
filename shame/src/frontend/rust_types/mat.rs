@@ -10,7 +10,7 @@ use super::{
     type_layout::{
         self,
         layoutable::{self, LayoutableSized},
-        TypeLayout,
+        repr, TypeLayout,
     },
     type_traits::{
         BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools,
@@ -69,7 +69,7 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> Layoutable for mat<T, C, R> {
 }
 
 impl<T: ScalarTypeFp, C: Len2, R: Len2> GpuLayout for mat<T, C, R> {
-    fn gpu_repr() -> type_layout::Repr { type_layout::Repr::Storage }
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> { None }
 }

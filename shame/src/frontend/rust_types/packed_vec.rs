@@ -25,7 +25,7 @@ use super::{
     layout_traits::{from_single_any, ArrayElementsUnsizedError, FromAnys, GpuLayout},
     len::LenEven,
     scalar_type::ScalarType,
-    type_layout::{self, layoutable, type_layout_internal, TypeLayout, TypeLayoutSemantics},
+    type_layout::{self, layoutable, repr, Repr, TypeLayout, TypeLayoutSemantics},
     type_traits::{GpuAligned, GpuSized, NoAtomics, NoBools, NoHandles, VertexAttribute},
     vec::IsVec,
     GpuType,
@@ -148,13 +148,13 @@ impl<T: PackedScalarType, L: LenEven> Layoutable for PackedVec<T, L> {
 }
 
 impl<T: PackedScalarType, L: LenEven> GpuLayout for PackedVec<T, L> {
-    fn gpu_repr() -> type_layout::Repr { type_layout::Repr::Storage }
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         let sized_ty = Self::sized_ty_equivalent();
         let name = sized_ty.to_string().into();
         let sized_ty: layoutable::SizedType = sized_ty.try_into().expect("PackedVec is NoBools and NoHandles");
-        let layout = TypeLayout::new_storage_layout_for(sized_ty);
+        let layout = TypeLayout::new_layout_for(&sized_ty.into(), Repr::Storage);
         Some(Ok((name, layout.into())))
     }
 }
