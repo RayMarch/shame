@@ -120,7 +120,21 @@ impl Hash for TypeLayout {
     }
 }
 
-/// TODO(chronicl)
+/// A `TypeLayout`, but guaranteed to be based on a `LayoutableType` and
+/// a `Repr` - it follows the layout rules that correspond to the `Repr`.
+///
+/// The actual `TypeLayout` can be obtained via `GpuTypeLayout::layout`.
+///
+/// While `GpuTypeLayout<Storage>` and `GpuTypeLayout<Packed>` can be freely created
+/// from a `LayoutableType`, the only way to get a `GpuTypeLayout<Uniform>` is by
+/// using `TryFrom::try_from` on a `GpuTypeLayout<Storage>`. This is the case, because
+/// shame does not support `#[gpu_repr(uniform)]`, meaning we can't lay out a type
+/// according to uniform layout rules, we must lay it out according to storage layout rules
+/// and then check whether the storage layout also follows the uniform layout rules.
+// The reason shame doesn't support #[gpu_repr(uniform)] is that wgsl does not have
+// a custom stride attribute, so for example the elements in the `sm::Array` in
+// struct A { a: sm::Array<f32x1> } need to have a stride of 16 according to uniform
+// layout rules, which we can't enforce.
 #[derive(Debug, Clone)]
 pub struct GpuTypeLayout<T: TypeRepr = repr::Storage> {
     ty: LayoutableType,
@@ -128,9 +142,9 @@ pub struct GpuTypeLayout<T: TypeRepr = repr::Storage> {
 }
 
 impl<T: TypeRepr> GpuTypeLayout<T> {
-    /// TODO(chronicl)
+    /// Gets the `TypeLayout`.
     pub fn layout(&self) -> TypeLayout { TypeLayout::new_layout_for(&self.ty, T::REPR) }
-    /// TODO(chronicl)
+    /// Returns the `LayoutableType` this `GpuTypeLayout` is based on.
     pub fn layoutable_type(&self) -> &LayoutableType { &self.ty }
 }
 
@@ -147,7 +161,8 @@ pub mod repr {
         /// The corresponding enum variant of `Repr`.
         const REPR: Repr;
     }
-    /// TODO(chronicl)
+    /// A subset of the types implementing `TypeRepr`. As the name suggests
+    /// only `Storage` and `Packed` implement this trait.
     pub trait TypeReprStorageOrPacked: TypeRepr {}
     impl TypeReprStorageOrPacked for Storage {}
     impl TypeReprStorageOrPacked for Packed {}
@@ -379,45 +394,6 @@ impl FieldLayout {
 
     /// The alignment of the field with `custom_min_align` taken into account.
     fn align(&self) -> U32PowerOf2 { self.ty.align() }
-}
-
-// TODO(chronicl) move into layoutable/builder.rs
-/// Options for the field of a struct.
-///
-/// If you only want to customize the field's name, you can convert most string types
-/// to `FieldOptions` using `Into::into`, but most methods take `impl Into<StructOptions>`,
-/// meaning you can just pass the string type directly.
-#[derive(Debug, Clone)]
-pub struct FieldOptions {
-    /// Name of the field
-    pub name: CanonName,
-    /// Custom minimum align of the field.
-    pub custom_min_align: Option<U32PowerOf2>,
-    /// Custom mininum size of the field.
-    pub custom_min_size: Option<u64>,
-}
-
-impl FieldOptions {
-    /// Creates new `FieldOptions`.
-    ///
-    /// If you only want to customize the field's name, you can convert most string types
-    /// to `FieldOptions` using `Into::into`, but most methods take `impl Into<StructOptions>`,
-    /// meaning you can just pass the string type directly.
-    pub fn new(
-        name: impl Into<CanonName>,
-        custom_min_align: Option<U32PowerOf2>,
-        custom_min_size: Option<u64>,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            custom_min_align,
-            custom_min_size,
-        }
-    }
-}
-
-impl<T: Into<CanonName>> From<T> for FieldOptions {
-    fn from(name: T) -> Self { Self::new(name, None, None) }
 }
 
 impl Display for TypeLayout {

@@ -74,16 +74,10 @@ impl SizedType {
 
 impl SizedStruct {
     /// Returns [`FieldOffsets`], which serves as an iterator over the offsets of the
-    /// fields of this struct, as well as a `byte_size` and `align` calculator.
-    /// See the documentation of `FieldOffsets` on how to obtain `byte_size` and `align`
-    /// of this struct from it.
-    pub fn field_offsets(&self, repr: Repr) -> FieldOffsets {
-        FieldOffsets {
-            fields: &self.fields,
-            field_index: 0,
-            calc: LayoutCalculator::new(repr),
-            repr,
-        }
+    /// fields of this struct. `SizedStruct::byte_size_and_align_from_offsets` can be
+    /// used to efficiently obtain the byte_size
+    pub fn field_offsets(&self, repr: Repr) -> FieldOffsetsSized {
+        FieldOffsetsSized(FieldOffsets::new(self.fields(), repr))
     }
 
     /// Returns (byte_size, align)
@@ -93,26 +87,17 @@ impl SizedStruct {
     /// If you also need field offsets, use [`SizedStruct::field_offsets`] instead and
     /// read the documentation of [`FieldOffsets`] on how to obtain the byte size and align from it.
     pub fn byte_size_and_align(&self, repr: Repr) -> (u64, U32PowerOf2) {
-        let mut field_offsets = self.field_offsets(repr);
-        (&mut field_offsets).count(); // &mut so it doesn't consume
-        (field_offsets.byte_size(), field_offsets.align())
+        self.field_offsets(repr).struct_byte_size_and_align()
     }
 }
 
-/// An iterator over the field offsets of a `SizedStruct` or the sized fields of an `UnsizedStruct`.
-///
-/// `FieldOffsets::byte_size` and `FieldOffsets::byte_align` can be used to query the struct's
-/// `byte_size` and `byte_align`, but only takes into account the fields that have been iterated over.
-///
-/// Use [`UnsizedStruct::last_field_offset_and_struct_align`] to obtain the last field's offset
-/// and the struct's align for `UnsizedStruct`s.
+/// An iterator over the offsets of sized fields.
 pub struct FieldOffsets<'a> {
     fields: &'a [SizedField],
     field_index: usize,
     calc: LayoutCalculator,
     repr: Repr,
 }
-
 impl Iterator for FieldOffsets<'_> {
     type Item = u64;
 
@@ -127,49 +112,84 @@ impl Iterator for FieldOffsets<'_> {
         })
     }
 }
-
-impl FieldOffsets<'_> {
-    /// Returns the byte size of the struct, but ONLY with the fields that have been iterated over so far.
-    pub const fn byte_size(&self) -> u64 { self.calc.byte_size() }
-    /// Returns the byte align of the struct, but ONLY with the fields that have been iterated over so far.
-    pub const fn align(&self) -> U32PowerOf2 { struct_align(self.calc.align(), self.repr) }
-}
-
-
-impl UnsizedStruct {
-    /// Returns [`FieldOffsets`], which serves as an iterator over the offsets of the
-    /// sized fields of this struct. `FieldOffsets` may be also passed to
-    /// [`UnsizedStruct::last_field_offset_and_struct_align`] to obtain the last field's offset
-    /// and the struct's align.
-    pub fn sized_field_offsets(&self, repr: Repr) -> FieldOffsets {
-        FieldOffsets {
-            fields: &self.sized_fields,
+impl<'a> FieldOffsets<'a> {
+    fn new(fields: &'a [SizedField], repr: Repr) -> Self {
+        Self {
+            fields,
             field_index: 0,
             calc: LayoutCalculator::new(repr),
             repr,
         }
     }
+}
 
-    /// Returns (last field offset, byte align of unsized struct)
-    ///
-    /// `sized_field_offsets` must be from the same `UnsizedStruct`, otherwise the returned values
-    /// are not accurate.
-    pub fn last_field_offset_and_struct_align(&self, sized_field_offsets: FieldOffsets) -> (u64, U32PowerOf2) {
-        let mut offsets = sized_field_offsets;
-        // Iterating over any remaining field offsets to update the layout calculator.
-        (&mut offsets).count();
+/// Iterator over the field offsets of a `SizedStruct`.
+// The difference to `FieldOffsets` is that it also offers a `struct_byte_size_and_align` method.
+pub struct FieldOffsetsSized<'a>(FieldOffsets<'a>);
+impl Iterator for FieldOffsetsSized<'_> {
+    type Item = u64;
+    fn next(&mut self) -> Option<Self::Item> { self.0.next() }
+}
+impl<'a> FieldOffsetsSized<'a> {
+    /// Consumes self and calculates the byte size and align of a struct
+    /// with exactly the sized fields that this FieldOffsets was created with.
+    pub fn struct_byte_size_and_align(mut self) -> (u64, U32PowerOf2) {
+        // Finishing layout calculations
+        (&mut self.0).count();
+        (self.0.calc.byte_size(), struct_align(self.0.calc.align(), self.0.repr))
+    }
 
-        let array_align = self.last_unsized.array.align(offsets.repr);
+    /// Returns the inner iterator over sized fields.
+    pub fn into_sized_fields(self) -> FieldOffsets<'a> { self.0 }
+}
+
+/// The field offsets of an `UnsizedStruct`.
+///
+/// - Use [`FieldOffsetsUnsized::sized_field_offsets`] for an iterator over the sized field offsets.
+/// - Use [`FieldOffsetsUnsized::last_field_offset_and_struct_align`] for the last field's offset
+///   and the struct's align
+pub struct FieldOffsetsUnsized<'a> {
+    sized: FieldOffsets<'a>,
+    last_unsized: &'a RuntimeSizedArrayField,
+}
+
+impl<'a> FieldOffsetsUnsized<'a> {
+    fn new(sized_fields: &'a [SizedField], last_unsized: &'a RuntimeSizedArrayField, repr: Repr) -> Self {
+        Self {
+            sized: FieldOffsets::new(sized_fields, repr),
+            last_unsized,
+        }
+    }
+
+    /// Returns an iterator over the sized field offsets.
+    pub fn sized_field_offsets(&mut self) -> &mut FieldOffsets<'a> { &mut self.sized }
+
+    /// Returns the last field's offset and the struct's align.
+    pub fn last_field_offset_and_struct_align(mut self) -> (u64, U32PowerOf2) {
+        // Finishing layout calculations
+        (&mut self.sized).count();
+        let array_align = self.last_unsized.array.align(self.sized.repr);
         let custom_min_align = self.last_unsized.custom_min_align;
-        let (offset, align) = offsets.calc.extend_unsized(array_align, custom_min_align);
-        (offset, struct_align(align, offsets.repr))
+        let (offset, align) = self.sized.calc.extend_unsized(array_align, custom_min_align);
+        (offset, struct_align(align, self.sized.repr))
+    }
+
+    /// Returns the inner iterator over sized fields.
+    pub fn into_sized_fields(self) -> FieldOffsets<'a> { self.sized }
+}
+
+impl UnsizedStruct {
+    /// Returns [`FieldOffsetsUnsized`].
+    ///
+    /// - Use [`FieldOffsetsUnsized::sized_field_offsets`] for an iterator over the sized field offsets.
+    /// - Use [`FieldOffsetsUnsized::last_field_offset_and_struct_align`] for the last field's offset
+    ///   and the struct's align
+    pub fn field_offsets(&self, repr: Repr) -> FieldOffsetsUnsized {
+        FieldOffsetsUnsized::new(&self.sized_fields, &self.last_unsized, repr)
     }
 
     /// This is expensive as it calculates the byte align from scratch.
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
-        let offsets = self.sized_field_offsets(repr);
-        self.last_field_offset_and_struct_align(offsets).1
-    }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.field_offsets(repr).last_field_offset_and_struct_align().1 }
 }
 
 const fn struct_align(align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {

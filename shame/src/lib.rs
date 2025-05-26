@@ -480,7 +480,6 @@ pub mod any {
         pub use type_layout::StructLayout;
         pub use type_layout::FieldLayoutWithOffset;
         pub use type_layout::FieldLayout;
-        pub use type_layout::FieldOptions;
         pub use type_layout::ElementLayout;
         // layoutable traits
         pub use type_layout::layoutable::Layoutable;
@@ -507,6 +506,7 @@ pub mod any {
         pub use type_layout::layoutable::RuntimeSizedArrayField;
         pub use type_layout::layoutable::CanonName;
         pub use type_layout::layoutable::SizedOrArray;
+        pub use type_layout::layoutable::FieldOptions;
         // layout calculation utility
         pub use type_layout::layoutable::LayoutCalculator;
         pub use type_layout::layoutable::array_stride;

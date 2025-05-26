@@ -10,14 +10,14 @@ use crate::{
 };
 
 pub use crate::ir::{Len, Len2, PackedVector, ScalarTypeFp, ScalarTypeInteger, ir_type::CanonName};
-use super::{construction::StructKind, FieldOptions};
+use super::{construction::StructKind};
 
 pub(crate) mod align_size;
 pub(crate) mod builder;
 pub(crate) mod ir_compat;
 
 pub use align_size::{FieldOffsets, MatrixMajor, LayoutCalculator, array_size, array_stride, array_align};
-pub use builder::SizedOrArray;
+pub use builder::{SizedOrArray, FieldOptions};
 
 /// Types that have a defined memory layout.
 ///
@@ -131,56 +131,6 @@ pub struct RuntimeSizedArrayField {
     pub name: CanonName,
     pub custom_min_align: Option<U32PowerOf2>,
     pub array: RuntimeSizedArray,
-}
-
-impl SizedField {
-    /// Creates a new `SizedField`.
-    pub fn new(options: impl Into<FieldOptions>, ty: impl Into<SizedType>) -> Self {
-        let options = options.into();
-        Self {
-            name: options.name,
-            custom_min_size: options.custom_min_size,
-            custom_min_align: options.custom_min_align,
-            ty: ty.into(),
-        }
-    }
-}
-
-impl RuntimeSizedArrayField {
-    /// Creates a new `RuntimeSizedArrayField` given it's field name,
-    /// an optional custom minimum align and it's element type.
-    pub fn new(
-        name: impl Into<CanonName>,
-        custom_min_align: Option<U32PowerOf2>,
-        element_ty: impl Into<SizedType>,
-    ) -> Self {
-        Self {
-            name: name.into(),
-            custom_min_align,
-            array: RuntimeSizedArray {
-                element: element_ty.into(),
-            },
-        }
-    }
-}
-
-impl SizedArray {
-    /// Creates a new `RuntimeSizedArray` from it's element type and length.
-    pub fn new(element_ty: impl Into<SizedType>, len: NonZeroU32) -> Self {
-        Self {
-            element: Rc::new(element_ty.into()),
-            len,
-        }
-    }
-}
-
-impl RuntimeSizedArray {
-    /// Creates a new `RuntimeSizedArray` from it's element type.
-    pub fn new(element_ty: impl Into<SizedType>) -> Self {
-        RuntimeSizedArray {
-            element: element_ty.into(),
-        }
-    }
 }
 
 /// Trait for types that have a well-defined memory layout.

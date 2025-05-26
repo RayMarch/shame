@@ -156,6 +156,56 @@ impl TryFrom<LayoutableType> for SizedOrArray {
     }
 }
 
+impl SizedField {
+    /// Creates a new `SizedField`.
+    pub fn new(options: impl Into<FieldOptions>, ty: impl Into<SizedType>) -> Self {
+        let options = options.into();
+        Self {
+            name: options.name,
+            custom_min_size: options.custom_min_size,
+            custom_min_align: options.custom_min_align,
+            ty: ty.into(),
+        }
+    }
+}
+
+impl RuntimeSizedArrayField {
+    /// Creates a new `RuntimeSizedArrayField` given it's field name,
+    /// an optional custom minimum align and it's element type.
+    pub fn new(
+        name: impl Into<CanonName>,
+        custom_min_align: Option<U32PowerOf2>,
+        element_ty: impl Into<SizedType>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            custom_min_align,
+            array: RuntimeSizedArray {
+                element: element_ty.into(),
+            },
+        }
+    }
+}
+
+impl SizedArray {
+    /// Creates a new `RuntimeSizedArray` from it's element type and length.
+    pub fn new(element_ty: impl Into<SizedType>, len: NonZeroU32) -> Self {
+        Self {
+            element: Rc::new(element_ty.into()),
+            len,
+        }
+    }
+}
+
+impl RuntimeSizedArray {
+    /// Creates a new `RuntimeSizedArray` from it's element type.
+    pub fn new(element_ty: impl Into<SizedType>) -> Self {
+        RuntimeSizedArray {
+            element: element_ty.into(),
+        }
+    }
+}
+
 impl<T: Into<CanonName>> From<(T, SizedType)> for SizedField {
     fn from(value: (T, SizedType)) -> Self {
         Self {
@@ -175,4 +225,42 @@ impl<T: Into<CanonName>> From<(T, SizedType)> for RuntimeSizedArrayField {
             custom_min_align: None,
         }
     }
+}
+
+/// Options for the field of a struct.
+///
+/// If you only want to customize the field's name, you can convert most string types
+/// to `FieldOptions` using `Into::into`, but most methods take `impl Into<StructOptions>`,
+/// meaning you can just pass the string type directly.
+#[derive(Debug, Clone)]
+pub struct FieldOptions {
+    /// Name of the field
+    pub name: CanonName,
+    /// Custom minimum align of the field.
+    pub custom_min_align: Option<U32PowerOf2>,
+    /// Custom mininum size of the field.
+    pub custom_min_size: Option<u64>,
+}
+
+impl FieldOptions {
+    /// Creates new `FieldOptions`.
+    ///
+    /// If you only want to customize the field's name, you can convert most string types
+    /// to `FieldOptions` using `Into::into`, but most methods take `impl Into<StructOptions>`,
+    /// meaning you can just pass the string type directly.
+    pub fn new(
+        name: impl Into<CanonName>,
+        custom_min_align: Option<U32PowerOf2>,
+        custom_min_size: Option<u64>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            custom_min_align,
+            custom_min_size,
+        }
+    }
+}
+
+impl<T: Into<CanonName>> From<T> for FieldOptions {
+    fn from(name: T) -> Self { Self::new(name, None, None) }
 }

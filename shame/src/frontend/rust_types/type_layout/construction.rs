@@ -56,9 +56,10 @@ impl TypeLayout {
                     .map(|(offset, field)| sized_field_to_field_layout(field, offset, repr))
                     .collect();
 
+                let (byte_size, align) = field_offsets.struct_byte_size_and_align();
                 (
-                    field_offsets.byte_size(),
-                    field_offsets.align(),
+                    byte_size,
+                    align,
                     TLS::Structure(Rc::new(StructLayout {
                         name: s.name.clone().into(),
                         fields,
@@ -71,13 +72,13 @@ impl TypeLayout {
     }
 
     fn from_unsized_struct(s: &UnsizedStruct, repr: Repr) -> Self {
-        let mut field_offsets = s.sized_field_offsets(repr);
-        let mut fields = (&mut field_offsets)
+        let mut field_offsets = s.field_offsets(repr);
+        let mut fields = (&mut field_offsets.sized_field_offsets())
             .zip(s.sized_fields.iter())
             .map(|(offset, field)| sized_field_to_field_layout(field, offset, repr))
             .collect::<Vec<_>>();
 
-        let (field_offset, align) = s.last_field_offset_and_struct_align(field_offsets);
+        let (field_offset, align) = field_offsets.last_field_offset_and_struct_align();
 
         let mut ty = Self::from_runtime_sized_array(&s.last_unsized.array, repr);
         // VERY IMPORTANT: TypeLayout::from_runtime_sized_array does not take into account
@@ -184,12 +185,18 @@ fn check_layout(ty: &LayoutableType, actual_repr: Repr, expected_repr: Repr) -> 
     match &ctx.top_level_type {
         LayoutableType::Sized(s) => check_compare_sized(ctx, s),
         LayoutableType::UnsizedStruct(s) => {
-            let mut actual_offsets = s.sized_field_offsets(ctx.actual_repr);
-            let mut expected_offsets = s.sized_field_offsets(ctx.expected_repr);
-            check_sized_fields(ctx, s, &s.sized_fields, &mut actual_offsets, &mut expected_offsets)?;
+            let mut actual_offsets = s.field_offsets(ctx.actual_repr);
+            let mut expected_offsets = s.field_offsets(ctx.expected_repr);
+            check_sized_fields(
+                ctx,
+                s,
+                &s.sized_fields,
+                actual_offsets.sized_field_offsets(),
+                expected_offsets.sized_field_offsets(),
+            )?;
 
-            let (actual_last_offset, _) = s.last_field_offset_and_struct_align(actual_offsets);
-            let (expected_last_offset, _) = s.last_field_offset_and_struct_align(expected_offsets);
+            let (actual_last_offset, _) = actual_offsets.last_field_offset_and_struct_align();
+            let (expected_last_offset, _) = expected_offsets.last_field_offset_and_struct_align();
 
             if actual_last_offset != expected_last_offset {
                 let field = &s.last_unsized;
@@ -256,8 +263,8 @@ fn check_sized_fields(
     ctx: LayoutContext,
     s: &(impl Into<StructKind> + Clone),
     fields: &[SizedField],
-    actual_offsets: &mut FieldOffsets,
-    expected_offsets: &mut FieldOffsets,
+    actual_offsets: impl Iterator<Item = u64>,
+    expected_offsets: impl Iterator<Item = u64>,
 ) -> Result<(), LayoutError> {
     for (i, (field, (actual_offset, expected_offset))) in
         fields.iter().zip(actual_offsets.zip(expected_offsets)).enumerate()
@@ -510,8 +517,12 @@ where
     };
 
     let (struct_name, sized_fields, mut field_offsets) = match struct_type {
-        StructKind::Sized(s) => (&s.name, s.fields(), s.field_offsets(repr)),
-        StructKind::Unsized(s) => (&s.name, s.sized_fields.as_slice(), s.sized_field_offsets(repr)),
+        StructKind::Sized(s) => (&s.name, s.fields(), s.field_offsets(repr).into_sized_fields()),
+        StructKind::Unsized(s) => (
+            &s.name,
+            s.sized_fields.as_slice(),
+            s.field_offsets(repr).into_sized_fields(),
+        ),
     };
 
     let indent = "  ";
@@ -548,7 +559,7 @@ where
         color(f, "#508EE3", field_index)?;
 
         let last_field = &s.last_unsized;
-        let (last_field_offset, _) = s.last_field_offset_and_struct_align(field_offsets);
+        let (last_field_offset, _) = s.field_offsets(repr).last_field_offset_and_struct_align();
 
         let decl_line = format!("{indent}{}: {},", last_field.name, last_field.array);
         f.write_str(&decl_line)?;

@@ -25,7 +25,7 @@ pub use crate::frontend::rust_types::struct_::BufferFields;
 pub use crate::frontend::rust_types::struct_::SizedFields;
 pub use crate::frontend::rust_types::type_layout::FieldLayout;
 pub use crate::frontend::rust_types::type_layout::FieldLayoutWithOffset;
-pub use crate::frontend::rust_types::type_layout::FieldOptions;
+pub use crate::frontend::rust_types::type_layout::layoutable::FieldOptions;
 pub use crate::frontend::rust_types::type_layout::StructLayout;
 pub use crate::frontend::rust_types::type_layout::Repr;
 pub use crate::frontend::rust_types::type_layout::repr;
