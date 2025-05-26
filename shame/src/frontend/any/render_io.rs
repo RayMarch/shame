@@ -53,20 +53,20 @@ pub enum VertexLayoutError {
 }
 
 #[derive(Debug, Clone)]
-/// (no documentation - chronicl)
+/// A list of vertex attributes and the stride at which they occur in the vertex buffer.
 pub struct VertexAttributes {
-    /// (no documentation - chronicl)
+    /// The amount of bytes between beginnings of the same vertex attribute.
     pub stride: u64,
-    /// (no documentation - chronicl)
+    /// The list of attributes which comprise a single vertex.
     pub attribs: Box<[VertexAttribute]>,
 }
 
 #[derive(Debug, Clone, Copy)]
 /// Vertex Attribute information - offset and format.
 pub struct VertexAttribute {
-    /// (no documentation - chronicl)
+    /// The byte-offset of the first occurence of this vertex attribute within the vertex buffer.
     pub offset: u64,
-    /// (no documentation - chronicl)
+    /// The datatype of this vertex attribute.
     pub format: VertexAttribFormat,
 }
 

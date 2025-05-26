@@ -52,7 +52,21 @@ impl VertexBufferIterDynamic {
     }
 }
 
-/// (no documentation - chronicl)
+/// A dynamically typed vertex buffer.
+///
+/// ## Example
+///
+/// ```
+/// // Get the next vertex buffer with dynamic typing
+/// let vb = drawcall.vertices.buffers.next_dynamic();
+///
+/// // Get a dynamic element from the vertex buffer
+/// let vertex: VertexBufferElement = vb.at(drawcall.vertices.index);
+/// // Can for example be used to iterate over attributes
+/// let mut attr_iter = vertex.iter_attributes();
+/// let position: f32x3 = attr_iter.next();
+/// let normal: Option<f32x3> = vertex_has_normal.and_then(|| attr_iter.next());
+/// ```
 pub struct VertexBufferDynamic {
     slot: VertexBufferAny,
     location_counter: LocationCounter,
@@ -118,7 +132,7 @@ impl VertexBufferDynamic {
     }
 }
 
-/// (no documentation - chronicl)
+/// A dynamically typed vertex buffer element.
 pub struct VertexBufferElement {
     slot: VertexBufferAny,
     location_counter: LocationCounter,
@@ -151,14 +165,14 @@ impl VertexBufferElement {
         )
     }
 
-    /// (no documentation - chronicl)
+    /// Allows for declaring vertex attributes one by one in an iterator like way.
     #[track_caller]
     pub fn iter_attributes(self, repr: Repr) -> VertexAttributeIter {
         VertexAttributeIter::new(self.slot, self.location_counter, self.lookup, repr)
     }
 }
 
-/// (no documentation - chronicl)
+/// Allows declaring vertex attributes one by one in an iterator like way.
 pub struct VertexAttributeIter {
     slot: VertexBufferAny,
     location_counter: LocationCounter,
@@ -183,14 +197,12 @@ impl VertexAttributeIter {
         }
     }
 
-
-    // TODO(chronicl) consider methods that allow custom_min_align and custom_min_size
-    /// (no documentation - chronicl)
+    /// Declare the next vertex attribute.
     #[allow(clippy::should_implement_trait)]
     #[track_caller]
     pub fn next<T: VertexAttribute>(&mut self) -> T { self.at(self.location_counter.next().0) }
 
-    /// (no documentation - chronicl)
+    /// Declare a vertex attribute at `location`.
     #[track_caller]
     pub fn at<T: VertexAttribute>(&mut self, location: u32) -> T {
         let format = T::vertex_attrib_format();
@@ -207,7 +219,6 @@ impl VertexAttributeIter {
 }
 
 
-/// (no documentation - chronicl)
 #[derive(Clone)]
 pub struct LocationCounter(Rc<Cell<u32>>);
 
