@@ -78,11 +78,17 @@ impl TypeLayout {
             .collect::<Vec<_>>();
 
         let (field_offset, align) = s.last_field_offset_and_struct_align(field_offsets);
+
+        let mut ty = Self::from_runtime_sized_array(&s.last_unsized.array, repr);
+        // VERY IMPORTANT: TypeLayout::from_runtime_sized_array does not take into account
+        // custom_min_align, but s.last_unsized.align does.
+        ty.align = s.last_unsized.align(repr);
+
         fields.push(FieldLayoutWithOffset {
             rel_byte_offset: field_offset,
             field: FieldLayout {
                 name: s.last_unsized.name.clone(),
-                ty: Self::from_runtime_sized_array(&s.last_unsized.array, repr),
+                ty,
             },
         });
 
