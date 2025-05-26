@@ -73,8 +73,8 @@ fn make_pipeline(has_uv: bool) -> Result<sm::results::RenderPipeline, sm::Encodi
     // We need to obtain a key, which makes us the owner of the vertex buffer
     // at the slot that we pass here. This has to be done in order to avoid undetected
     // clashes with the other vertex buffer apis.
-    let slot_key = Any::vertex_buffer_new(2);
-    let anys: Vec<Any> = Any::vertex_buffer_extend(&slot_key, lookup, stride, locations_and_attributes);
+    let buffer_any = Any::vertex_buffer_new(2);
+    let anys: Vec<Any> = Any::vertex_buffer_extend(&buffer_any, lookup, stride, locations_and_attributes);
     let mut anys = anys.into_iter();
 
     let position: f32x3 = anys.next().unwrap().into();

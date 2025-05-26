@@ -327,7 +327,6 @@ impl Any {
     ) -> Vec<Any> {
         let call_info = call_info!();
 
-
         let attributes: SmallVec<_, 5> = attributes.into_iter().collect();
 
         let invalid_anys = |reason| std::iter::repeat_n(Any::new_invalid(reason), attributes.len()).collect();
