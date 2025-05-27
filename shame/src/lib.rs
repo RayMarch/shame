@@ -42,6 +42,9 @@ pub use frontend::encoding::rasterizer::VertexStage;
 pub use frontend::encoding::rasterizer::VertexIndex;
 pub use frontend::encoding::io_iter::VertexBuffer;
 pub use frontend::encoding::io_iter::VertexBufferIter;
+pub use frontend::encoding::io_iter_dynamic::VertexBufferDynamic;
+pub use frontend::encoding::io_iter_dynamic::VertexAttributeIter;
+pub use frontend::encoding::io_iter_dynamic::VertexBufferElement;
 
 // primitive assembly
 pub use frontend::encoding::rasterizer::PrimitiveAssembly;
@@ -184,7 +187,7 @@ pub use frontend::rust_types::vec_range_traits::VecRangeBoundsInclusive;
 pub mod aliases {
     use crate::frontend::rust_types::aliases;
 
-    #[rustfmt::skip]    
+    #[rustfmt::skip]
     pub use aliases::rust_simd::{
         f16x1, f32x1, f64x1, u32x1, i32x1, boolx1,
         f16x2, f32x2, f64x2, u32x2, i32x2, boolx2,
@@ -192,16 +195,16 @@ pub mod aliases {
         f16x4, f32x4, f64x4, u32x4, i32x4, boolx4,
     };
 
-    #[rustfmt::skip]    
+    #[rustfmt::skip]
     pub use aliases::rust_simd::{
         f16x2x2, f32x2x2, f64x2x2,
         f16x2x3, f32x2x3, f64x2x3,
         f16x2x4, f32x2x4, f64x2x4,
-    
+
         f16x3x2, f32x3x2, f64x3x2,
         f16x3x3, f32x3x3, f64x3x3,
         f16x3x4, f32x3x4, f64x3x4,
-    
+
         f16x4x2, f32x4x2, f64x4x2,
         f16x4x3, f32x4x3, f64x4x3,
         f16x4x4, f32x4x4, f64x4x4,
@@ -315,10 +318,10 @@ pub use frontend::texture::texture_formats as tf;
 pub use shame_derive::CpuLayout;
 pub use shame_derive::GpuLayout;
 pub use frontend::rust_types::layout_traits::GpuLayout;
+pub use frontend::rust_types::layout_traits::gpu_layout;
 pub use frontend::rust_types::layout_traits::CpuLayout;
+pub use frontend::rust_types::layout_traits::cpu_layout;
 pub use frontend::rust_types::type_layout::TypeLayout;
-pub use frontend::rust_types::type_layout::TypeLayoutError;
-pub use frontend::rust_types::layout_traits::ArrayElementsUnsizedError;
 
 // derived traits
 pub use frontend::rust_types::type_traits::GpuStore;
@@ -331,6 +334,7 @@ pub use frontend::rust_types::struct_::SizedFields;
 pub use frontend::rust_types::type_traits::NoBools;
 pub use frontend::rust_types::type_traits::NoAtomics;
 pub use frontend::rust_types::type_traits::NoHandles;
+pub use frontend::rust_types::type_traits::VertexAttribute;
 
 pub use frontend::rust_types::layout_traits::VertexLayout;
 
@@ -378,7 +382,7 @@ pub mod results {
     pub use pipeline_info::RenderPipeline;
     pub use pipeline_info::RenderPipelineShaders;
     pub use pipeline_info::RenderPipelineInfo;
-    pub use crate::frontend::any::render_io::VertexBufferLayout;
+    pub use crate::frontend::any::render_io::VertexBufferLayoutRecorded;
     pub use pipeline_info::RenderPipelinePushConstantRanges;
     pub use pipeline_info::RasterizerState;
 
@@ -462,6 +466,61 @@ pub mod any {
     pub use crate::ir::ir_type::StructureDefinitionError;
     pub use crate::ir::ir_type::StructureFieldNamesMustBeUnique;
 
+    pub mod layout {
+        use crate::frontend::rust_types::type_layout;
+        // type layout
+        pub use type_layout::TypeLayout;
+        pub use type_layout::GpuTypeLayout;
+        pub use type_layout::TypeRepr;
+        pub use type_layout::Repr;
+        pub mod repr {
+            use crate::frontend::rust_types::type_layout;
+            pub use type_layout::repr::Storage;
+            pub use type_layout::repr::Uniform;
+            pub use type_layout::repr::Packed;
+        }
+        pub use type_layout::TypeLayoutSemantics;
+        pub use type_layout::StructLayout;
+        pub use type_layout::FieldLayoutWithOffset;
+        pub use type_layout::FieldLayout;
+        pub use type_layout::ElementLayout;
+        // layoutable traits
+        pub use type_layout::layoutable::Layoutable;
+        pub use type_layout::layoutable::LayoutableSized;
+        // layoutable types
+        pub use type_layout::layoutable::LayoutableType;
+        pub use type_layout::layoutable::UnsizedStruct;
+        pub use type_layout::layoutable::RuntimeSizedArray;
+        pub use type_layout::layoutable::SizedType;
+        pub use type_layout::layoutable::Vector;
+        pub use type_layout::layoutable::Matrix;
+        pub use type_layout::layoutable::MatrixMajor;
+        pub use type_layout::layoutable::SizedArray;
+        pub use type_layout::layoutable::Atomic;
+        pub use type_layout::layoutable::PackedVector;
+        pub use type_layout::layoutable::SizedStruct;
+        // layoutable type parts
+        pub use type_layout::layoutable::ScalarType;
+        pub use type_layout::layoutable::ScalarTypeFp;
+        pub use type_layout::layoutable::ScalarTypeInteger;
+        pub use type_layout::layoutable::Len;
+        pub use type_layout::layoutable::Len2;
+        pub use type_layout::layoutable::SizedField;
+        pub use type_layout::layoutable::RuntimeSizedArrayField;
+        pub use type_layout::layoutable::CanonName;
+        pub use type_layout::layoutable::SizedOrArray;
+        pub use type_layout::layoutable::FieldOptions;
+        // layout calculation utility
+        pub use type_layout::layoutable::LayoutCalculator;
+        pub use type_layout::layoutable::array_stride;
+        pub use type_layout::layoutable::array_size;
+        pub use type_layout::layoutable::array_align;
+        pub use type_layout::layoutable::FieldOffsets;
+        // conversion and builder errors
+        pub use type_layout::layoutable::builder::IsUnsizedStructError;
+        pub use type_layout::layoutable::builder::StructFromPartsError;
+    }
+
     // runtime binding api
     pub use any::shared_io::BindPath;
     pub use any::shared_io::BindingType;
@@ -491,7 +550,10 @@ pub mod any {
     pub use any::render_io::VertexBufferLookupIndex;
     pub use any::render_io::Location;
     pub use any::render_io::VertexAttribFormat;
-    pub use any::render_io::VertexBufferLayout;
+    pub use any::render_io::VertexBufferLayoutRecorded;
+    pub use any::render_io::VertexAttributes;
+    pub use any::render_io::VertexAttribute;
+    pub use any::render_io::VertexBufferAny;
 
     #[allow(missing_docs)]
     pub mod control_flow {

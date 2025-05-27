@@ -10,6 +10,7 @@ use thiserror::Error;
 
 use super::{PossibleStages, ShaderStage, StageMask};
 use crate::{
+    any::layout::Repr,
     call_info,
     common::{
         integer::post_inc_usize,
@@ -18,7 +19,7 @@ use crate::{
     },
     frontend::{
         any::{
-            render_io::{Attrib, ColorTarget, Location, VertexBufferLayout},
+            render_io::{Attrib, ColorTarget, Location, VertexBufferLayoutRecorded},
             shared_io::{BindPath, BindingType},
         },
         encoding::{
@@ -32,7 +33,7 @@ use crate::{
         error::InternalError,
         rust_types::{
             len::x3,
-            type_layout::{StructLayout, TypeLayoutRules},
+            type_layout::{self, layoutable, StructLayout},
         },
     },
     ir::{
@@ -43,7 +44,7 @@ use crate::{
         StructureFieldNamesMustBeUnique, TextureFormatWrapper, Type,
     },
     results::DepthStencilState,
-    BindingIter, DepthLhs, StencilMasking, Test,
+    BindingIter, DepthLhs, StencilMasking, Test, TypeLayout,
 };
 
 
@@ -71,7 +72,7 @@ macro_rules! stringify_checked {
 
 #[derive(Error, Debug, Clone)]
 pub enum PipelineError {
-    #[error("Missing pipeline specialization. Use either the `{}` or `{}` method to start a compute- or render-pipeline encoding.", 
+    #[error("Missing pipeline specialization. Use either the `{}` or `{}` method to start a compute- or render-pipeline encoding.",
         stringify_checked!(expr: EncodingGuard::new_compute_pipeline::<3>).replace("3", "_"),
         stringify_checked!(expr: EncodingGuard::new_render_pipeline),
     )]
@@ -94,8 +95,10 @@ pub enum PipelineError {
         buffer_a: u32,
         buffer_b: u32,
     },
-    #[error("trying to import vertex buffer #{0} twice")]
-    DuplicateVertexBufferImport(u32),
+    #[error("trying to import vertex buffer #{0} twice. previous import at {1}")]
+    DuplicateVertexBufferImport(u32, CallInfo),
+    #[error("vertex buffer was created while no pipeline encoding was active")]
+    VertexBufferCreatedOutsideOfActiveEncoding,
     #[error("trying to access color target #{0} twice")]
     DuplicateColorTargetAccess(u32),
     #[error("Invalid interpolator type: {0:?}. primitive fragments can only be filled with scalar or vector types.")]
@@ -352,7 +355,14 @@ impl WipPushConstantsField {
         let byte_size = sized_struct.byte_size();
 
         // TODO(release) the `.expect()` calls here can be removed by building a `std::alloc::Layout`-like builder for struct layouts.
-        let (_, _, layout) = StructLayout::from_ir_struct(TypeLayoutRules::Wgsl, &sized_struct);
+        let sized_struct: layoutable::SizedStruct = sized_struct
+            .try_into()
+            .expect("push constants are NoBools and NoHandles");
+        let layout = TypeLayout::new_layout_for(&sized_struct.into(), Repr::Storage);
+        let layout = match &layout.kind {
+            type_layout::TypeLayoutSemantics::Structure(layout) => &**layout,
+            _ => unreachable!("expected struct layout for type layout of struct"),
+        };
 
         let mut ranges = ByteRangesPerStage::default();
 
@@ -408,7 +418,7 @@ impl WipPushConstantsField {
 
         // here we have to allocate unique name strings for each field,
         // so we don't fail the name uniqueness check, even though we don't need those names.
-        SizedStruct::new_nonempty("PushConstants".into(), 
+        SizedStruct::new_nonempty("PushConstants".into(),
             fields.iter().map(&mut to_sized_field).collect(),
             to_sized_field(last)
         ).map_err(|err| match err {
@@ -437,7 +447,7 @@ pub struct WipSpecialization {
 
 #[derive(Default, Debug)]
 pub struct WipRenderPipelineDescriptor {
-    pub(crate) vertex_buffers: Vec<RecordedWithIndex<VertexBufferLayout>>,
+    pub(crate) vertex_buffers: Vec<RecordedWithIndex<VertexBufferLayoutRecorded>>,
     // TODO(release) test if color target multisampling works decoupled from depth/stencil buffer multisampling https://registry.khronos.org/vulkan/specs/1.2-extensions/html/chap8.html#VUID-VkRenderingInfo-imageView-06858
     pub(crate) color_targets: Vec<RecordedWithIndex<ColorTarget>>,
     pub(crate) depth_stencil: LateRecorded<WipDepthStencilState>,
@@ -675,11 +685,25 @@ impl<T> std::ops::DerefMut for RecordedWithIndex<T> {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.t }
 }
 
+impl<T: PartialEq> PartialEq<RecordedWithIndex<T>> for RecordedWithIndex<T> {
+    fn eq(&self, other: &RecordedWithIndex<T>) -> bool { self.index == other.index && self.t == other.t }
+}
+
+impl<T: Eq> Eq for RecordedWithIndex<T> {}
+
+impl<T: std::hash::Hash> std::hash::Hash for RecordedWithIndex<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.index.hash(state);
+        self.t.hash(state);
+    }
+}
+
 impl WipRenderPipelineDescriptor {
     pub fn find_vertex_attrib(&self, location: Location) -> Result<&Attrib, PipelineError> {
         self.vertex_buffers
             .iter()
             .find_map(|vb| vb.attribs.iter().find(|attrib| attrib.location == location))
+            .map(|attrib| &attrib.t)
             .ok_or(PipelineError::AttribLocationNotFound(location))
     }
 

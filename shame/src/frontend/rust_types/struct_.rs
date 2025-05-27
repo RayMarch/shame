@@ -1,3 +1,4 @@
+use crate::any::layout::{Layoutable, LayoutableSized};
 use crate::common::small_vec::SmallVec;
 use crate::frontend::any::shared_io::{BindPath, BindingType};
 use crate::frontend::any::{Any, InvalidReason};
@@ -22,7 +23,7 @@ use std::{
 };
 
 use super::layout_traits::{GetAllFields, GpuLayout};
-use super::type_layout::TypeLayout;
+use super::type_layout::{self, layoutable, repr, TypeLayout};
 use super::type_traits::{GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoBools};
 use super::{
     error::FrontendError,
@@ -134,8 +135,15 @@ impl<T: SizedFields + GpuStore> Deref for Struct<T> {
     fn deref(&self) -> &Self::Target { &self.fields }
 }
 
-impl<T: SizedFields + GpuStore> GpuLayout for Struct<T> {
-    fn gpu_layout() -> TypeLayout { T::gpu_layout() }
+impl<T: SizedFields + GpuStore + NoBools + LayoutableSized> LayoutableSized for Struct<T> {
+    fn layoutable_type_sized() -> layoutable::SizedType { T::layoutable_type_sized() }
+}
+impl<T: SizedFields + GpuStore + NoBools + Layoutable> Layoutable for Struct<T> {
+    fn layoutable_type() -> layoutable::LayoutableType { T::layoutable_type() }
+}
+
+impl<T: SizedFields + GpuStore + NoBools + GpuLayout> GpuLayout for Struct<T> {
+    type GpuRepr = T::GpuRepr;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         T::cpu_type_name_and_layout().map(|x| x.map(|(name, l)| (format!("Struct<{name}>").into(), l)))

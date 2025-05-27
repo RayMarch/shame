@@ -7,11 +7,12 @@ use super::{
     mem::AddressSpace,
     reference::{AccessMode, AccessModeReadable},
     scalar_type::{dtype_as_scalar_from_f64, ScalarType, ScalarTypeInteger, ScalarTypeNumber},
-    type_layout::TypeLayoutRules,
+    type_layout::{layoutable, repr},
     type_traits::{BindingArgs, GpuAligned, GpuStoreImplCategory, NoAtomics, NoHandles, VertexAttribute},
     AsAny, GpuType, To, ToGpuType,
 };
 use crate::{
+    any::layout::{self, Layoutable, LayoutableSized},
     call_info,
     common::{
         proc_macro_utils::{collect_into_array_exact, push_wrong_amount_of_args_error},
@@ -68,12 +69,12 @@ pub type scalar<T> = vec<T, x1>;
 /// let my_vec3 = sm::vec!(1.0, 2.0, 3.0);
 /// let my_vec4 = sm::vec!(my_vec3, 0.0); // component concatenation, like usual in shaders
 /// let my_vec4 = my_vec3.extend(0.0); // or like this
-///    
+///
 /// let my_normal = sm::vec!(1.0, 1.0, 0.0).normalize();
 /// let rgb = my_normal.remap(-1.0..=1.0, 0.0..=1.0); // remap linear ranges (instead of " * 0.5 + 0.5")
 ///
 /// let alpha = 0.4.to_gpu(); // convert from rust to `shame` types (also works for arrays and structs)
-/// let smooth: f32x1 = alpha.smoothstep(0.4..0.8);
+/// let smooth: f32x1 = alpha.smootcstep(0.4..0.8);
 ///
 /// // clamp as generalized min, max, clamp via half open ranges
 /// let upper = alpha.clamp(..=0.8);
@@ -572,8 +573,27 @@ impl<T: ScalarType, L: Len> GpuStore for vec<T, L> {
     fn impl_category() -> GpuStoreImplCategory { GpuStoreImplCategory::GpuType(Self::store_ty()) }
 }
 
-impl<T: ScalarType, L: Len> GpuLayout for vec<T, L> {
-    fn gpu_layout() -> TypeLayout { TypeLayout::from_sized_ty(TypeLayoutRules::Wgsl, &<Self as GpuSized>::sized_ty()) }
+
+impl<T: ScalarType, L: Len> LayoutableSized for vec<T, L>
+where
+    vec<T, L>: NoBools,
+{
+    fn layoutable_type_sized() -> layout::SizedType {
+        layout::Vector::new(T::SCALAR_TYPE.try_into().expect("no bools"), L::LEN).into()
+    }
+}
+impl<T: ScalarType, L: Len> Layoutable for vec<T, L>
+where
+    vec<T, L>: NoBools,
+{
+    fn layoutable_type() -> layout::LayoutableType { Self::layoutable_type_sized().into() }
+}
+
+impl<T: ScalarType, L: Len> GpuLayout for vec<T, L>
+where
+    vec<T, L>: NoBools,
+{
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout()
     -> Option<Result<(std::borrow::Cow<'static, str>, TypeLayout), super::layout_traits::ArrayElementsUnsizedError>>
@@ -1095,7 +1115,12 @@ impl<T: ScalarType, L: Len> VertexAttribute for vec<T, L>
 where
     Self: NoBools,
 {
-    fn vertex_attrib_format() -> VertexAttribFormat { VertexAttribFormat::Fine(L::LEN, T::SCALAR_TYPE) }
+    fn vertex_attrib_format() -> VertexAttribFormat {
+        VertexAttribFormat::Fine(layoutable::Vector::new(
+            T::SCALAR_TYPE.try_into().expect("no bools"),
+            L::LEN,
+        ))
+    }
 }
 
 impl<T: ScalarType, L: Len> FromAnys for vec<T, L> {

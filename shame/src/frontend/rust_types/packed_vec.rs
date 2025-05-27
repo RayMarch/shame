@@ -5,9 +5,12 @@ use std::{
 };
 
 use crate::{
-    any::{AsAny, DataPackingFn},
+    any::{
+        layout::{Layoutable, LayoutableSized},
+        AsAny, DataPackingFn,
+    },
     common::floating_point::f16,
-    f32x2, f32x4, i32x4, u32x1, u32x4,
+    f32x2, f32x4, gpu_layout, i32x4, u32x1, u32x4,
 };
 use crate::frontend::rust_types::len::{x1, x2, x3, x4};
 use crate::frontend::rust_types::vec::vec;
@@ -22,7 +25,7 @@ use super::{
     layout_traits::{from_single_any, ArrayElementsUnsizedError, FromAnys, GpuLayout},
     len::LenEven,
     scalar_type::ScalarType,
-    type_layout::{TypeLayout, TypeLayoutRules, TypeLayoutSemantics},
+    type_layout::{self, layoutable, repr, Repr, TypeLayout, TypeLayoutSemantics},
     type_traits::{GpuAligned, GpuSized, NoAtomics, NoBools, NoHandles, VertexAttribute},
     vec::IsVec,
     GpuType,
@@ -104,7 +107,7 @@ impl<T: PackedScalarType, L: LenEven> PackedVec<T, L> {
     }
 }
 
-fn get_type_description<L: LenEven, T: PackedScalarType>() -> PackedVector {
+pub(crate) fn get_type_description<L: LenEven, T: PackedScalarType>() -> PackedVector {
     PackedVector {
         len: L::LEN_EVEN,
         bits_per_component: T::BITS_PER_COMPONENT,
@@ -130,21 +133,27 @@ impl<T: PackedScalarType, L: LenEven> GpuAligned for PackedVec<T, L> {
 impl<T: PackedScalarType, L: LenEven> NoBools for PackedVec<T, L> {}
 impl<T: PackedScalarType, L: LenEven> NoHandles for PackedVec<T, L> {}
 impl<T: PackedScalarType, L: LenEven> NoAtomics for PackedVec<T, L> {}
+impl<T: PackedScalarType, L: LenEven> LayoutableSized for PackedVec<T, L> {
+    fn layoutable_type_sized() -> layoutable::SizedType {
+        layoutable::PackedVector {
+            scalar_type: T::SCALAR_TYPE,
+            bits_per_component: T::BITS_PER_COMPONENT,
+            len: L::LEN_EVEN,
+        }
+        .into()
+    }
+}
+impl<T: PackedScalarType, L: LenEven> Layoutable for PackedVec<T, L> {
+    fn layoutable_type() -> layoutable::LayoutableType { Self::layoutable_type_sized().into() }
+}
 
 impl<T: PackedScalarType, L: LenEven> GpuLayout for PackedVec<T, L> {
-    fn gpu_layout() -> TypeLayout {
-        let packed_vec = get_type_description::<L, T>();
-        TypeLayout::new(
-            Some(u8::from(packed_vec.byte_size()) as u64),
-            packed_vec.align(),
-            TypeLayoutSemantics::PackedVector(get_type_description::<L, T>()),
-        )
-    }
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
-        let sized_ty = Self::sized_ty_equivalent();
+        let sized_ty: layoutable::SizedType = Self::layoutable_type_sized();
         let name = sized_ty.to_string().into();
-        let layout = TypeLayout::from_sized_ty(TypeLayoutRules::Wgsl, &sized_ty);
+        let layout = TypeLayout::new_layout_for(&sized_ty.into(), Repr::Storage);
         Some(Ok((name, layout)))
     }
 }
@@ -162,7 +171,7 @@ impl<T: PackedScalarType, L: LenEven> From<Any> for PackedVec<T, L> {
         let inner = Context::try_with(call_info!(), |ctx| {
             let err = |ty| {
                 ctx.push_error_get_invalid_any(
-                    FrontendError::InvalidDowncastToNonShaderType(ty, Self::gpu_layout()).into(),
+                    FrontendError::InvalidDowncastToNonShaderType(ty, gpu_layout::<Self>()).into(),
                 )
             };
             match any.ty() {

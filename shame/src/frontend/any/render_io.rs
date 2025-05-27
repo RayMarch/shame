@@ -2,15 +2,16 @@ use std::{fmt::Display, rc::Rc};
 
 use thiserror::Error;
 
+use crate::__private::SmallVec;
 use crate::frontend::any::Any;
-use crate::frontend::rust_types::type_layout::TypeLayout;
+use crate::frontend::rust_types::type_layout::{layoutable, TypeLayout};
+use crate::{ir};
 use crate::{
     call_info,
     common::iterator_ext::try_collect,
     frontend::{
         encoding::{
             fill::{Fill, PickVertex},
-            io_iter::LocationCounter,
             EncodingErrorKind,
         },
         rust_types::type_layout::TypeLayoutSemantics,
@@ -49,6 +50,24 @@ pub enum VertexLayoutError {
     LocationIteratorRanOutOfLocations,
     // #[error("field `{0}` of type `{1}` cannot be part of a vertex buffer. Only scalar and vector types allowed.")]
     // FieldCannotBeVertexAttribute(CanonName, Type),
+}
+
+#[derive(Debug, Clone)]
+/// A list of vertex attributes and the stride at which they occur in the vertex buffer.
+pub struct VertexAttributes {
+    /// The amount of bytes between beginnings of the same vertex attribute.
+    pub stride: u64,
+    /// The list of attributes which comprise a single vertex.
+    pub attribs: Box<[VertexAttribute]>,
+}
+
+#[derive(Debug, Clone, Copy)]
+/// Vertex Attribute information - offset and format.
+pub struct VertexAttribute {
+    /// The byte-offset of the first occurence of this vertex attribute within the vertex buffer.
+    pub offset: u64,
+    /// The datatype of this vertex attribute.
+    pub format: VertexAttribFormat,
 }
 
 /// location and format of a vertex attribute
@@ -107,8 +126,8 @@ impl Any {
 /// the datatype of a vertex attribute
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VertexAttribFormat {
-    /// regular [`crate::vec`] types
-    Fine(Len, ScalarType),
+    /// regular [`crate::vec`] types without bools
+    Fine(layoutable::Vector),
     /// packed [`crate::packed::PackedVec`] types
     Coarse(PackedVector),
 }
@@ -127,7 +146,9 @@ pub enum VertexAttribFormat {
 /// [`vec`]: crate::vec
 /// [`packed::PackedVec`]: crate::packed::PackedVec
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VertexBufferLayout {
+pub struct VertexBufferLayoutRecorded {
+    /// Slot of the layout
+    pub slot: u32,
     /// The index that is used to look up the vertex attributes within a vertex buffer
     ///
     /// either `vertex_index` or `instance_index`
@@ -136,7 +157,7 @@ pub struct VertexBufferLayout {
     /// the buffer and the next occurence of that same attribute in the buffer.
     pub stride: u64,
     /// Location and layout information of each vertex attribute
-    pub attribs: Box<[Attrib]>,
+    pub attribs: Vec<RecordedWithIndex<Attrib>>,
 }
 
 /// a mask that specifies which color components should be written to and which
@@ -238,84 +259,131 @@ impl VertexAttribFormat {
     #[allow(missing_docs)]
     pub fn type_in_shader(self) -> SizedType {
         match self {
-            VertexAttribFormat::Fine(l, t) => SizedType::Vector(l, t),
+            VertexAttribFormat::Fine(v) => SizedType::Vector(v.len, v.scalar.into()),
             VertexAttribFormat::Coarse(coarse) => coarse.decompressed_ty(),
         }
     }
 }
 
-impl Attrib {
-    pub(crate) fn get_attribs_and_stride(
-        layout: &TypeLayout,
-        mut location_counter: &LocationCounter,
-    ) -> Option<(Box<[Attrib]>, u64)> {
-        let stride = {
-            let size = layout.byte_size()?;
-            stride_of_array_from_element_align_size(layout.align(), size)
-        };
-        use TypeLayoutSemantics as TLS;
+/// Signifies ownership of a recorded vertex buffer layout if `VertexBufferKey::is_valid` is true.
+///
+/// Can be used to extend a recorded vertex buffer layout via `Any::vertex_buffer_extend`.
+/// If the key is not valid the resulting `Any`s will not be valid, but
+/// `Any::vertex_buffer_extend` is still okay to call.
+pub struct VertexBufferAny(Result<usize, InvalidReason>);
 
-        let attribs: Box<[Attrib]> = match &layout.kind {
-            TLS::Matrix(..) | TLS::Array(..) | TLS::Vector(_, ScalarType::Bool) => return None,
-            TLS::Vector(len, non_bool) => [Attrib {
-                offset: 0,
-                location: location_counter.next(),
-                format: VertexAttribFormat::Fine(*len, *non_bool),
-            }]
-            .into(),
-            TLS::PackedVector(packed_vector) => [Attrib {
-                offset: 0,
-                location: location_counter.next(),
-                format: VertexAttribFormat::Coarse(*packed_vector),
-            }]
-            .into(),
-            TLS::Structure(rc) => try_collect(rc.fields.iter().map(|f| {
-                Some(Attrib {
-                    offset: f.rel_byte_offset,
-                    location: location_counter.next(),
-                    format: match f.field.ty.kind {
-                        TLS::Vector(_, ScalarType::Bool) => return None,
-                        TLS::Vector(len, non_bool) => Some(VertexAttribFormat::Fine(len, non_bool)),
-                        TLS::PackedVector(packed_vector) => Some(VertexAttribFormat::Coarse(packed_vector)),
-                        TLS::Matrix(..) | TLS::Array(..) | TLS::Structure(..) => None,
-                    }?,
-                })
-            }))?,
-        };
-
-        Some((attribs, stride))
-    }
+impl VertexBufferAny {
+    /// Returns whether this key is valid.
+    pub fn is_valid(&self) -> bool { self.0.is_ok() }
 }
 
 impl Any {
-    #[allow(missing_docs)]
+    /// Obtains ownership over a new vertex buffer layout slot. The `VertexBufferKey` can
+    /// be used with `Any::vertex_buffer_extend` to add attributes to the vertex buffer layout at the slot.
     #[track_caller]
-    pub fn vertex_buffer(slot: u32, layout: VertexBufferLayout) -> Vec<Any> {
-        let attribs_len = layout.attribs.len();
-        Context::try_with(call_info!(), |ctx| {
+    pub fn vertex_buffer_new(slot: u32) -> VertexBufferAny {
+        let result = Context::try_with(call_info!(), |ctx| {
             ctx.push_error_if_outside_encoding_scope("vertex buffer import");
-            let attribs = layout.attribs.clone();
-            ctx.render_pipeline_mut().vertex_buffers.push(RecordedWithIndex::new(
-                layout,
-                slot,
-                ctx.latest_user_caller(),
-            ));
-            // order important! must happen after vertex_buffers.push
-            attribs
-                .iter()
-                .map(|attrib| {
-                    record_node(
+
+            let buffers = &mut ctx.render_pipeline_mut().vertex_buffers;
+
+            match buffers.iter().find(|b| b.slot == slot) {
+                Some(existing) => {
+                    ctx.push_error(PipelineError::DuplicateVertexBufferImport(slot, existing.call_info).into());
+                    Err(InvalidReason::ErrorThatWasPushed)
+                }
+                None => {
+                    let i = buffers.len();
+                    buffers.push(RecordedWithIndex::new(
+                        VertexBufferLayoutRecorded {
+                            slot,
+                            stride: 1,
+                            lookup: VertexBufferLookupIndex::VertexIndex,
+                            attribs: Default::default(),
+                        },
+                        slot,
                         ctx.latest_user_caller(),
-                        ShaderIo::GetVertexInput(attrib.location).into(),
-                        &[],
-                    )
-                })
-                .collect()
+                    ));
+                    Ok(i)
+                }
+            }
         })
-        .unwrap_or(vec![
-            Any::new_invalid(InvalidReason::CreatedWithNoActiveEncoding);
-            attribs_len
-        ])
+        .unwrap_or(Err(InvalidReason::CreatedWithNoActiveEncoding));
+
+        VertexBufferAny(result)
+    }
+
+    /// Extends the vertex buffer layout at `vertex_buffer_record_index` by the given vertex `attributes`.
+    ///
+    /// - Later calls to this function extending the same `slot` will overwrite
+    ///   the `stride` and `lookup`.
+    #[track_caller]
+    pub fn vertex_buffer_extend(
+        vertex_buffer_record_index: &VertexBufferAny,
+        lookup: VertexBufferLookupIndex,
+        stride: u64,
+        // TODO(chronicl) probably change this to iterator over Attrib
+        attributes: impl IntoIterator<Item = (Location, VertexAttribute)>,
+    ) -> Vec<Any> {
+        let call_info = call_info!();
+
+        let attributes: SmallVec<_, 5> = attributes.into_iter().collect();
+
+        let invalid_anys = |reason| std::iter::repeat_n(Any::new_invalid(reason), attributes.len()).collect();
+
+        Context::try_with(call_info, |ctx| -> Vec<Any> {
+            ctx.push_error_if_outside_encoding_scope("vertex attribute import");
+
+            let vertex_buffer_record_index = match vertex_buffer_record_index.0 {
+                Ok(i) => i,
+                Err(reason) => {
+                    match reason {
+                        InvalidReason::ErrorThatWasPushed => (),
+                        InvalidReason::CreatedWithNoActiveEncoding => {
+                            ctx.push_error(PipelineError::VertexBufferCreatedOutsideOfActiveEncoding.into())
+                        }
+                    }
+                    return invalid_anys(InvalidReason::ErrorThatWasPushed);
+                }
+            };
+
+            let mut rp = ctx.render_pipeline_mut();
+            let buffer = &mut rp.vertex_buffers[vertex_buffer_record_index];
+            buffer.lookup = lookup;
+            buffer.stride = stride;
+            let slot = buffer.slot;
+            drop(rp);
+
+            let mut anys = Vec::<Any>::new();
+            for (location, attr) in attributes.iter() {
+                let mut rp = ctx.render_pipeline_mut();
+                let mut buffers = &mut rp.vertex_buffers;
+
+                let any = match ensure_location_is_unique(ctx, slot, *location, buffers) {
+                    Err(e) => ctx.push_error_get_invalid_any(e.into()),
+                    Ok(()) => {
+                        buffers[vertex_buffer_record_index].attribs.push(RecordedWithIndex::new(
+                            Attrib::new(attr.offset, *location, attr.format),
+                            location.0,
+                            call_info,
+                        ));
+
+                        // Have to drop because record_node needs access.
+                        drop(rp);
+                        // Order important! must happen after `attribs.push`.
+                        record_node(
+                            ctx.latest_user_caller(),
+                            ShaderIo::GetVertexInput(*location).into(),
+                            &[],
+                        )
+                    }
+                };
+                anys.push(any);
+            }
+
+            anys
+        })
+        .unwrap_or_else(|| invalid_anys(InvalidReason::CreatedWithNoActiveEncoding))
     }
 
     #[allow(missing_docs)]
@@ -336,6 +404,27 @@ impl Any {
             );
         });
     }
+}
+
+/// Checks that the vertex attribute location is unique - doesn't exist yet.
+fn ensure_location_is_unique(
+    ctx: &Context,
+    slot: u32,
+    location: Location,
+    vertex_buffers: &[RecordedWithIndex<VertexBufferLayoutRecorded>],
+) -> Result<(), PipelineError> {
+    for vbuf in vertex_buffers {
+        for existing_attrib in &vbuf.attribs {
+            if location == existing_attrib.location {
+                return Err(PipelineError::DuplicateAttribLocation {
+                    location: existing_attrib.location,
+                    buffer_a: vbuf.slot,
+                    buffer_b: slot,
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Any {

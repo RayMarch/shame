@@ -6,7 +6,7 @@ use crate::{
     common::integer::post_inc_u32,
     frontend::{
         any::{
-            render_io::{Attrib, Location, VertexAttribFormat, VertexBufferLayout},
+            render_io::{Attrib, Location, VertexAttribFormat},
             shared_io::{BindPath, BindingType},
             Any, InvalidReason,
         },
@@ -40,23 +40,26 @@ use crate::{
     },
 };
 
-use super::{binding::Binding, rasterizer::VertexIndex};
+use super::{
+    binding::Binding,
+    io_iter_dynamic::{VertexBufferDynamic, VertexBufferIterDynamic},
+    rasterizer::VertexIndex,
+};
 
 /// an iterator over the draw command's bound vertex buffers, which also
 /// allows random access
 ///
 /// use `.next()` or `.at(...)`/`.index(...)` to access individual vertex buffers
 pub struct VertexBufferIter {
-    next_slot: u32,
-    location_counter: Rc<LocationCounter>,
+    inner: VertexBufferIterDynamic,
+    // QUESTION what does this do here?
     private_ctor: (),
 }
 
 impl VertexBufferIter {
     pub(crate) fn new() -> Self {
         Self {
-            next_slot: 0,
-            location_counter: Rc::new(0.into()),
+            inner: VertexBufferIterDynamic::new(),
             private_ctor: (),
         }
     }
@@ -65,10 +68,7 @@ impl VertexBufferIter {
     /// that was bound when the draw command was scheduled and interpret its
     /// type as `T`.
     #[track_caller]
-    pub fn at<T: VertexLayout>(&mut self, i: u32) -> VertexBuffer<T> {
-        self.next_slot = i + 1;
-        VertexBuffer::new(i, self.location_counter.clone())
-    }
+    pub fn at<T: VertexLayout>(&mut self, i: u32) -> VertexBuffer<T> { VertexBuffer::new(self.inner.at(i)) }
 
     /// access the `i`th vertex buffer
     /// that was bound when the draw command was scheduled and interpret its
@@ -86,93 +86,38 @@ impl VertexBufferIter {
     /// type as `T`.
     #[allow(clippy::should_implement_trait)] // not fallible
     #[track_caller]
-    pub fn next<T: VertexLayout>(&mut self) -> VertexBuffer<T> {
-        let slot = self.next_slot;
-        self.next_slot += 1;
-        self.at(slot)
-    }
+    pub fn next<T: VertexLayout>(&mut self) -> VertexBuffer<T> { VertexBuffer::new(self.inner.next()) }
+
+
+    /// access the `i`th vertex buffer
+    /// that was bound when the draw command was scheduled.
+    pub fn at_dynamic(&mut self, i: u32) -> VertexBufferDynamic { self.inner.at(i) }
+
+    /// access the `i`th vertex buffer
+    /// that was bound when the draw command was scheduled.
+    pub fn index_dynamic(&mut self, i: u32) -> VertexBufferDynamic { self.inner.at(i) }
+
+    /// access the next vertex buffer (or the first if no buffer was imported yet)
+    /// that was bound when the draw command was scheduled.
+    pub fn next_dynamic(&mut self) -> VertexBufferDynamic { self.inner.next() }
 }
 
 /// a buffer containing an array of `T` where `T` has special layout rules (= may only contain vectors and scalars) and can only
 /// be looked up once by a [`VertexIndex`] of a render pipeline.
 pub struct VertexBuffer<'a, T: VertexLayout> {
-    slot: u32,
-    attribs_and_stride: Result<(Box<[Attrib]>, u64), InvalidReason>,
+    inner: VertexBufferDynamic,
     phantom: PhantomData<&'a [T]>,
 }
 
 impl<T: VertexLayout> VertexBuffer<'_, T> {
     #[track_caller]
-    fn new(slot: u32, location_counter: Rc<LocationCounter>) -> Self {
-        let call_info = call_info!();
-        let attribs_and_stride = Context::try_with(call_info, |ctx| {
-            let skip_stride_check = false; // it is implied that T is in an array, the strides must match
-            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check);
-
-            let attribs_and_stride = Attrib::get_attribs_and_stride(&gpu_layout, &location_counter).ok_or_else(|| {
-                ctx.push_error(FrontendError::MalformedVertexBufferLayout(gpu_layout).into());
-                InvalidReason::ErrorThatWasPushed
-            });
-
-            if let Ok((new_attribs, _)) = &attribs_and_stride {
-                let rp = ctx.render_pipeline();
-                if let Err(e) = ensure_locations_are_unique(slot, ctx, &rp, new_attribs) {
-                    ctx.push_error(e.into());
-                }
-            }
-
-            attribs_and_stride
-        })
-        .unwrap_or(Err(InvalidReason::CreatedWithNoActiveEncoding));
-
+    fn new(inner: VertexBufferDynamic) -> Self {
         Self {
-            slot,
-            attribs_and_stride,
+            inner,
             phantom: PhantomData,
         }
     }
-}
 
-/// checks that there are no duplicate vertex attribute locations and vertex buffer slots
-fn ensure_locations_are_unique(
-    slot: u32,
-    ctx: &Context,
-    rp: &ir::pipeline::WipRenderPipelineDescriptor,
-    new_attribs: &[Attrib],
-) -> Result<(), PipelineError> {
-    for vbuf in &rp.vertex_buffers {
-        if vbuf.index == slot {
-            return Err(PipelineError::DuplicateVertexBufferImport(slot));
-        }
-        for existing_attrib in &vbuf.attribs {
-            if new_attribs.iter().any(|a| a.location == existing_attrib.location) {
-                return Err(PipelineError::DuplicateAttribLocation {
-                    location: existing_attrib.location,
-                    buffer_a: vbuf.index,
-                    buffer_b: slot,
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
-pub struct LocationCounter(Cell<u32>);
-
-impl LocationCounter {
-    pub(crate) fn next(&self) -> Location {
-        let i = self.0.get();
-        self.0.set(i + 1);
-        Location(i)
-    }
-}
-
-impl From<u32> for LocationCounter {
-    fn from(value: u32) -> Self { Self(Cell::new(value)) }
-}
-
-impl<T: VertexLayout> VertexBuffer<'_, T> {
-    #[track_caller]
     /// perform a vertex buffer lookup with a special [`VertexIndex`]
     ///
     /// Vertex buffers are special arrays that can only be indexed **once** by the vertex-index
@@ -201,6 +146,7 @@ impl<T: VertexLayout> VertexBuffer<'_, T> {
     ///
     /// see "Fixed Function Vertex Processing" https://docs.vulkan.org/spec/latest/chapters/fxvertex.html
     /// for more information
+    #[track_caller]
     pub fn index(self, index: VertexIndex) -> T {
         // just to be consistent with the other `at` functions, where the
         // `shame::Index` trait provides the `index` alternative, we offer both as
@@ -238,26 +184,21 @@ impl<T: VertexLayout> VertexBuffer<'_, T> {
     /// for more information
     #[track_caller]
     pub fn at(self, index: VertexIndex) -> T {
-        let lookup = index.0;
+        let attributes = T::vertex_attributes();
+        let attribute_count = attributes.attribs.len();
 
-        let invalid_with_reason =
-            |reason| T::from_anys(std::iter::repeat_n(Any::new_invalid(reason), T::expected_num_anys()));
+        let anys = Context::try_with(call_info!(), |ctx| {
+            let skip_stride_check = false; // it is implied that T is in an array, the strides must match
+            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check);
 
-        Context::try_with(call_info!(), |ctx| match self.attribs_and_stride {
-            Ok((attribs, stride)) => T::from_anys(
-                Any::vertex_buffer(
-                    self.slot,
-                    VertexBufferLayout {
-                        stride,
-                        lookup,
-                        attribs,
-                    },
-                )
-                .into_iter(),
-            ),
-            Err(reason) => invalid_with_reason(reason),
+            self.inner.at(index).anys_from_vertex_attributes(attributes)
         })
-        .unwrap_or_else(|| invalid_with_reason(InvalidReason::CreatedWithNoActiveEncoding))
+        .unwrap_or(vec![
+            Any::new_invalid(InvalidReason::CreatedWithNoActiveEncoding);
+            attribute_count
+        ]);
+
+        T::from_anys(anys.into_iter())
     }
 }
 
@@ -454,13 +395,13 @@ impl BindingIter<'_> {
     /// let texarr: sm::TextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
     /// let texarr: sm::TextureArray<sm::Filterable<f32x4>, 4> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## storage textures
     /// ```
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm> = bind_group.next();
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm, u32x2> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## Arrays of storage textures
     /// ```
     /// let texstoarr: sm::StorageTextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
@@ -558,7 +499,7 @@ impl PushConstants<'_> {
     #[track_caller]
     pub fn get<T>(self) -> T
     where
-        T: GpuStore + GpuSized + NoAtomics + NoBools,
+        T: GpuStore + GpuSized + NoAtomics + NoBools + GpuLayout,
     {
         let _caller_scope = Context::call_info_scope();
 
