@@ -100,8 +100,10 @@ pub fn repr_c_struct_layout(
     let total_struct_size =
         last_field_size.map(|last_size| round_up(struct_alignment.as_u64(), last_field_offset + last_size));
 
-    let new_size = |layout_size: Option<u64>, actual_size: Option<u64>| {
-        (layout_size != actual_size).then_some(actual_size).flatten()
+    let new_size = |layout_size: Option<u64>, actual_size: Option<u64>| match (layout_size, actual_size) {
+        (_, Some(s)) => Some(s),    // prefer actual size
+        (Some(s), None) => Some(s), // but still use layout size if no actual size
+        (None, None) => None,
     };
     let mut fields = first_fields_with_offsets_and_sizes
         .iter()
