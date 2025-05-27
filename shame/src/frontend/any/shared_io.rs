@@ -9,6 +9,7 @@ use crate::frontend::any::Any;
 use crate::frontend::any::{record_node, InvalidReason};
 use crate::frontend::encoding::{EncodingErrorKind, EncodingGuard};
 use crate::frontend::error::InternalError;
+use crate::frontend::rust_types::type_layout::layoutable;
 use crate::frontend::rust_types::type_layout::layoutable::ir_compat::IRConversionError;
 use crate::ir::expr::Binding;
 use crate::ir::expr::Expr;
@@ -151,6 +152,8 @@ impl Display for SamplingMethod {
 pub enum BindingError {
     #[error("the type `{0:?}` cannot be used for a binding of kind `{1:?}` because of:\n{0}")]
     TypeHasInvalidLayoutForBinding(LayoutableType, BindingType, IRConversionError),
+    #[error("a non-reference buffer (non `BufferRef`) must be both read-only and constructible")]
+    NonRefBufferRequiresReadOnlyAndConstructible,
 }
 
 fn layout_to_store_type<T: TypeRepr>(
@@ -252,11 +255,11 @@ impl Any {
                     access.into(),
                 ),
                 (false, AccessModeReadable::ReadWrite) => {
-                    return Err(LayoutError::NonRefBufferRequiresReadOnlyAndConstructible.into());
+                    return Err(BindingError::NonRefBufferRequiresReadOnlyAndConstructible.into());
                 }
                 (false, AccessModeReadable::Read) => {
                     if !store_type.is_constructible() {
-                        return Err(LayoutError::NonRefBufferRequiresReadOnlyAndConstructible.into());
+                        return Err(BindingError::NonRefBufferRequiresReadOnlyAndConstructible.into());
                     }
                     Type::Store(store_type.clone())
                 }
@@ -283,7 +286,7 @@ impl Any {
             };
             let store_type = layout_to_store_type(layout, &binding_type)?;
             if !store_type.is_constructible() {
-                return Err(LayoutError::NonRefBufferRequiresReadOnlyAndConstructible.into());
+                return Err(BindingError::NonRefBufferRequiresReadOnlyAndConstructible.into());
             }
 
             let ty = Type::Store(store_type.clone());
@@ -338,7 +341,7 @@ impl Any {
     /// > struct being visible or invisible in a given shader stage.
     #[track_caller]
     pub fn next_push_constants_field(
-        ty: ir::SizedType,
+        ty: layoutable::SizedType,
         custom_min_size: Option<u64>,
         custom_min_align: Option<U32PowerOf2>,
     ) -> Any {
@@ -346,18 +349,17 @@ impl Any {
             let mut push_constants = &mut ctx.pipeline_layout_mut().push_constants;
             let field_index = push_constants.len();
 
-            let store_ty = StoreType::Sized(ty.clone());
-            if let Err(e) = check_layout(
-                &LayoutErrorContext {
-                    binding_type: BufferBindingType::Storage(AccessModeReadable::Read),
-                    expected_constraints: LayoutConstraints::Wgsl(ir::ir_type::WgslBufferLayout::StorageAddressSpace),
-                    top_level_type: store_ty.clone(),
-                    use_color: ctx.settings().colored_error_messages,
-                },
-                &store_ty.clone(),
-            ) {
-                ctx.push_error(e.into());
-            }
+            // This is dead code, but makes sure that if we ever decide that a SizedType
+            // is not trivially layoutable as repr::Storage, it gets caught here.
+            let _ = GpuTypeLayout::<repr::Storage>::new(ty.clone());
+
+            let ty = match ir::SizedType::try_from(ty) {
+                Ok(ty) => ty,
+                Err(e) => {
+                    ctx.push_error(e.into());
+                    return Any::new_invalid(InvalidReason::ErrorThatWasPushed);
+                }
+            };
 
             let any = record_node(
                 ctx.latest_user_caller(),

@@ -284,7 +284,7 @@ pub enum EncodingErrorKind {
         required: PipelineKind,
     },
     #[error("`shame::any::Any` instance is not available. reason: {0}")]
-    ValueUnavailable(#[from] InvalidReason),
+    ValueUnavailable(InvalidReason),
     #[error("{0}")]
     NodeRecordingError(#[from] NodeRecordingError),
     #[error("{0}")]
