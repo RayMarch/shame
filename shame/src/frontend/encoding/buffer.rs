@@ -1,10 +1,12 @@
-use crate::any::layout::LayoutableSized;
+use crate::any::layout::{repr, GpuTypeLayout, LayoutableSized};
 use crate::common::proc_macro_reexports::GpuStoreImplCategory;
 use crate::frontend::any::shared_io::{BindPath, BindingType, BufferBindingType};
 use crate::frontend::any::{Any, InvalidReason};
 use crate::frontend::rust_types::array::{Array, ArrayLen, RuntimeSize, Size};
 use crate::frontend::rust_types::atomic::Atomic;
-use crate::frontend::rust_types::layout_traits::{get_layout_compare_with_cpu_push_error, FromAnys, GetAllFields};
+use crate::frontend::rust_types::layout_traits::{
+    get_layout_compare_with_cpu_push_error, gpu_type_layout, FromAnys, GetAllFields,
+};
 use crate::frontend::rust_types::len::{Len, Len2};
 use crate::frontend::rust_types::mem::{self, AddressSpace, SupportsAccess};
 use crate::frontend::rust_types::reference::Ref;
@@ -25,6 +27,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, Mul};
 
 use super::binding::Binding;
+use super::EncodingErrorKind;
 
 /// Address spaces used for [`Buffer`] and [`BufferRef`] bindings.
 ///
@@ -148,15 +151,43 @@ pub enum BufferRefInner<T: GpuStore, AS: BufferAddressSpace, AM: AccessModeReada
     Plain(Ref<T, AS, AM>),
 }
 
-impl<T: GpuType + GpuStore + GpuSized + NoBools, AS: BufferAddressSpace> BufferInner<T, AS> {
+impl<T: GpuType + GpuStore + GpuSized + NoBools + GpuLayout<GpuRepr = repr::Storage>, AS: BufferAddressSpace>
+    BufferInner<T, AS>
+{
     #[track_caller]
-    pub(crate) fn new_plain(args: Result<BindingArgs, InvalidReason>, bind_ty: BindingType) -> Self {
+    pub(crate) fn new_plain(
+        args: Result<BindingArgs, InvalidReason>,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
+    ) -> Self {
         let as_ref = false;
-        let any = match args {
-            Err(reason) => Any::new_invalid(reason),
-            Ok(BindingArgs { path, visibility }) => {
-                Any::binding(path, visibility, <T as GpuStore>::store_ty(), bind_ty, as_ref)
+        let create_any = || -> Result<Any, EncodingErrorKind> {
+            let BindingArgs { path, visibility } = args?;
+
+            let storage = gpu_type_layout::<T>();
+            match bind_ty {
+                BufferBindingType::Uniform => {
+                    let uniform = GpuTypeLayout::<repr::Uniform>::try_from(storage)?;
+                    Ok(Any::uniform_buffer_binding(
+                        path,
+                        visibility,
+                        uniform,
+                        has_dynamic_offset,
+                    ))
+                }
+                BufferBindingType::Storage(access) => Ok(Any::storage_buffer_binding(
+                    path,
+                    visibility,
+                    storage,
+                    access,
+                    false,
+                    has_dynamic_offset,
+                )),
             }
+        };
+        let any = match create_any() {
+            Err(reason) => Any::new_invalid(reason),
+            Ok(any) => any,
         };
         BufferInner::PlainSized(any.into())
     }

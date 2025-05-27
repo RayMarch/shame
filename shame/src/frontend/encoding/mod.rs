@@ -15,7 +15,6 @@ use crate::{
         rasterizer::{PrimitiveAssembly, VertexStage},
     },
     ir::{
-        ir_type::LayoutError,
         pipeline::{PipelineError, PipelineKind, StageSolverErrorKind},
         recording::{
             next_thread_generation, AllocError, BlockError, CallInfo, Context, FnError, NodeRecordingError, StmtError,
@@ -30,7 +29,11 @@ use std::{cell::Cell, fmt::Display, marker::PhantomData, rc::Rc};
 use super::{
     any::{render_io::VertexLayoutError, shared_io::BindingError, ArgumentNotAvailable, InvalidReason},
     error::InternalError,
-    rust_types::{error::FrontendError, len::x3},
+    rust_types::{
+        error::FrontendError,
+        len::x3,
+        type_layout::{construction::LayoutError, layoutable::ir_compat::IRConversionError},
+    },
 };
 
 pub mod binding;
@@ -95,7 +98,7 @@ use crate as shame;
 ///         // `enc` is generic over the pipeline kind, which decided by calling
 ///         // either `enc.new_render_pipeline` or `enc.new_compute_pipeline`.
 ///         // Without this additional call, there will be a compiler error.
-///        
+///
 ///         let mut drawcall = enc.new_render_pipeline(sm::Indexing::Incremental);
 ///
 ///         // ... use `drawcall` to build your pipeline
@@ -281,7 +284,7 @@ pub enum EncodingErrorKind {
         required: PipelineKind,
     },
     #[error("`shame::any::Any` instance is not available. reason: {0}")]
-    ValueUnavailable(InvalidReason),
+    ValueUnavailable(#[from] InvalidReason),
     #[error("{0}")]
     NodeRecordingError(#[from] NodeRecordingError),
     #[error("{0}")]
@@ -292,6 +295,8 @@ pub enum EncodingErrorKind {
     PipelineError(#[from] PipelineError),
     #[error("{0}")]
     LayoutError(#[from] LayoutError),
+    #[error("{0}")]
+    LayoutableToStoreType(#[from] IRConversionError),
     #[error("{0}")]
     BindingError(#[from] BindingError),
     #[error("{0}")]
@@ -436,9 +441,9 @@ impl EncodingGuard<Render> {
     ///     &drawcall.vertices; // access to vertex-shader related functionality
     ///     &drawcall.bind_groups; // access to bind groups (descriptor-sets)
     ///     &drawcall.push_constants; // access to push constant data
-    ///     
+    ///
     ///     let fragments = drawcall.vertices.assemble(...).rasterize(...);
-    ///     
+    ///
     ///     // use fragments object for per-fragment computation and io
     ///
     ///     enc.finish()?
@@ -487,7 +492,7 @@ impl EncodingGuard<Compute> {
     ///     The compute grid is 3D and all thread positions are 3D vectors
     ///     even though the workgroup is only a flat 2D 8x4 slice.
     ///     Thread indices are still 1D scalars.
-    ///     
+    ///
     ///   The amount of workgroups dispatched is controlled at runtime by the
     ///   dispatch command.
     ///

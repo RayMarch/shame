@@ -3,7 +3,7 @@ use super::*;
 //     Conversions to ir types     //
 
 /// Errors that can occur when converting IR types to layoutable types.
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, Clone)]
 pub enum IRConversionError {
     /// Packed vectors do not exist in the shader type system.
     #[error(
@@ -16,7 +16,7 @@ pub enum IRConversionError {
     DuplicateFieldName(#[from] DuplicateFieldNameError),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DuplicateFieldNameError {
     pub struct_type: StructKind,
     pub first_field: usize,
