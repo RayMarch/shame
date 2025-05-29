@@ -5,13 +5,14 @@ use super::len::x1;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable, AccessModeWritable, Read};
 use super::scalar_type::ScalarTypeInteger;
-use super::type_layout::{ElementLayout, TypeLayout, TypeLayoutRules, TypeLayoutSemantics};
+use super::type_layout::{self, layoutable, repr, ElementLayout, TypeLayout, TypeLayoutSemantics};
 use super::type_traits::{
     BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles,
 };
 use super::vec::{ToInteger, ToVec};
 use super::{AsAny, GpuType};
 use super::{To, ToGpuType};
+use crate::any::layout::{Layoutable, LayoutableSized};
 use crate::common::small_vec::SmallVec;
 use crate::frontend::any::shared_io::{BindPath, BindingType};
 use crate::frontend::any::Any;
@@ -155,19 +156,30 @@ impl<T: GpuType + GpuSized, const N: usize> GpuSized for Array<T, Size<N>> {
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoHandles, N: ArrayLen> NoHandles for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoAtomics, N: ArrayLen> NoAtomics for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoBools  , N: ArrayLen> NoBools   for Array<T, N> {}
+impl<T: GpuType + GpuSized + LayoutableSized, const N: usize> LayoutableSized for Array<T, Size<N>> {
+    fn layoutable_type_sized() -> layoutable::SizedType {
+        layoutable::SizedArray::new(T::layoutable_type_sized(), Size::<N>::nonzero()).into()
+    }
+}
+impl<T: GpuType + GpuSized + LayoutableSized, N: ArrayLen> Layoutable for Array<T, N> {
+    fn layoutable_type() -> layoutable::LayoutableType {
+        match N::LEN {
+            Some(n) => layoutable::SizedArray::new(T::layoutable_type_sized(), n).into(),
+            None => layoutable::RuntimeSizedArray::new(T::layoutable_type_sized()).into(),
+        }
+    }
+}
 
 impl<T: GpuType + GpuStore + GpuSized, N: ArrayLen> ToGpuType for Array<T, N> {
     type Gpu = Self;
-
-
 
     fn to_gpu(&self) -> Self::Gpu { self.clone() }
 
     fn as_gpu_type_ref(&self) -> Option<&Self::Gpu> { Some(self) }
 }
 
-impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
-    fn gpu_layout() -> TypeLayout { TypeLayout::from_array(TypeLayoutRules::Wgsl, &T::sized_ty(), N::LEN) }
+impl<T: GpuType + GpuSized + GpuLayout + LayoutableSized, N: ArrayLen> GpuLayout for Array<T, N> {
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         let (t_cpu_name, t_cpu_layout) = match T::cpu_type_name_and_layout()? {
@@ -190,7 +202,7 @@ impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
                 t_cpu_layout.align(),
                 TypeLayoutSemantics::Array(
                     Rc::new(ElementLayout {
-                        byte_stride: stride_of_array_from_element_align_size(t_cpu_layout.align(), t_cpu_size),
+                        byte_stride: layoutable::array_stride(t_cpu_layout.align(), t_cpu_size),
                         ty: t_cpu_layout,
                     }),
                     N::LEN.map(NonZeroU32::get),

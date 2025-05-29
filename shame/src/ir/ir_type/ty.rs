@@ -1,6 +1,6 @@
 use self::struct_::SizedStruct;
 use crate::{
-    frontend::{any::shared_io, rust_types::type_layout::TypeLayoutRules},
+    frontend::{any::shared_io},
     ir::recording::MemoryRegion,
 };
 
