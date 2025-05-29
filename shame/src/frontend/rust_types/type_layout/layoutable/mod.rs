@@ -22,7 +22,7 @@ pub use builder::{SizedOrArray, FieldOptions};
 /// Types that have a defined memory layout.
 ///
 /// `LayoutableType` does not contain any layout information itself, but a layout
-/// can be assigned to it using [`TypeLayout`] according to one of the available layout rules:
+/// can be assigned to it using [`GpuTypeLayout`] according to one of the available layout rules:
 /// storage, uniform or packed.
 #[derive(Debug, Clone)]
 pub enum LayoutableType {

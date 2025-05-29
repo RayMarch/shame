@@ -57,7 +57,6 @@ pub enum TypeLayoutSemantics {
 /// The following types implementing `TypeRepr` exist and can be found in [`shame::any::repr`]:
 ///
 /// ```
-/// struct Plain;   /// May not follow any layout rules. This is the default.
 /// struct Storage; /// wgsl storage address space layout / OpenGL std430
 /// struct Uniform; /// wgsl uniform address space layout / OpenGL std140
 /// struct Packed;  /// Packed layout
@@ -67,19 +66,22 @@ pub enum TypeLayoutSemantics {
 ///
 /// https://www.w3.org/TR/WGSL/#address-space-layout-constraints
 ///
-/// The following methods exist for creating new type layouts based on a [`LayoutableType`]
+/// The following method exists for creating new type layouts based on a [`LayoutableType`]
 /// ```
 /// let layout_type: LayoutableType = f32x1::layoutable_type();
-/// let _ = TypeLayout::new_layout_for(layout_type);
-/// let _ = TypeLayout::new_storage_layout_for(layout_type);
-/// let _ = TypeLayout::new_uniform_layout_for(layout_type);
-/// let _ = TypeLayout::new_packed_layout_for(layout_type);
+/// let repr = Repr::Storage; // or Uniform or Packed
+/// let _ = TypeLayout::new_layout_for(layout_type, repr);
 /// ```
 ///
-/// Non-`Plain` layouts are always based on a [`LayoutableType`], which can be accessed
-/// using [`TypeLayout::layoutable_type`]. They also guarantee, that all nested `TypeLayout<Plain>`s
-/// (for example struct fields) are also based on a `LayoutableType`, which can only be accessed
-/// through `TypeLayout::get_layoutable_type`.
+/// The resulting layout will always follow the layout rules of the `Repr`, however, this
+/// can result in layouts that are not representable in wgsl, such as the uniform layout for
+/// `shame::Array<f32x1>`, which requires at least a 16 byte stride. The `TypeLayout` will
+/// contain information for the correct minimum stride, but since wgsl does not have a custom
+/// stride attribute (like `@align` or `@size` but for strides) the type layout can't be
+/// translated to wgsl.
+///
+/// For the above reason `TypeLayout` exists mainly for internal usage in shame and
+/// [`GpuTypeLayout<Repr>`] is the user interface. See it's documentation for more information.
 ///
 /// ### Layout comparison
 ///
@@ -127,14 +129,9 @@ impl Hash for TypeLayout {
 ///
 /// While `GpuTypeLayout<Storage>` and `GpuTypeLayout<Packed>` can be freely created
 /// from a `LayoutableType`, the only way to get a `GpuTypeLayout<Uniform>` is by
-/// using `TryFrom::try_from` on a `GpuTypeLayout<Storage>`. This is the case, because
-/// shame does not support `#[gpu_repr(uniform)]`, meaning we can't lay out a type
-/// according to uniform layout rules, we must lay it out according to storage layout rules
-/// and then check whether the storage layout also follows the uniform layout rules.
-// The reason shame doesn't support #[gpu_repr(uniform)] is that wgsl does not have
-// a custom stride attribute, so for example the elements in the `sm::Array` in
-// struct A { a: sm::Array<f32x1> } need to have a stride of 16 according to uniform
-// layout rules, which we can't enforce.
+/// using `TryFrom::try_from` on a `GpuTypeLayout<Storage>`, which only checks whether
+/// the storage layout also follows the uniform layout rules - it does not change the
+/// corresponding `TypeLayout`.
 #[derive(Debug, Clone)]
 pub struct GpuTypeLayout<T: TypeRepr = repr::Storage> {
     ty: LayoutableType,
@@ -150,13 +147,13 @@ impl<T: TypeRepr> GpuTypeLayout<T> {
 
 use repr::TypeReprStorageOrPacked;
 pub use repr::{TypeRepr, Repr};
-/// Module for all restrictions on `TypeLayout<T: TypeRestriction>`.
+/// Module for all restrictions on `GpuTypeLayout<T: TypeRepr>`.
 pub mod repr {
     use super::*;
 
-    /// Type representation used by `TypeLayout<T: TypeRepr>`. This provides guarantees
+    /// Type representation used by `GpuTypeLayout<T: TypeRepr>`. This provides guarantees
     /// about the alignment rules that the type layout adheres to.
-    /// See [`TypeLayout`] documentation for more details.
+    /// See [`GpuTypeLayout`] documentation for more details.
     pub trait TypeRepr: Clone + PartialEq + Eq {
         /// The corresponding enum variant of `Repr`.
         const REPR: Repr;
@@ -202,8 +199,8 @@ pub mod repr {
     macro_rules! type_repr {
         ($($repr:ident),*) => {
             $(
-                /// A type representation used by `TypeLayout<T: TypeRepr>`.
-                /// See [`TypeLayout`] documentation for more details.
+                /// A type representation used by `GpuTypeLayout<T: TypeRepr>`.
+                /// See [`GpuTypeLayout`] documentation for more details.
                 #[derive(Clone, PartialEq, Eq, Hash)]
                 pub struct $repr;
                 impl TypeRepr for $repr {

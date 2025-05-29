@@ -14,8 +14,8 @@ use super::{
 use TypeLayoutSemantics as TLS;
 
 impl TypeLayout {
-    /// Returns the type layout of the given `LayoutableType`
-    /// layed out according to the given `repr`.
+    /// Returns the type layout of the `LayoutableType`
+    /// layed out according to the `repr`.
     pub fn new_layout_for(ty: &LayoutableType, repr: Repr) -> Self {
         match ty {
             LayoutableType::Sized(ty) => Self::from_sized_type(ty, repr),
@@ -287,7 +287,7 @@ fn check_sized_fields(
     Ok(())
 }
 
-/// Enum of possible errors during `TypeLayout<Storage> -> TypeLayout<Uniform>` conversion.
+/// Enum of possible errors during comparison of two layouts for the same `LayoutableType`.
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum LayoutError {
     #[error("{0}")]
@@ -495,7 +495,6 @@ impl Display for StructFieldOffsetError {
     }
 }
 
-/// Panics if s is not the layout of a struct and doesn't contain a cpu-shareable.
 fn write_struct_layout<F>(
     struct_type: &StructKind,
     repr: Repr,
