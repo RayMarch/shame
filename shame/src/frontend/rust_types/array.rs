@@ -5,13 +5,15 @@ use super::len::x1;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable, AccessModeWritable, Read};
 use super::scalar_type::ScalarTypeInteger;
-use super::type_layout::{ElementLayout, TypeLayout, TypeLayoutRules, TypeLayoutSemantics};
+use super::type_layout::{self, layoutable, repr, ElementLayout, Repr, TypeLayout, TypeLayoutSemantics};
 use super::type_traits::{
     BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles,
 };
 use super::vec::{ToInteger, ToVec};
 use super::{AsAny, GpuType};
 use super::{To, ToGpuType};
+use crate::any::layout::{Layoutable, LayoutableSized};
+use crate::any::BufferBindingType;
 use crate::common::small_vec::SmallVec;
 use crate::frontend::any::shared_io::{BindPath, BindingType};
 use crate::frontend::any::Any;
@@ -86,7 +88,7 @@ pub struct Array<T: GpuType + GpuSized, N: ArrayLen = RuntimeSize> {
     phantom: PhantomData<(T, N)>,
 }
 
-impl<T: GpuType + GpuStore + GpuSized, N: ArrayLen> GpuType for Array<T, N> {
+impl<T: GpuType + GpuStore + GpuSized + GpuLayout + LayoutableSized, N: ArrayLen> GpuType for Array<T, N> {
     fn ty() -> ir::Type { ir::Type::Store(Self::store_ty()) }
 
     fn from_any_unchecked(any: Any) -> Self {
@@ -107,28 +109,30 @@ impl<const N: usize> Size<N> {
     }
 }
 
-impl<T: GpuType + GpuSized + GpuStore, N: ArrayLen> GpuStore for Array<T, N> {
+impl<T: GpuType + GpuSized + GpuStore + GpuLayout + LayoutableSized, N: ArrayLen> GpuStore for Array<T, N> {
     type RefFields<AS: AddressSpace, AM: AccessMode> = EmptyRefFields;
     fn store_ty() -> ir::StoreType { Self::array_store_ty() }
 
     fn instantiate_buffer_inner<AS: BufferAddressSpace>(
         args: Result<BindingArgs, InvalidReason>,
-        bind_ty: BindingType,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
     ) -> BufferInner<Self, AS>
     where
-        Self: NoAtomics + NoBools,
+        Self: NoAtomics + NoBools + GpuLayout<GpuRepr = repr::Storage>,
     {
-        BufferInner::new_array(args, bind_ty)
+        BufferInner::new_array(args, bind_ty, has_dynamic_offset)
     }
 
     fn instantiate_buffer_ref_inner<AS: BufferAddressSpace, AM: AccessModeReadable>(
         args: Result<BindingArgs, InvalidReason>,
-        bind_ty: BindingType,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
     ) -> BufferRefInner<Self, AS, AM>
     where
         Self: NoBools,
     {
-        BufferRefInner::new_plain(args, bind_ty)
+        BufferRefInner::new_plain(args, bind_ty, has_dynamic_offset)
     }
 
     fn impl_category() -> GpuStoreImplCategory { GpuStoreImplCategory::GpuType(Self::store_ty()) }
@@ -155,19 +159,30 @@ impl<T: GpuType + GpuSized, const N: usize> GpuSized for Array<T, Size<N>> {
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoHandles, N: ArrayLen> NoHandles for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoAtomics, N: ArrayLen> NoAtomics for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoBools  , N: ArrayLen> NoBools   for Array<T, N> {}
+impl<T: GpuType + GpuSized + LayoutableSized, const N: usize> LayoutableSized for Array<T, Size<N>> {
+    fn layoutable_type_sized() -> layoutable::SizedType {
+        layoutable::SizedArray::new(T::layoutable_type_sized(), Size::<N>::nonzero()).into()
+    }
+}
+impl<T: GpuType + GpuSized + LayoutableSized, N: ArrayLen> Layoutable for Array<T, N> {
+    fn layoutable_type() -> layoutable::LayoutableType {
+        match N::LEN {
+            Some(n) => layoutable::SizedArray::new(T::layoutable_type_sized(), n).into(),
+            None => layoutable::RuntimeSizedArray::new(T::layoutable_type_sized()).into(),
+        }
+    }
+}
 
-impl<T: GpuType + GpuStore + GpuSized, N: ArrayLen> ToGpuType for Array<T, N> {
+impl<T: GpuType + GpuStore + GpuSized + GpuLayout + LayoutableSized, N: ArrayLen> ToGpuType for Array<T, N> {
     type Gpu = Self;
-
-
 
     fn to_gpu(&self) -> Self::Gpu { self.clone() }
 
     fn as_gpu_type_ref(&self) -> Option<&Self::Gpu> { Some(self) }
 }
 
-impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
-    fn gpu_layout() -> TypeLayout { TypeLayout::from_array(TypeLayoutRules::Wgsl, &T::sized_ty(), N::LEN) }
+impl<T: GpuType + GpuSized + GpuLayout + LayoutableSized, N: ArrayLen> GpuLayout for Array<T, N> {
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         let (t_cpu_name, t_cpu_layout) = match T::cpu_type_name_and_layout()? {
@@ -190,7 +205,7 @@ impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
                 t_cpu_layout.align(),
                 TypeLayoutSemantics::Array(
                     Rc::new(ElementLayout {
-                        byte_stride: stride_of_array_from_element_align_size(t_cpu_layout.align(), t_cpu_size),
+                        byte_stride: layoutable::array_stride(t_cpu_layout.align(), t_cpu_size),
                         ty: t_cpu_layout,
                     }),
                     N::LEN.map(NonZeroU32::get),
@@ -264,7 +279,7 @@ impl<Idx: ToInteger, T: GpuType + GpuSized + NoAtomics, N: ArrayLen> GpuIndex<Id
 impl<Idx, T, AS, AM, N> GpuIndex<Idx> for Ref<Array<T, N>, AS, AM>
 where
     Idx: ToInteger,
-    T: GpuType + GpuSized + GpuStore + 'static,
+    T: GpuType + GpuSized + GpuStore + 'static + GpuLayout + LayoutableSized,
     AS: AddressSpace + 'static,
     AM: AccessModeReadable + 'static,
     N: ArrayLen,
@@ -277,7 +292,7 @@ where
 
 impl<T: ToGpuType, const N: usize> ToGpuType for [T; N]
 where
-    T::Gpu: GpuStore + GpuSized,
+    T::Gpu: GpuStore + GpuSized + GpuLayout + LayoutableSized,
 {
     type Gpu = Array<T::Gpu, Size<N>>;
 
@@ -289,7 +304,7 @@ where
     fn as_gpu_type_ref(&self) -> Option<&Self::Gpu> { None }
 }
 
-impl<T: GpuType + GpuStore + GpuSized + NoAtomics, const N: usize> Array<T, Size<N>> {
+impl<T: GpuType + GpuStore + GpuSized + NoAtomics + GpuLayout + LayoutableSized, const N: usize> Array<T, Size<N>> {
     /// (no documentation yet)
     #[track_caller]
     pub fn new(fields: [impl To<T>; N]) -> Self { fields.to_gpu() }
@@ -305,7 +320,7 @@ impl<T: GpuType + GpuStore + GpuSized + NoAtomics, const N: usize> Array<T, Size
     pub fn map<R>(self, f: impl FnOnce(T) -> R + FlowFn) -> Array<R, Size<N>>
     where
         T: 'static,
-        R: GpuType + GpuStore + GpuSized + NoAtomics + 'static,
+        R: GpuType + GpuStore + GpuSized + NoAtomics + 'static + GpuLayout + LayoutableSized,
     {
         let result = Array::<R, _>::zero().cell();
         for_range_impl(0..N as u32, move |i| {
@@ -341,7 +356,7 @@ fn push_buffer_of_array_has_wrong_variant_error(is_ref: bool, expected_variant: 
 impl<Idx, T, AS, const DYN_OFFSET: bool> GpuIndex<Idx> for Buffer<Array<T>, AS, DYN_OFFSET>
 where
     Idx: ToInteger,
-    T: GpuType + GpuSized + NoAtomics + NoHandles + GpuStore + 'static,
+    T: GpuType + GpuSized + NoAtomics + NoHandles + GpuStore + 'static + GpuLayout + LayoutableSized,
     Array<T>: GpuStore + NoAtomics + NoBools + NoHandles,
     AS: BufferAddressSpace + 'static,
 {
@@ -360,7 +375,7 @@ where
 impl<Idx, T, AS, AM, const DYN_OFFSET: bool> GpuIndex<Idx> for BufferRef<Array<T>, AS, AM, DYN_OFFSET>
 where
     Idx: ToInteger,
-    T: GpuType + GpuSized + GpuStore + 'static,
+    T: GpuType + GpuSized + GpuStore + 'static + GpuLayout + LayoutableSized,
     Array<T>: GpuStore + NoBools + NoHandles,
     AS: BufferAddressSpace + 'static,
     AM: AccessModeReadable + 'static,
@@ -380,7 +395,7 @@ where
 impl<T: GpuType + GpuSized, AS: BufferAddressSpace + 'static, const DYN_OFFSET: bool> Buffer<Array<T>, AS, DYN_OFFSET>
 where
     Array<T>: GpuStore + NoAtomics + NoBools + NoHandles,
-    T: GpuType + GpuSized + NoAtomics + NoHandles + GpuStore + 'static,
+    T: GpuType + GpuSized + NoAtomics + NoHandles + GpuStore + 'static + GpuLayout + LayoutableSized,
 {
     /// (no documentation yet)
     #[track_caller]
@@ -406,7 +421,7 @@ where
 impl<T, AS, AM, const DYN_OFFSET: bool> BufferRef<Array<T>, AS, AM, DYN_OFFSET>
 where
     Array<T>: GpuStore + NoBools + NoHandles,
-    T: GpuStore + GpuType + GpuSized + 'static,
+    T: GpuStore + GpuType + GpuSized + 'static + GpuLayout + LayoutableSized,
     AS: BufferAddressSpace + 'static,
     AM: AccessModeReadable + 'static,
 {

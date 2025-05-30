@@ -7,7 +7,7 @@ use std::{
 
 use thiserror::Error;
 
-use super::{align_of_array, canon_name::CanonName, round_up, LayoutError, SizedType, StoreType, Type};
+use super::{align_of_array, canon_name::CanonName, round_up, SizedType, StoreType, Type};
 use crate::{
     call_info,
     common::{iterator_ext::IteratorExt, po2::U32PowerOf2, pool::Key},
@@ -591,45 +591,45 @@ impl StructRegistry {
     /// before `b` in this list.
     pub fn iter_topo_sorted(&self) -> impl Iterator<Item = &StructDef> { self.defs.iter().map(|(_, def)| def) }
 
+    // TODO(chronicl) ask about this. how can a min_align/size be too small?
+    // fn validate_custom_align_and_size(s: &Rc<Struct>) -> Result<(), LayoutError> {
+    // for field in s.sized_fields() {
+    //     if let Some(c_align) = field.custom_min_align.map(u64::from) {
+    //         let ty_align = field.ty.align();
+    //         if c_align < ty_align {
+    //             return Err(LayoutError::CustomAlignmentTooSmall {
+    //                 custom: c_align,
+    //                 required: ty_align,
+    //                 ty: field.ty.clone().into(),
+    //             });
+    //         }
+    //     }
 
-    fn validate_custom_align_and_size(s: &Rc<Struct>) -> Result<(), LayoutError> {
-        for field in s.sized_fields() {
-            if let Some(c_align) = field.custom_min_align.map(u64::from) {
-                let ty_align = field.ty.align();
-                if c_align < ty_align {
-                    return Err(LayoutError::CustomAlignmentTooSmall {
-                        custom: c_align,
-                        required: ty_align,
-                        ty: field.ty.clone().into(),
-                    });
-                }
-            }
-
-            if let Some(c_size) = field.custom_min_size {
-                let ty_size = field.ty.byte_size();
-                if c_size < ty_size {
-                    return Err(LayoutError::CustomSizeTooSmall {
-                        custom: c_size,
-                        required: ty_size,
-                        ty: field.ty.clone().into(),
-                    });
-                }
-            }
-        }
-        if let Some(field) = &s.last_unsized_field() {
-            if let Some(c_align) = field.custom_min_align.map(u64::from) {
-                let ty_align = field.element_ty().align();
-                if c_align < ty_align {
-                    return Err(LayoutError::CustomAlignmentTooSmall {
-                        custom: c_align,
-                        required: ty_align,
-                        ty: field.ty().clone(),
-                    });
-                }
-            }
-        }
-        Ok(())
-    }
+    //     if let Some(c_size) = field.custom_min_size {
+    //         let ty_size = field.ty.byte_size();
+    //         if c_size < ty_size {
+    //             return Err(LayoutError::CustomSizeTooSmall {
+    //                 custom: c_size,
+    //                 required: ty_size,
+    //                 ty: field.ty.clone().into(),
+    //             });
+    //         }
+    //     }
+    // }
+    // if let Some(field) = &s.last_unsized_field() {
+    //     if let Some(c_align) = field.custom_min_align.map(u64::from) {
+    //         let ty_align = field.element_ty().align();
+    //         if c_align < ty_align {
+    //             return Err(LayoutError::CustomAlignmentTooSmall {
+    //                 custom: c_align,
+    //                 required: ty_align,
+    //                 ty: field.ty().clone(),
+    //             });
+    //         }
+    //     }
+    // }
+    //     Ok(())
+    // }
 
     /// only registers this one struct (if it wasn't registered before),
     /// not any structures that are used within that struct's fields.
@@ -640,9 +640,10 @@ impl StructRegistry {
     fn register_single_struct(&mut self, s: &Rc<Struct>, idents: &mut PoolRefMut<Ident>, call_info: CallInfo) -> bool {
         if !self.contains(s) {
             Context::try_with(call_info, |ctx| {
-                if let Err(e) = Self::validate_custom_align_and_size(s) {
-                    ctx.push_error(e.into())
-                }
+                // TODO(chronicl) above
+                // if let Err(e) = Self::validate_custom_align_and_size(s) {
+                //     ctx.push_error(e.into())
+                // }
             });
             self.defs
                 .push((s.clone(), StructDef::new_for_struct(s, idents, call_info)));

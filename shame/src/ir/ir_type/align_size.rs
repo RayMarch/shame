@@ -6,13 +6,13 @@ use crate::frontend::any::shared_io::BufferBindingType;
 use thiserror::Error;
 
 use super::{CanonName, Len2, ScalarType, ScalarTypeFp, SizedType, StoreType};
-use super::{Len, Std};
+use super::{Len};
 
-pub fn round_up(multiple_of: u64, n: u64) -> u64 {
+pub const fn round_up(multiple_of: u64, n: u64) -> u64 {
     match multiple_of {
         0 => match n {
             0 => 0,
-            n => panic!("cannot round up {n} to a multiple of 0"),
+            n => panic!("cannot round up n to a multiple of 0"),
         },
         k @ 1.. => n.div_ceil(k) * k,
     }

@@ -8,6 +8,7 @@ use syn::LitInt;
 use syn::{DataStruct, DeriveInput, FieldsNamed};
 
 use crate::util;
+use crate::util::Repr;
 
 macro_rules! bail {
     ($span: expr, $display: expr) => {return Err(syn::Error::new($span, $display,))};
@@ -81,12 +82,16 @@ pub fn impl_for_struct(
         .into_iter();
     let none_if_no_cpu_equivalent_type = cpu_attr.is_none().then_some(quote! { None }).into_iter();
 
-    // #[gpu_repr(packed)]
-    let gpu_repr_packed = util::find_gpu_repr_packed(&input.attrs)?;
-    if let (Some(span), WhichDerive::CpuLayout) = (&gpu_repr_packed, &which_derive) {
+    // #[gpu_repr(packed | storage | uniform)]
+    let gpu_repr = util::determine_gpu_repr(&input.attrs)?;
+    if let (Some((span, _)), WhichDerive::CpuLayout) = (&gpu_repr, &which_derive) {
         bail!(*span, "`gpu_repr` attribute is only supported by `derive(GpuLayout)`")
     }
-    let is_gpu_repr_packed = gpu_repr_packed.is_some();
+    let gpu_repr = gpu_repr.map(|(_, repr)| repr).unwrap_or(util::Repr::Storage);
+    let gpu_repr_shame = match gpu_repr {
+        Repr::Packed => quote!( #re::repr::Packed ),
+        Repr::Storage => quote!( #re::repr::Storage ),
+    };
 
     // #[repr(...)]
     let repr_c_attr = util::try_parse_repr(&input.attrs)?;
@@ -194,35 +199,67 @@ pub fn impl_for_struct(
 
     match which_derive {
         WhichDerive::GpuLayout => {
+            let layoutable_type_fn = quote! {
+                let result = #re::LayoutableType::struct_from_parts(
+                    std::stringify!(#derive_struct_ident),
+                    [
+                        #((
+                            #re::FieldOptions::new(
+                                std::stringify!(#field_ident),
+                                #field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")).into(),
+                                #field_size.into(),
+                            ),
+                            <#field_type as #re::Layoutable>::layoutable_type()
+                        ),)*
+                    ]
+                );
+
+                match result {
+                    Ok(layoutable_type) => layoutable_type,
+                    Err(#re::StructFromPartsError::MustHaveAtLeastOneField) => unreachable!("checked above"),
+                    Err(#re::StructFromPartsError::OnlyLastFieldMayBeUnsized) => unreachable!("ensured by field trait bounds"),
+                    // GpuType is not implemented for derived structs directly, so they can't be used
+                    // as the field of another struct, instead shame::Struct<T> has to be used, which
+                    // only accepts sized structs.
+                    Err(#re::StructFromPartsError::MustNotHaveUnsizedStructField) => unreachable!("GpuType bound  for fields makes this impossible"),
+                }
+            };
+
+            let impl_layoutable = quote! {
+                impl<#generics_decl> #re::Layoutable for #derive_struct_ident<#(#idents_of_generics),*>
+                where
+                    // These NoBools and NoHandle bounds are only for better diagnostics, Layoutable already implies them
+                    #(#first_fields_type: #re::NoBools + #re::NoHandles + #re::LayoutableSized,)*
+                    #last_field_type: #re::NoBools + #re::NoHandles + #re::Layoutable,
+                    #where_clause_predicates
+                {
+                    fn layoutable_type() -> #re::LayoutableType {
+                        #layoutable_type_fn
+                    }
+                }
+
+                impl<#generics_decl> #re::LayoutableSized for #derive_struct_ident<#(#idents_of_generics),*>
+                where
+                    #(#field_type: #re::NoBools + #re::NoHandles + #triv #re::LayoutableSized,)*
+                    #where_clause_predicates
+                {
+                    fn layoutable_type_sized() -> #re::SizedType {
+                        match { #layoutable_type_fn } {
+                            #re::LayoutableType::Sized(s) => s,
+                            _ => unreachable!("ensured by LayoutableSized field trait bounds above")
+                        }
+                    }
+                }
+            };
+
             let impl_gpu_layout = quote! {
                 impl<#generics_decl> #re::GpuLayout for #derive_struct_ident<#(#idents_of_generics),*>
                 where
-                    #(#first_fields_type: #re::GpuSized,)*
-                    #last_field_type: #re::GpuAligned,
+                    #(#first_fields_type: #re::LayoutableSized,)*
+                    #last_field_type: #re::Layoutable,
                     #where_clause_predicates
                 {
-
-                    fn gpu_layout() -> #re::TypeLayout {
-                        let result = #re::TypeLayout::struct_from_parts(
-                            #re::TypeLayoutRules::Wgsl,
-                            #is_gpu_repr_packed,
-                            std::stringify!(#derive_struct_ident).into(),
-                            [
-                                #(
-                                    #re::FieldLayout {
-                                        name: std::stringify!(#field_ident).into(),
-                                        ty: <#field_type as #re::GpuLayout>::gpu_layout(),
-                                        custom_min_align: #field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")).into(),
-                                        custom_min_size: #field_size.into(),
-                                    },
-                                )*
-                            ].into_iter()
-                        );
-                        match result {
-                            Ok(layout) => layout,
-                            Err(e @ #re::StructLayoutError::UnsizedFieldMustBeLast { .. }) => unreachable!("all fields except last require bound `GpuSized`. {e}"),
-                        }
-                    }
+                    type GpuRepr = #gpu_repr_shame;
 
                     fn cpu_type_name_and_layout() -> Option<Result<(std::borrow::Cow<'static, str>, #re::TypeLayout), #re::ArrayElementsUnsizedError>> {
                         use #re::CpuLayout as _;
@@ -243,8 +280,7 @@ pub fn impl_for_struct(
                 where
                     #(#triv #field_type: #re::VertexAttribute,)*
                     #where_clause_predicates
-                {
-                }
+                { }
             };
 
 
@@ -322,10 +358,11 @@ pub fn impl_for_struct(
                 }
             };
 
-            if gpu_repr_packed.is_some() {
+            if matches!(gpu_repr, Repr::Packed) {
                 // this is basically only for vertex buffers, so
                 // we only implement `GpuLayout` and `VertexLayout`, as well as their implied traits
                 Ok(quote! {
+                    #impl_layoutable
                     #impl_gpu_layout
                     #impl_vertex_buffer_layout
                     #impl_fake_auto_traits
@@ -334,12 +371,13 @@ pub fn impl_for_struct(
             } else {
                 // non gpu_repr(packed)
                 let struct_ref_doc = format!(
-                    r#"This struct was generated by `#[derive(shame::GpuLayout)]` 
-            as a version of `{derive_struct_ident}` which holds references to its fields. It is used as 
+                    r#"This struct was generated by `#[derive(shame::GpuLayout)]`
+            as a version of `{derive_struct_ident}` which holds references to its fields. It is used as
             the `std::ops::Deref` target of `shame::Ref<{derive_struct_ident}>`"#
                 );
 
                 Ok(quote! {
+                    #impl_layoutable
                     #impl_gpu_layout
                     #impl_vertex_buffer_layout
                     #impl_fake_auto_traits
@@ -446,24 +484,26 @@ pub fn impl_for_struct(
 
                         fn instantiate_buffer_inner<AS: #re::BufferAddressSpace>(
                             args: Result<#re::BindingArgs, #re::InvalidReason>,
-                            bind_ty: #re::BindingType
+                            bind_ty: #re::BufferBindingType,
+                            has_dynamic_offset: bool,
                         ) -> #re::BufferInner<Self, AS>
                         where
                             #triv Self:
                                 #re::NoAtomics +
                                 #re::NoBools
                         {
-                            #re::BufferInner::new_fields(args, bind_ty)
+                            #re::BufferInner::new_fields(args, bind_ty, has_dynamic_offset)
                         }
 
                         fn instantiate_buffer_ref_inner<AS: #re::BufferAddressSpace, AM: #re::AccessModeReadable>(
                             args: Result<#re::BindingArgs, #re::InvalidReason>,
-                            bind_ty: #re::BindingType
+                            bind_ty: #re::BufferBindingType,
+                            has_dynamic_offset: bool,
                         ) -> #re::BufferRefInner<Self, AS, AM>
                         where
                             #triv Self: #re::NoBools,
                         {
-                            #re::BufferRefInner::new_fields(args, bind_ty)
+                            #re::BufferRefInner::new_fields(args, bind_ty, has_dynamic_offset)
                         }
 
                         fn impl_category() -> #re::GpuStoreImplCategory {

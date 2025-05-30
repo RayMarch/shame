@@ -19,6 +19,7 @@ use crate::{
             },
             reference::AccessMode,
             struct_::SizedFields,
+            type_layout::layoutable::ir_compat::ContainsBoolsError,
             type_traits::{BindingArgs, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools},
             GpuType,
         },
@@ -33,7 +34,7 @@ use crate::{
     },
     ir::{
         self,
-        ir_type::{Field, LayoutError},
+        ir_type::{Field},
         pipeline::{PipelineError, StageMask},
         recording::Context,
         TextureFormatWrapper,
@@ -454,13 +455,13 @@ impl BindingIter<'_> {
     /// let texarr: sm::TextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
     /// let texarr: sm::TextureArray<sm::Filterable<f32x4>, 4> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## storage textures
     /// ```
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm> = bind_group.next();
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm, u32x2> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## Arrays of storage textures
     /// ```
     /// let texstoarr: sm::StorageTextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
@@ -558,7 +559,7 @@ impl PushConstants<'_> {
     #[track_caller]
     pub fn get<T>(self) -> T
     where
-        T: GpuStore + GpuSized + NoAtomics + NoBools,
+        T: GpuStore + GpuSized + NoAtomics + NoBools + GpuLayout,
     {
         let _caller_scope = Context::call_info_scope();
 
@@ -571,8 +572,13 @@ impl PushConstants<'_> {
                 GpuStoreImplCategory::Fields(buffer_block) => match buffer_block.last_unsized_field() {
                     None => {
                         assert_eq!(buffer_block.sized_fields().len(), buffer_block.fields().count());
+
                         let fields = buffer_block.sized_fields().iter().map(|f| {
-                            Any::next_push_constants_field(f.ty.clone(), f.custom_min_size, f.custom_min_align)
+                            let layoutable = match f.ty.clone().try_into() {
+                                Ok(l) => l,
+                                Err(ContainsBoolsError) => unreachable!("No bools ensured by trait bound"),
+                            };
+                            Any::next_push_constants_field(layoutable, f.custom_min_size, f.custom_min_align)
                         });
                         T::from_anys(fields)
                     }
@@ -587,7 +593,13 @@ impl PushConstants<'_> {
                 },
                 GpuStoreImplCategory::GpuType(ty) => {
                     let any = match ty {
-                        ir::StoreType::Sized(sized_type) => Any::next_push_constants_field(sized_type, None, None),
+                        ir::StoreType::Sized(sized_type) => {
+                            let layoutable = match sized_type.try_into() {
+                                Ok(l) => l,
+                                Err(ContainsBoolsError) => unreachable!("No bools ensured by trait bound"),
+                            };
+                            Any::next_push_constants_field(layoutable, None, None)
+                        }
                         _ => {
                             let err = InternalError::new(
                                 true,

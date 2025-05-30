@@ -51,7 +51,7 @@ pub mod vec_range_traits;
 //[old-doc] - `StorageTexture<…>`
 /// (no documentation yet)
 ///
-pub trait GpuType: ToGpuType<Gpu = Self> + From<Any> + AsAny + Clone + GpuLayout {
+pub trait GpuType: ToGpuType<Gpu = Self> + From<Any> + AsAny + Clone {
     /// (no documentation yet)
     #[doc(hidden)] // returns a type from the `any` api
     fn ty() -> ir::Type;
