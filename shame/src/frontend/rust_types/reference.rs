@@ -13,7 +13,7 @@ use super::{
     vec::ToInteger,
     AsAny, GpuType, To,
 };
-use crate::frontend::any::Any;
+use crate::{any::layout::LayoutableSized, frontend::any::Any, GpuLayout};
 use crate::frontend::rust_types::len::x1;
 use crate::frontend::rust_types::vec::vec;
 use crate::{
@@ -228,7 +228,7 @@ where
 
 impl<T, AS, AM, N> Ref<Array<T, N>, AS, AM>
 where
-    T: GpuType + GpuSized + GpuStore + 'static,
+    T: GpuType + GpuSized + GpuStore + 'static + GpuLayout + LayoutableSized,
     AS: AddressSpace + 'static,
     AM: AccessModeReadable + 'static,
     N: ArrayLen,

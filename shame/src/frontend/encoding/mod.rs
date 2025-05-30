@@ -31,6 +31,7 @@ use super::{
     error::InternalError,
     rust_types::{
         error::FrontendError,
+        layout_traits::CpuLayoutCompareError,
         len::x3,
         type_layout::{construction::LayoutError, layoutable::ir_compat::IRConversionError},
     },
@@ -295,6 +296,8 @@ pub enum EncodingErrorKind {
     PipelineError(#[from] PipelineError),
     #[error("{0}")]
     LayoutError(#[from] LayoutError),
+    #[error("{0}")]
+    CpuLayoutCompare(#[from] CpuLayoutCompareError),
     #[error("{0}")]
     LayoutableToStoreType(#[from] IRConversionError),
     #[error("{0}")]

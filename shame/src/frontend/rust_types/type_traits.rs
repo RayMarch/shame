@@ -3,10 +3,11 @@ use super::{
     layout_traits::{FromAnys, GetAllFields, GpuLayout},
     mem::{self, AddressSpace},
     reference::{AccessMode, AccessModeReadable},
-    type_layout::{self},
+    type_layout::{self, repr},
     AsAny, GpuType, ToGpuType,
 };
 use crate::{
+    any::BufferBindingType,
     frontend::any::shared_io::{BindPath, BindingType},
     TypeLayout,
 };
@@ -105,10 +106,13 @@ pub trait GpuStore: GpuAligned + GetAllFields + FromAnys {
     #[doc(hidden)]
     fn instantiate_buffer_inner<AS: BufferAddressSpace>(
         args: Result<BindingArgs, InvalidReason>,
-        ty: BindingType,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
     ) -> BufferInner<Self, AS>
     where
-        Self: std::marker::Sized /*not GpuSized, this is deliberate*/ + NoAtomics + NoBools;
+        Self: std::marker::Sized /*not GpuSized, this is deliberate*/ + NoAtomics
+            + NoBools
+            + GpuLayout<GpuRepr = repr::Storage>;
 
     /// internal function that aids in the construction of `BufferRef` as a `Binding`
     ///
@@ -116,10 +120,11 @@ pub trait GpuStore: GpuAligned + GetAllFields + FromAnys {
     #[doc(hidden)]
     fn instantiate_buffer_ref_inner<AS: BufferAddressSpace, AM: AccessModeReadable>(
         args: Result<BindingArgs, InvalidReason>,
-        ty: BindingType,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
     ) -> BufferRefInner<Self, AS, AM>
     where
-        Self: std::marker::Sized /*not GpuSized, this is deliberate*/ + NoBools;
+        Self: std::marker::Sized /*not GpuSized, this is deliberate*/ + NoBools + GpuLayout<GpuRepr = repr::Storage>;
 
     #[doc(hidden)] // runtime api
     fn store_ty() -> ir::StoreType

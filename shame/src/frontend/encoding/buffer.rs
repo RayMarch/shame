@@ -101,7 +101,7 @@ where
 
 impl<T, AS, const DYN_OFFSET: bool> Buffer<T, AS, DYN_OFFSET>
 where
-    T: GpuStore + NoHandles + NoAtomics + NoBools + GpuLayout,
+    T: GpuStore + NoHandles + NoAtomics + NoBools + GpuLayout<GpuRepr = repr::Storage>,
     AS: BufferAddressSpace,
 {
     #[track_caller]
@@ -111,14 +111,14 @@ where
             get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check)
         });
         Self {
-            inner: T::instantiate_buffer_inner(args, BufferInner::<T, AS>::binding_type(DYN_OFFSET)),
+            inner: T::instantiate_buffer_inner(args, BufferInner::<T, AS>::binding_type(), DYN_OFFSET),
         }
     }
 }
 
 impl<T, AS, AM, const DYN_OFFSET: bool> BufferRef<T, AS, AM, DYN_OFFSET>
 where
-    T: GpuStore + NoHandles + NoBools + GpuLayout,
+    T: GpuStore + NoHandles + NoBools + GpuLayout<GpuRepr = repr::Storage>,
     AS: BufferAddressSpace,
     AM: AccessModeReadable,
 {
@@ -129,7 +129,7 @@ where
             get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check)
         });
         Self {
-            inner: T::instantiate_buffer_ref_inner(args, BufferRefInner::<T, AS, AM>::binding_type(DYN_OFFSET)),
+            inner: T::instantiate_buffer_ref_inner(args, BufferRefInner::<T, AS, AM>::binding_type(), DYN_OFFSET),
         }
     }
 }
@@ -151,6 +151,41 @@ pub enum BufferRefInner<T: GpuStore, AS: BufferAddressSpace, AM: AccessModeReada
     Plain(Ref<T, AS, AM>),
 }
 
+#[track_caller]
+fn create_buffer_any<T: GpuLayout<GpuRepr = repr::Storage>>(
+    args: Result<BindingArgs, InvalidReason>,
+    bind_ty: BufferBindingType,
+    has_dynamic_offset: bool,
+    as_ref: bool,
+) -> Any {
+    let BindingArgs { path, visibility } = match args {
+        Ok(a) => a,
+        Err(e) => return Any::new_invalid(e),
+    };
+
+    let storage = gpu_type_layout::<T>();
+    match bind_ty {
+        BufferBindingType::Uniform => {
+            let uniform = match GpuTypeLayout::<repr::Uniform>::try_from(storage) {
+                Ok(u) => u,
+                Err(e) => {
+                    let invalid = Context::try_with(call_info!(), |ctx| {
+                        ctx.push_error(e.into());
+                        InvalidReason::ErrorThatWasPushed
+                    })
+                    .unwrap_or(InvalidReason::CreatedWithNoActiveEncoding);
+
+                    return Any::new_invalid(invalid);
+                }
+            };
+            Any::uniform_buffer_binding(path, visibility, uniform, has_dynamic_offset)
+        }
+        BufferBindingType::Storage(access) => {
+            Any::storage_buffer_binding(path, visibility, storage, access, as_ref, has_dynamic_offset)
+        }
+    }
+}
+
 impl<T: GpuType + GpuStore + GpuSized + NoBools + GpuLayout<GpuRepr = repr::Storage>, AS: BufferAddressSpace>
     BufferInner<T, AS>
 {
@@ -161,52 +196,32 @@ impl<T: GpuType + GpuStore + GpuSized + NoBools + GpuLayout<GpuRepr = repr::Stor
         has_dynamic_offset: bool,
     ) -> Self {
         let as_ref = false;
-        let create_any = || -> Result<Any, EncodingErrorKind> {
-            let BindingArgs { path, visibility } = args?;
-
-            let storage = gpu_type_layout::<T>();
-            match bind_ty {
-                BufferBindingType::Uniform => {
-                    let uniform = GpuTypeLayout::<repr::Uniform>::try_from(storage)?;
-                    Ok(Any::uniform_buffer_binding(
-                        path,
-                        visibility,
-                        uniform,
-                        has_dynamic_offset,
-                    ))
-                }
-                BufferBindingType::Storage(access) => Ok(Any::storage_buffer_binding(
-                    path,
-                    visibility,
-                    storage,
-                    access,
-                    false,
-                    has_dynamic_offset,
-                )),
-            }
-        };
-        let any = match create_any() {
-            Err(reason) => Any::new_invalid(reason),
-            Ok(any) => any,
-        };
+        let any = create_buffer_any::<T>(args, bind_ty, has_dynamic_offset, as_ref);
         BufferInner::PlainSized(any.into())
     }
 }
 
-impl<T: BufferFields + NoAtomics + NoBools, AS: BufferAddressSpace> BufferInner<T, AS> {
+impl<T: BufferFields + NoAtomics + NoBools + GpuLayout<GpuRepr = repr::Storage>, AS: BufferAddressSpace>
+    BufferInner<T, AS>
+{
     #[track_caller]
     #[doc(hidden)]
-    pub fn new_fields(args: Result<BindingArgs, InvalidReason>, bind_ty: BindingType) -> Self {
-        let init_any = |as_ref, store_ty| match args {
-            Err(reason) => Any::new_invalid(reason),
-            Ok(BindingArgs { path, visibility }) => Any::binding(path, visibility, store_ty, bind_ty, as_ref),
-        };
+    pub fn new_fields(
+        args: Result<BindingArgs, InvalidReason>,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
+    ) -> Self {
+        // let init_any = |as_ref, store_ty| match args {
+        //     Err(reason) => Any::new_invalid(reason),
+        //     Ok(BindingArgs { path, visibility }) => Any::binding(path, visibility, store_ty, bind_ty, as_ref),
+        // };
 
         let block = T::get_bufferblock_type();
         match ir::SizedStruct::try_from(block.clone()) {
             Ok(struct_) => {
-                let store_ty = ir::StoreType::Sized(ir::SizedType::Structure(struct_));
-                let block_any = init_any(false, store_ty);
+                let as_ref = false;
+                // TODO(chronicl) does not require BufferFields. consider unifying with other methods
+                let block_any = create_buffer_any::<T>(args, bind_ty, has_dynamic_offset, as_ref);
                 let fields_anys = <T as GetAllFields>::fields_as_anys_unchecked(block_any);
                 let fields_anys = (fields_anys.borrow() as &[Any]).iter().cloned();
                 let fields = <T as FromAnys>::from_anys(fields_anys);
@@ -214,8 +229,9 @@ impl<T: BufferFields + NoAtomics + NoBools, AS: BufferAddressSpace> BufferInner<
             }
             Err(_) => {
                 // TODO(release) test this! A `Buffer<Foo> where Foo's last field is a runtime sized array`
-                let store_ty = ir::StoreType::BufferBlock(block);
-                let block_any_ref = init_any(true, store_ty);
+                let as_ref = true;
+                // TODO(chronicl) does not require BufferFields. consider unifying with other methods
+                let block_any_ref = create_buffer_any::<T>(args, bind_ty, has_dynamic_offset, as_ref);
                 let fields_anys_refs = <T as GetAllFields>::fields_as_anys_unchecked(block_any_ref);
                 let fields_anys_refs = (fields_anys_refs.borrow() as &[Any]).iter().cloned();
                 let fields_refs = <T::RefFields<AS, Read> as FromAnys>::from_anys(fields_anys_refs);
@@ -225,67 +241,68 @@ impl<T: BufferFields + NoAtomics + NoBools, AS: BufferAddressSpace> BufferInner<
     }
 }
 
-impl<T: GpuType + GpuStore + GpuSized, AS: BufferAddressSpace, L: ArrayLen> BufferInner<Array<T, L>, AS> {
+impl<T: GpuType + GpuStore + GpuSized + GpuLayout + LayoutableSized, AS: BufferAddressSpace, L: ArrayLen>
+    BufferInner<Array<T, L>, AS>
+{
     #[track_caller]
     #[doc(hidden)]
-    pub(crate) fn new_array(args: Result<BindingArgs, InvalidReason>, bind_ty: BindingType) -> Self {
+    pub(crate) fn new_array(
+        args: Result<BindingArgs, InvalidReason>,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
+    ) -> Self {
         let call_info = call_info!();
-
-        let init_any = |ty, as_ref| match args {
-            Err(reason) => Any::new_invalid(reason),
-            Ok(BindingArgs { path, visibility }) => Any::binding(path, visibility, ty, bind_ty, as_ref),
-        };
 
         let store_ty = <Array<T, L> as GpuStore>::store_ty();
         match L::LEN {
             // GpuSized
             Some(_) => {
                 let as_ref = false;
-                let any = init_any(store_ty, as_ref);
+                let any = create_buffer_any::<Array<T, L>>(args, bind_ty, has_dynamic_offset, as_ref);
                 BufferInner::PlainSized(any.into())
             }
             // RuntimeSize
             None => {
                 let as_ref = true;
-                let any_ref = init_any(store_ty, as_ref);
+                let any_ref = create_buffer_any::<Array<T, L>>(args, bind_ty, has_dynamic_offset, as_ref);
                 BufferInner::RuntimeSizedArray(any_ref.into())
             }
         }
     }
 }
 
-impl<T: GpuStore + NoBools, AS: BufferAddressSpace, AM: AccessModeReadable> BufferRefInner<T, AS, AM> {
+impl<T: GpuStore + NoBools + GpuLayout<GpuRepr = repr::Storage>, AS: BufferAddressSpace, AM: AccessModeReadable>
+    BufferRefInner<T, AS, AM>
+{
     #[track_caller]
-    pub(crate) fn new_plain(args: Result<BindingArgs, InvalidReason>, bind_ty: BindingType) -> Self
+    pub(crate) fn new_plain(
+        args: Result<BindingArgs, InvalidReason>,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
+    ) -> Self
     where
         T: GpuType,
     {
         let as_ref = true;
         let store_ty = <T as GpuStore>::store_ty();
-        let any = match args {
-            Err(reason) => Any::new_invalid(reason),
-            Ok(BindingArgs { path, visibility }) => Any::binding(path, visibility, store_ty, bind_ty, as_ref),
-        };
+        let any = create_buffer_any::<T>(args, bind_ty, has_dynamic_offset, as_ref);
         BufferRefInner::Plain(any.into())
     }
 
     #[track_caller]
     #[doc(hidden)]
-    pub fn new_fields(args: Result<BindingArgs, InvalidReason>, bind_ty: BindingType) -> Self
+    pub fn new_fields(
+        args: Result<BindingArgs, InvalidReason>,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
+    ) -> Self
     where
         T: BufferFields,
     {
         let as_ref = true;
-        let block_any_ref = match args {
-            Err(reason) => Any::new_invalid(reason),
-            Ok(BindingArgs { path, visibility }) => Any::binding(
-                path,
-                visibility,
-                ir::StoreType::BufferBlock(T::get_bufferblock_type()),
-                bind_ty,
-                as_ref,
-            ),
-        };
+        // TODO(chronicl) this does not require buffer fields. reconsider unifying impls and
+        // just matching on `LayoutableType` variants.
+        let block_any_ref = create_buffer_any::<T>(args, bind_ty, has_dynamic_offset, as_ref);
         let fields_anys_refs = <T as GetAllFields>::fields_as_anys_unchecked(block_any_ref);
         let fields_anys_refs = (fields_anys_refs.borrow() as &[Any]).iter().cloned();
         let fields_refs = <T::RefFields<AS, AM> as FromAnys>::from_anys(fields_anys_refs);
@@ -294,24 +311,22 @@ impl<T: GpuStore + NoBools, AS: BufferAddressSpace, AM: AccessModeReadable> Buff
 }
 
 impl<T: GpuStore, AS: BufferAddressSpace> BufferInner<T, AS> {
-    fn binding_type(has_dynamic_offset: bool) -> BindingType {
-        let ty = match AS::ADDRESS_SPACE {
+    fn binding_type() -> BufferBindingType {
+        match AS::ADDRESS_SPACE {
             ir::AddressSpace::Uniform => BufferBindingType::Uniform,
             ir::AddressSpace::Storage => BufferBindingType::Storage(Read::ACCESS_MODE_READABLE),
             _ => unreachable!("AS: BufferAddressSpace"),
-        };
-        BindingType::Buffer { ty, has_dynamic_offset }
+        }
     }
 }
 
 impl<T: GpuStore, AS: BufferAddressSpace, AM: AccessModeReadable> BufferRefInner<T, AS, AM> {
-    fn binding_type(has_dynamic_offset: bool) -> BindingType {
-        let ty = match AS::ADDRESS_SPACE {
+    fn binding_type() -> BufferBindingType {
+        match AS::ADDRESS_SPACE {
             ir::AddressSpace::Uniform => BufferBindingType::Uniform,
             ir::AddressSpace::Storage => BufferBindingType::Storage(AM::ACCESS_MODE_READABLE),
             _ => unreachable!("AS: BufferAddressSpace"),
-        };
-        BindingType::Buffer { ty, has_dynamic_offset }
+        }
     }
 }
 
@@ -326,9 +341,15 @@ impl<T: GpuStore, AS: BufferAddressSpace, AM: AccessModeReadable> BufferRefInner
 #[rustfmt::skip] impl<T: GpuStore + NoHandles + NoAtomics + NoBools, AS: BufferAddressSpace, const DYN_OFFSET: bool>
 Binding for Buffer<T, AS, DYN_OFFSET>
 where
-    T: GpuSized+ GpuLayout
+    T: GpuSized+ GpuLayout<GpuRepr = repr::Storage>
 {
-    fn binding_type() -> BindingType { BufferInner::<T, AS>::binding_type(DYN_OFFSET) }
+    fn binding_type() -> BindingType {
+        BindingType::Buffer {
+            ty:  BufferInner::<T, AS>::binding_type(),
+            has_dynamic_offset: DYN_OFFSET
+        }
+    }
+
     #[track_caller]
     fn new_binding(args: Result<BindingArgs, InvalidReason>) -> Self { Buffer::new(args) }
 
@@ -352,7 +373,13 @@ Binding for Buffer<Array<T>, AS, DYN_OFFSET>
 where
     T: GpuType + GpuSized + GpuLayout + LayoutableSized
 {
-    fn binding_type() -> BindingType { BufferInner::<T, AS>::binding_type(DYN_OFFSET) }
+    fn binding_type() -> BindingType {
+        BindingType::Buffer {
+            ty:  BufferInner::<T, AS>::binding_type(),
+            has_dynamic_offset: DYN_OFFSET
+        }
+    }
+
     #[track_caller]
     fn new_binding(args: Result<BindingArgs, InvalidReason>) -> Self { Buffer::new(args) }
 
@@ -520,13 +547,18 @@ where
     pub(crate) inner: BufferRefInner<Content, AS, AM>,
 }
 
-#[rustfmt::skip] impl<T: GpuStore + NoBools + NoHandles + GpuLayout, AS, AM, const DYN_OFFSET: bool>
+#[rustfmt::skip] impl<T: GpuStore + NoBools + NoHandles + GpuLayout<GpuRepr = repr::Storage>, AS, AM, const DYN_OFFSET: bool>
 Binding for BufferRef<T, AS, AM, DYN_OFFSET>
 where
     AS: BufferAddressSpace + SupportsAccess<AM>,
     AM: AccessModeReadable + AtomicsRequireWriteable<T>
 {
-    fn binding_type() -> BindingType { BufferRefInner::<T, AS, AM>::binding_type(DYN_OFFSET) }
+    fn binding_type() -> BindingType {
+        BindingType::Buffer {
+            ty:  BufferInner::<T, AS>::binding_type(),
+            has_dynamic_offset: DYN_OFFSET
+        }
+    }
     #[track_caller]
     fn new_binding(args: Result<BindingArgs, InvalidReason>) -> Self { BufferRef::new(args) }
 

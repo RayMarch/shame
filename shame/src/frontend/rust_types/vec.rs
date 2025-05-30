@@ -12,7 +12,10 @@ use super::{
     AsAny, GpuType, To, ToGpuType,
 };
 use crate::{
-    any::layout::{self, Layoutable, LayoutableSized},
+    any::{
+        layout::{self, Layoutable, LayoutableSized},
+        BufferBindingType,
+    },
     call_info,
     common::{
         proc_macro_utils::{collect_into_array_exact, push_wrong_amount_of_args_error},
@@ -552,22 +555,24 @@ impl<T: ScalarType, L: Len> GpuStore for vec<T, L> {
 
     fn instantiate_buffer_inner<AS: BufferAddressSpace>(
         args: Result<BindingArgs, InvalidReason>,
-        bind_ty: BindingType,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
     ) -> BufferInner<Self, AS>
     where
         Self: NoAtomics + NoBools,
     {
-        BufferInner::new_plain(args, bind_ty)
+        BufferInner::new_plain(args, bind_ty, has_dynamic_offset)
     }
 
     fn instantiate_buffer_ref_inner<AS: BufferAddressSpace, AM: AccessModeReadable>(
         args: Result<BindingArgs, InvalidReason>,
-        bind_ty: BindingType,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
     ) -> BufferRefInner<Self, AS, AM>
     where
         Self: NoBools,
     {
-        BufferRefInner::new_plain(args, bind_ty)
+        BufferRefInner::new_plain(args, bind_ty, has_dynamic_offset)
     }
 
     fn impl_category() -> GpuStoreImplCategory { GpuStoreImplCategory::GpuType(Self::store_ty()) }

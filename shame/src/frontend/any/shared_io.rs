@@ -13,10 +13,7 @@ use crate::frontend::rust_types::type_layout::layoutable;
 use crate::frontend::rust_types::type_layout::layoutable::ir_compat::IRConversionError;
 use crate::ir::expr::Binding;
 use crate::ir::expr::Expr;
-use crate::ir::ir_type::{
-    check_layout, get_type_for_buffer_binding_type, AccessModeReadable, HandleType, LayoutConstraints, LayoutError,
-    LayoutErrorContext, SamplesPerPixel,
-};
+use crate::ir::ir_type::{AccessModeReadable, HandleType, SamplesPerPixel};
 use crate::ir::pipeline::{PipelineError, StageMask, WipBinding, WipPushConstantsField};
 use crate::ir::recording::{Context, MemoryRegion};
 use crate::ir::{self, AddressSpace, StoreType, TextureFormatWrapper, TextureSampleUsageType, Type};

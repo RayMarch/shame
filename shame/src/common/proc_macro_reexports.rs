@@ -6,6 +6,7 @@ pub use crate::call_info;
 pub use crate::frontend::any::render_io::VertexAttribFormat;
 pub use crate::frontend::any::shared_io::BindPath;
 pub use crate::frontend::any::shared_io::BindingType;
+pub use crate::frontend::any::shared_io::BufferBindingType;
 pub use crate::frontend::any::Any;
 pub use crate::frontend::any::InvalidReason;
 pub use crate::frontend::encoding::buffer::BufferAddressSpace;

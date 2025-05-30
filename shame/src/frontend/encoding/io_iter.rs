@@ -34,7 +34,7 @@ use crate::{
     },
     ir::{
         self,
-        ir_type::{Field, LayoutError},
+        ir_type::{Field},
         pipeline::{PipelineError, StageMask},
         recording::Context,
         TextureFormatWrapper,

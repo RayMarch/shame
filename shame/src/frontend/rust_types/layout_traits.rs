@@ -1,4 +1,5 @@
 use crate::any::layout::{Layoutable, LayoutableSized, Repr};
+use crate::any::BufferBindingType;
 use crate::call_info;
 use crate::common::po2::U32PowerOf2;
 use crate::common::proc_macro_utils::{self, repr_c_struct_layout, ReprCError, ReprCField};
@@ -12,7 +13,7 @@ use crate::frontend::error::InternalError;
 use crate::frontend::rust_types::len::*;
 use crate::ir::ir_type::{
     align_of_array, align_of_array_from_element_alignment, byte_size_of_array_from_stride_len, round_up,
-    stride_of_array_from_element_align_size, CanonName, LayoutError, ScalarTypeFp, ScalarTypeInteger,
+    stride_of_array_from_element_align_size, CanonName, ScalarTypeFp, ScalarTypeInteger,
 };
 use crate::ir::pipeline::StageMask;
 use crate::ir::recording::Context;
@@ -22,6 +23,7 @@ use super::error::FrontendError;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable};
 use super::struct_::{BufferFields, SizedFields, Struct};
+use super::type_layout::eq::LayoutMismatch;
 use super::type_layout::repr::{TypeRepr, TypeReprStorageOrPacked};
 use super::type_layout::layoutable::{self, array_stride, Vector};
 use super::type_layout::{
@@ -227,15 +229,17 @@ pub(crate) fn check_layout_push_error(
     comment_on_mismatch_error: &str,
 ) -> Result<(), InvalidReason> {
     type_layout::eq::check_eq(("cpu", cpu_layout), ("gpu", gpu_layout))
-        .map_err(|e| LayoutError::LayoutMismatch(e, Some(comment_on_mismatch_error.to_string())))
+        .map_err(|e| CpuLayoutCompareError::LayoutMismatch(e, Some(comment_on_mismatch_error.to_string())))
         .and_then(|_| {
             if skip_stride_check {
                 Ok(())
             } else {
                 // the layout is an element in an array, so the strides need to match too
                 match (cpu_layout.byte_size(), gpu_layout.byte_size()) {
-                    (None, None) | (None, Some(_)) => Err(LayoutError::UnsizedStride { name: cpu_name.into() }),
-                    (Some(_), None) => Err(LayoutError::UnsizedStride {
+                    (None, None) | (None, Some(_)) => {
+                        Err(CpuLayoutCompareError::UnsizedStride { name: cpu_name.into() })
+                    }
+                    (Some(_), None) => Err(CpuLayoutCompareError::UnsizedStride {
                         name: gpu_layout.short_name(),
                     }),
                     (Some(cpu_size), Some(gpu_size)) => {
@@ -243,7 +247,7 @@ pub(crate) fn check_layout_push_error(
                         let gpu_stride = array_stride(gpu_layout.align(), gpu_size);
 
                         if cpu_stride != gpu_stride {
-                            Err(LayoutError::StrideMismatch {
+                            Err(CpuLayoutCompareError::StrideMismatch {
                                 cpu_name: cpu_name.into(),
                                 cpu_stride,
                                 gpu_name: gpu_layout.short_name(),
@@ -260,6 +264,23 @@ pub(crate) fn check_layout_push_error(
             ctx.push_error(layout_err.into());
             InvalidReason::ErrorThatWasPushed
         })
+}
+
+#[derive(thiserror::Error, Debug, Clone)]
+pub enum CpuLayoutCompareError {
+    #[error("memory layout mismatch:\n{0}\n{}", if let Some(comment) = .1 {comment.as_str()} else {""})]
+    LayoutMismatch(LayoutMismatch, Option<String>),
+    #[error("runtime-sized type {name} cannot be element in an array buffer")]
+    UnsizedStride { name: String },
+    #[error(
+        "stride mismatch:\n{cpu_name}: {cpu_stride} bytes offset between elements,\n{gpu_name}: {gpu_stride} bytes offset between elements"
+    )]
+    StrideMismatch {
+        cpu_name: String,
+        cpu_stride: u64,
+        gpu_name: String,
+        gpu_stride: u64,
+    },
 }
 
 /// (no documentation yet)
@@ -617,22 +638,24 @@ impl GpuStore for GpuT {
 
     fn instantiate_buffer_inner<AS: BufferAddressSpace>(
         args: Result<BindingArgs, InvalidReason>,
-        bind_ty: BindingType,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
     ) -> BufferInner<Self, AS>
     where
         Self: for<'trivial_bound> NoAtomics + for<'trivial_bound> NoBools,
     {
-        BufferInner::new_fields(args, bind_ty)
+        BufferInner::new_fields(args, bind_ty, has_dynamic_offset)
     }
 
     fn instantiate_buffer_ref_inner<AS: BufferAddressSpace, AM: AccessModeReadable>(
         args: Result<BindingArgs, InvalidReason>,
-        bind_ty: BindingType,
+        bind_ty: BufferBindingType,
+        has_dynamic_offset: bool,
     ) -> BufferRefInner<Self, AS, AM>
     where
         Self: for<'trivial_bound> NoBools,
     {
-        BufferRefInner::new_fields(args, bind_ty)
+        BufferRefInner::new_fields(args, bind_ty, has_dynamic_offset)
     }
 
     fn impl_category() -> GpuStoreImplCategory { GpuStoreImplCategory::Fields(Self::get_bufferblock_type()) }
