@@ -146,7 +146,7 @@ WGSL out                 | ✅     | supported |
 Spir-V out               | ✖️     | currently unsupported, use [naga] to convert WGSL output to Spir-V 
 render pipeline          | ✅     | supported
 compute pipeline         | ✅     | supported
-mesh pipeline            | ✖️     | curently unsupported 
+mesh pipeline            | ✖️     | currently unsupported 
 vertex shaders           | ✅     | supported
 fragment shaders         | ✅     | supported
 compute shaders          | ✅     | supported
@@ -179,7 +179,7 @@ https://discord.gg/Xm5Ck7CCJk
 - [wgpu](https://github.com/gfx-rs/wgpu): recommended graphics library for use with `shame`
 - [naga]: if you want to convert `shame`'s WGSL output to SPIR-V etc.
 - other ways to write shaders in Rust:
-  - [rust-gpu](https://github.com/EmbarkStudios/rust-gpu): Rust as a first-class language and ecosystem for GPU graphics & compute shaders
+  - [rust-gpu](https://github.com/Rust-GPU/rust-gpu): Rust as a first-class language and ecosystem for GPU graphics & compute shaders
   - [posh](https://github.com/leod/posh): OpenGL ES 3.0/WebGL 2.0 focused shader EDSL + graphics library
   - [cubecl](https://github.com/tracel-ai/cubecl): multi-platform high-performance compute language extension for Rust
   - [rasen](https://github.com/leops/rasen): generates SPIR-V bytecode from an operation graph (+ DSL)
