@@ -1,5 +1,4 @@
 #![allow(unused, clippy::no_effect)]
-use shame::gpu_layout;
 use shame as sm;
 use shame::prelude::*;
 use shame::aliases::*;
@@ -487,13 +486,13 @@ struct Mat2([[f32; 2]; 2]);
 // tell `shame` about the layout semantics of your cpu types
 // Mat2::layout() == sm::f32x2x2::layout()
 impl sm::CpuLayout for Mat2 {
-    fn cpu_layout() -> sm::TypeLayout { gpu_layout::<sm::f32x2x2>() }
+    fn cpu_layout() -> sm::TypeLayout { sm::gpu_layout::<sm::f32x2x2>() }
 }
 
 #[repr(C, align(16))]
 struct Mat4([[f32; 4]; 4]);
 impl sm::CpuLayout for Mat4 {
-    fn cpu_layout() -> sm::TypeLayout { gpu_layout::<sm::f32x4x4>() }
+    fn cpu_layout() -> sm::TypeLayout { sm::gpu_layout::<sm::f32x4x4>() }
 }
 
 // using "duck-traiting" allows you to define layouts for foreign cpu-types,
