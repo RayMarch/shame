@@ -508,5 +508,5 @@ impl sm::CpuLayout for Mat4 {
 
 // // tell `shame` about the layout semantics of `glam` types
 // impl MyCpuLayoutTrait for glam::Mat4 {
-//     fn layout() -> shame::TypeLayout { sm::f32x4x4::layout() }
+//     fn layout() -> shame::TypeLayout { sm::gpu_layout::<sm::f32x4x4>() }
 // }
