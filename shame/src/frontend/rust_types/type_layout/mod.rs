@@ -152,10 +152,10 @@ pub mod repr {
     /// Enum of layout rules.
     #[derive(Debug, Clone, Copy)]
     pub enum Repr {
-        /// Wgsl storage address space layout / OpenGL std430
+        /// Wgsl storage address space layout
         /// https://www.w3.org/TR/WGSL/#address-space-layout-constraints
         Storage,
-        /// Wgsl uniform address space layout / OpenGL std140
+        /// Wgsl uniform address space layout
         /// https://www.w3.org/TR/WGSL/#address-space-layout-constraints
         Uniform,
         /// Packed layout. Vertex buffer only.
