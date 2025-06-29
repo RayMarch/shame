@@ -26,7 +26,7 @@ pub use builder::{SizedOrArray, FieldOptions};
 /// storage, uniform or packed.
 #[derive(Debug, Clone)]
 pub enum LayoutableType {
-    /// A type with a statically known size.
+    /// A type with a known size.
     Sized(SizedType),
     /// A struct with a runtime sized array as it's last field.
     UnsizedStruct(UnsizedStruct),
