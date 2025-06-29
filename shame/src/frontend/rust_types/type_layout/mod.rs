@@ -123,7 +123,7 @@ pub struct GpuTypeLayout<T: TypeRepr = repr::Storage> {
 }
 
 impl<T: TypeRepr> GpuTypeLayout<T> {
-    /// Gets the `TypeLayout`.
+    /// Get the TypeLayout and remove compile time guarantees about the TypeRepr".
     pub fn layout(&self) -> TypeLayout { TypeLayout::new_layout_for(&self.ty, T::REPR) }
     /// Returns the `LayoutableType` this `GpuTypeLayout` is based on.
     pub fn layoutable_type(&self) -> &LayoutableType { &self.ty }
