@@ -140,7 +140,9 @@ use std::rc::Rc;
 ///
 pub trait GpuLayout: Layoutable {
     /// Returns the `Repr` of the `TypeLayout` from `GpuLayout::gpu_layout`.
-    // fn gpu_repr() -> Repr;
+    ///
+    /// `GpuRepr` only exists so a (derived) struct can be packed for use in vertex buffer usage.
+    /// It is `repr::Storage` in all other cases.
     type GpuRepr: TypeReprStorageOrPacked;
 
     /// the `#[cpu(...)]` in `#[derive(GpuLayout)]` allows the definition of a
