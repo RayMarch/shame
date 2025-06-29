@@ -274,7 +274,7 @@ impl TryFrom<ir::ir_type::SizedStruct> for SizedStruct {
     fn try_from(structure: ir::ir_type::SizedStruct) -> Result<Self, Self::Error> {
         let mut fields = Vec::new();
 
-        for field in structure.sized_fields() {
+        for field in structure.fields() {
             fields.push(SizedField {
                 name: field.name.clone(),
                 custom_min_size: field.custom_min_size,
