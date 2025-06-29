@@ -43,7 +43,7 @@ impl SizedType {
         match self {
             SizedType::Array(a) => a.byte_size(repr),
             SizedType::Vector(v) => v.byte_size(),
-            SizedType::Matrix(m) => m.byte_size(repr, MatrixMajor::Column),
+            SizedType::Matrix(m) => m.byte_size(repr),
             SizedType::Atomic(a) => a.byte_size(),
             SizedType::PackedVec(v) => u8::from(v.byte_size()) as u64,
             SizedType::Struct(s) => s.byte_size_and_align(repr).0,
@@ -55,7 +55,7 @@ impl SizedType {
         match self {
             SizedType::Array(a) => a.align(repr),
             SizedType::Vector(v) => v.align(repr),
-            SizedType::Matrix(m) => m.align(repr, MatrixMajor::Column),
+            SizedType::Matrix(m) => m.align(repr),
             SizedType::Atomic(a) => a.align(repr),
             SizedType::PackedVec(v) => v.align(repr),
             SizedType::Struct(s) => s.byte_size_and_align(repr).1,
@@ -249,19 +249,20 @@ pub enum MatrixMajor {
 
 #[allow(missing_docs)]
 impl Matrix {
-    pub const fn byte_size(&self, repr: Repr, major: MatrixMajor) -> u64 {
-        let (vec, array_len) = self.as_vector_array(major);
+    pub const fn byte_size(&self, repr: Repr) -> u64 {
+        let (vec, array_len) = self.as_vector_array();
         let array_stride = array_stride(vec.align(repr), vec.byte_size());
         array_size(array_stride, array_len)
     }
 
-    pub const fn align(&self, repr: Repr, major: MatrixMajor) -> U32PowerOf2 {
-        let (vec, _) = self.as_vector_array(major);
+    pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
+        let (vec, _) = self.as_vector_array();
         // AlignOf(vecR)
         vec.align(repr)
     }
 
-    const fn as_vector_array(&self, major: MatrixMajor) -> (Vector, NonZeroU32) {
+    const fn as_vector_array(&self) -> (Vector, NonZeroU32) {
+        let major = MatrixMajor::Column; // This can be made a parameter in the future.
         let (vec_len, array_len): (Len, NonZeroU32) = match major {
             MatrixMajor::Column => (self.rows.as_len(), self.columns.as_non_zero_u32()),
             MatrixMajor::Row => (self.columns.as_len(), self.rows.as_non_zero_u32()),

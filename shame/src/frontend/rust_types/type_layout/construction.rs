@@ -32,11 +32,7 @@ impl TypeLayout {
                 a.align(repr),
                 TLS::Vector(Vector::new(a.scalar.into(), ir::Len::X1)),
             ),
-            SizedType::Matrix(m) => (
-                m.byte_size(repr, MatrixMajor::Row),
-                m.align(repr, MatrixMajor::Row),
-                TLS::Matrix(*m),
-            ),
+            SizedType::Matrix(m) => (m.byte_size(repr), m.align(repr), TLS::Matrix(*m)),
             SizedType::Array(a) => (
                 a.byte_size(repr),
                 a.align(repr),
