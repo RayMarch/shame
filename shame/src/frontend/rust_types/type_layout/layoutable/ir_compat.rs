@@ -16,8 +16,8 @@ pub enum IRConversionError {
 #[derive(Debug)]
 pub struct DuplicateFieldNameError {
     pub struct_type: StructKind,
-    pub first_field: usize,
-    pub second_field: usize,
+    pub first_occurence: usize,
+    pub second_occurence: usize,
     pub use_color: bool,
 }
 
@@ -31,7 +31,7 @@ impl std::fmt::Display for DuplicateFieldNameError {
         };
 
         let indent = "  ";
-        let is_duplicate = |i| self.first_field == i || self.second_field == i;
+        let is_duplicate = |i| self.first_occurence == i || self.second_occurence == i;
         let arrow = |i| match is_duplicate(i) {
             true => " <--",
             false => "",
@@ -152,8 +152,8 @@ impl TryFrom<SizedStruct> for ir::ir_type::SizedStruct {
         if let Some((first, second)) = check_for_duplicate_field_names(ty.fields(), None) {
             return Err(IRConversionError::DuplicateFieldName(DuplicateFieldNameError {
                 struct_type: StructKind::Sized(ty),
-                first_field: first,
-                second_field: second,
+                first_occurence: first,
+                second_occurence: second,
                 use_color: use_color(),
             }));
         }
@@ -178,8 +178,8 @@ impl TryFrom<UnsizedStruct> for ir::ir_type::BufferBlock {
         if let Some((first, second)) = check_for_duplicate_field_names(&ty.sized_fields, Some(&ty.last_unsized)) {
             return Err(IRConversionError::DuplicateFieldName(DuplicateFieldNameError {
                 struct_type: StructKind::Unsized(ty),
-                first_field: first,
-                second_field: second,
+                first_occurence: first,
+                second_occurence: second,
                 use_color: use_color(),
             }));
         }
@@ -384,8 +384,8 @@ fn test_ir_conversion_error() {
         result,
         Err(IRConversionError::DuplicateFieldName(DuplicateFieldNameError {
             struct_type: StructKind::Sized(_),
-            first_field: 0,
-            second_field: 2,
+            first_occurence: 0,
+            second_occurence: 2,
             ..
         }))
     ));
