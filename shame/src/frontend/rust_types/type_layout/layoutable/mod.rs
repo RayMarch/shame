@@ -237,7 +237,7 @@ impl std::fmt::Display for SizedType {
 }
 
 impl std::fmt::Display for Vector {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "{}x{}", self.scalar, self.len) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "{}{}", self.scalar, self.len) }
 }
 
 impl std::fmt::Display for Matrix {
