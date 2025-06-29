@@ -19,7 +19,7 @@ pub(crate) mod ir_compat;
 pub use align_size::{FieldOffsets, MatrixMajor, LayoutCalculator, array_size, array_stride, array_align};
 pub use builder::{SizedOrArray, FieldOptions};
 
-/// Types that have a defined memory layout.
+/// Types that can be layed out in memory.
 ///
 /// `LayoutableType` does not contain any layout information itself, but a layout
 /// can be assigned to it using [`GpuTypeLayout`] according to one of the available layout rules:
