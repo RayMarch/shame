@@ -141,6 +141,9 @@ impl U32PowerOf2 {
             n => return None,
         })
     }
+
+    /// Tries to convert a usize to U32PowerOf2.
+    pub const fn try_from_usize(value: usize) -> Option<Self> { Self::try_from_u32(value as u32) }
 }
 
 impl TryFrom<u32> for U32PowerOf2 {

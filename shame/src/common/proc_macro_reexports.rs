@@ -61,3 +61,4 @@ pub use crate::ir::pipeline::StageMask;
 pub use crate::ir::recording::CallInfo;
 pub use crate::ir::recording::CallInfoScope;
 pub use crate::mem::AddressSpace;
+pub use crate::any::U32PowerOf2;

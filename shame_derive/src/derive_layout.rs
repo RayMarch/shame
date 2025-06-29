@@ -156,7 +156,7 @@ pub fn impl_for_struct(
         };
 
         if let Some((span, align_lit)) = &fwa.align {
-            match align_lit.base10_parse::<u32>().map(u32::is_power_of_two) {
+            match align_lit.base10_parse().map(u32::is_power_of_two) {
                 Ok(true) => (),
                 Ok(false) => bail!(*span, "alignment attribute must be a power of two"),
                 Err(_) => bail!(
@@ -585,7 +585,9 @@ pub fn impl_for_struct(
         WhichDerive::CpuLayout => {
             let align_attr_or_none = match repr_align_attr {
                 None => quote!(None),
-                Some(n) => quote!(Some(#n as u64)),
+                Some(n) => quote!(
+                    Some(#re::U32PowerOf2::try_from_usize(#n)).expect("rust checks that N in repr(C, align(N)) is a power of 2.")
+                ),
             };
 
             Ok(quote! {

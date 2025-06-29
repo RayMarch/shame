@@ -45,7 +45,7 @@ fn main() {
 
     // // Let's end on a pretty error message
     let mut sized_struct = SizedStruct::new("D", "a", f32x2::layoutable_type_sized())
-    // This has align of 4, which is ok for putting into `Storage` but `Uniform` memory requires 16 byte alignment of arrays
+        // This has align of 4, which is ok for putting into `Storage` but `Uniform` memory requires 16 byte alignment of arrays
         .extend("b", Array::<f32x1, shame::Size<1>>::layoutable_type_sized());
 
     let storage = GpuTypeLayout::<repr::Storage>::new(sized_struct.clone());

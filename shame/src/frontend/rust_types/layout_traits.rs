@@ -746,24 +746,28 @@ impl CpuLayout for i32 {
 /// (no documentation yet)
 pub trait CpuAligned {
     /// (no documentation yet)
-    const CPU_ALIGNMENT: usize;
+    const CPU_ALIGNMENT: U32PowerOf2;
     /// (no documentation yet)
     const CPU_SIZE: Option<usize>;
     /// (no documentation yet)
-    fn alignment() -> usize;
+    fn alignment() -> U32PowerOf2;
 }
 
 impl<T> CpuAligned for T {
-    const CPU_ALIGNMENT: usize = std::mem::align_of::<T>();
+    const CPU_ALIGNMENT: U32PowerOf2 =
+        U32PowerOf2::try_from_usize(std::mem::align_of::<T>()).expect("alignment of types is always a power of 2");
     const CPU_SIZE: Option<usize> = Some(std::mem::size_of::<T>());
-    fn alignment() -> usize { std::mem::align_of::<T>() }
+    fn alignment() -> U32PowerOf2 { Self::CPU_ALIGNMENT }
 }
 
 impl<T> CpuAligned for [T] {
     // must be same as align of `T` since `std::slice::from_ref` and `&slice[0]` exist
-    const CPU_ALIGNMENT: usize = std::mem::align_of::<T>();
+    const CPU_ALIGNMENT: U32PowerOf2 = T::CPU_ALIGNMENT;
     const CPU_SIZE: Option<usize> = None;
-    fn alignment() -> usize { std::mem::align_of_val::<[T]>(&[]) }
+    fn alignment() -> U32PowerOf2 {
+        U32PowerOf2::try_from_usize(std::mem::align_of_val::<[T]>(&[]))
+            .expect("alignment of types is always a power of 2")
+    }
 }
 
 impl<T: CpuLayout + Sized, const N: usize> CpuLayout for [T; N] {

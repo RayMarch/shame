@@ -57,7 +57,7 @@ pub fn collect_into_array_exact<T, const N: usize>(mut it: impl Iterator<Item = 
 #[derive(Clone)]
 pub struct ReprCField {
     pub name: &'static str,
-    pub alignment: usize,
+    pub alignment: U32PowerOf2,
     pub layout: TypeLayout,
 }
 
@@ -66,7 +66,7 @@ pub enum ReprCError {
 }
 
 pub fn repr_c_struct_layout(
-    repr_c_align_attribute: Option<u64>,
+    repr_c_align_attribute: Option<U32PowerOf2>,
     struct_name: &'static str,
     first_fields_with_offsets_and_sizes: &[(ReprCField, usize, usize)],
     mut last_field: ReprCField,
@@ -79,7 +79,7 @@ pub fn repr_c_struct_layout(
                 return Err(ReprCError::SecondLastElementIsUnsized);
             };
             round_up(
-                last_field.alignment as u64,
+                last_field.alignment.as_u64(),
                 *_2nd_last_offset as u64 + *_2nd_last_size as u64,
             )
         }
@@ -88,13 +88,12 @@ pub fn repr_c_struct_layout(
     let max_alignment = first_fields_with_offsets_and_sizes
         .iter()
         .map(|(f, _, _)| f.alignment)
-        .fold(last_field.alignment, ::std::cmp::max) as u64;
+        .fold(last_field.alignment, ::std::cmp::max);
 
     let struct_alignment = match repr_c_align_attribute {
         Some(repr_c_align) => max_alignment.max(repr_c_align),
         None => max_alignment,
     };
-    let struct_alignment = U32PowerOf2::try_from(struct_alignment as u32).unwrap();
     let last_field_size = last_field_size.map(|s| s as u64);
 
     let total_struct_size =
