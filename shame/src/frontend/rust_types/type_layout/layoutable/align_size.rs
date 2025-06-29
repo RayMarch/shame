@@ -431,7 +431,7 @@ impl LayoutCalculator {
         offset
     }
 
-    /// Extends the layout by an runtime sized array field given it's align.
+    /// Extends the layout by a runtime sized array field given it's align.
     ///
     /// Returns (last field offset, align)
     ///
