@@ -318,7 +318,7 @@ pub const fn array_align(element_align: U32PowerOf2, repr: Repr) -> U32PowerOf2 
     }
 }
 
-/// Returns an array's size given the alignment and size of it's elements.
+/// Returns an array's size=>stride (the distance between consecutive elements) given the alignment and size of its elements.
 pub const fn array_stride(element_align: U32PowerOf2, element_size: u64) -> u64 {
     // Arrays of element type T must have an element stride that is a multiple of the
     // RequiredAlignOf(T, C) for the address space C:
