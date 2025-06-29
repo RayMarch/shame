@@ -83,9 +83,9 @@ fn check_for_duplicate_field_names(
     // we'd usually deal with.
     let mut duplicate_fields = None;
     for (i, field1) in sized_fields.iter().enumerate() {
-        for (j, field2) in sized_fields.iter().skip(i + 1).enumerate() {
+        for (j, field2) in sized_fields.iter().enumerate().skip(i + 1) {
             if field1.name == field2.name {
-                duplicate_fields = Some((i, i + 1 + j));
+                duplicate_fields = Some((i, j));
                 break;
             }
         }
