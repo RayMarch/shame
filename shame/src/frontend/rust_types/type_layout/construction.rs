@@ -150,7 +150,7 @@ impl TryFrom<GpuTypeLayout<repr::Storage>> for GpuTypeLayout<repr::Uniform> {
     type Error = LayoutError;
 
     fn try_from(ty: GpuTypeLayout<repr::Storage>) -> Result<Self, Self::Error> {
-        check_layout(ty.layoutable_type(), Repr::Storage, Repr::Uniform)?;
+        check_repr_equivalence_for_type(ty.layoutable_type(), Repr::Storage, Repr::Uniform)?;
         Ok(GpuTypeLayout {
             ty: ty.ty,
             _repr: PhantomData,
@@ -163,7 +163,11 @@ impl TryFrom<GpuTypeLayout<repr::Storage>> for GpuTypeLayout<repr::Uniform> {
 ///
 /// Another way to say this is, that we are laying `ty` out according to two different
 /// layout rules and checking whether the byte representation of those layouts is the same.
-fn check_layout(ty: &LayoutableType, actual_repr: Repr, expected_repr: Repr) -> Result<(), LayoutError> {
+fn check_repr_equivalence_for_type(
+    ty: &LayoutableType,
+    actual_repr: Repr,
+    expected_repr: Repr,
+) -> Result<(), LayoutError> {
     let ctx = LayoutContext {
         top_level_type: ty,
         actual_repr,
