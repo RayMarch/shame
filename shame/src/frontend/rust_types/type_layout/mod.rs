@@ -106,8 +106,8 @@ pub struct TypeLayout {
     pub kind: TypeLayoutSemantics,
 }
 
-/// A `TypeLayout`, but guaranteed to be based on a `LayoutableType` and
-/// a `Repr` - it follows the layout rules that correspond to the `Repr`.
+/// A version of TypeLayout that provides additional compile-time guarantees.
+/// It is guaranteed to represent a LayoutableType that is layed out in memory using T's layout rules.
 ///
 /// The actual `TypeLayout` can be obtained via `GpuTypeLayout::layout`.
 ///
