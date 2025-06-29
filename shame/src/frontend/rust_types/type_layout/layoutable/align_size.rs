@@ -443,8 +443,9 @@ impl LayoutCalculator {
         custom_min_align: Option<U32PowerOf2>,
     ) -> (u64, U32PowerOf2) {
         // Just in case the user didn't already do this.
-        if self.repr.is_packed() {
-            field_align = PACKED_ALIGN;
+        match self.repr {
+            Repr::Packed => field_align = PACKED_ALIGN,
+            Repr::Storage | Repr::Uniform => {}
         }
 
         let align = Self::calculate_align(field_align, custom_min_align);
