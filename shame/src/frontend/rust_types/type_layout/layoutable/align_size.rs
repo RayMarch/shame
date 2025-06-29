@@ -135,6 +135,7 @@ impl<'a> FieldOffsetsSized<'a> {
     /// with exactly the sized fields that this FieldOffsets was created with.
     pub fn struct_byte_size_and_align(mut self) -> (u64, U32PowerOf2) {
         // Finishing layout calculations
+        // using count only to advance iterator to the end
         (&mut self.0).count();
         (self.0.calc.byte_size(), struct_align(self.0.calc.align(), self.0.repr))
     }
