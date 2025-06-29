@@ -94,28 +94,16 @@ pub enum TypeLayoutSemantics {
 /// use shame as sm;
 /// assert_eq!(sm::cpu_layout::<f32>(), sm::gpu_layout<sm::vec<f32, sm::x1>>());
 /// ```
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TypeLayout {
     /// size in bytes (Some), or unsized (None)
     pub byte_size: Option<u64>,
     /// the byte alignment
     ///
     /// top level alignment is not considered relevant in some checks, but relevant in others (vertex array elements)
-    pub align: U32PowerOf2,
+    pub align: IgnoreInEqOrdHash<U32PowerOf2>,
     /// the type contained in the bytes of this type layout
     pub kind: TypeLayoutSemantics,
-}
-
-// PartialEq, Eq, Hash for TypeLayout
-impl PartialEq<TypeLayout> for TypeLayout {
-    fn eq(&self, other: &TypeLayout) -> bool { self.byte_size() == other.byte_size() && self.kind == other.kind }
-}
-impl Eq for TypeLayout {}
-impl Hash for TypeLayout {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.byte_size.hash(state);
-        self.kind.hash(state);
-    }
 }
 
 /// A `TypeLayout`, but guaranteed to be based on a `LayoutableType` and
@@ -212,7 +200,7 @@ impl TypeLayout {
     pub(crate) fn new(byte_size: Option<u64>, byte_align: U32PowerOf2, kind: TypeLayoutSemantics) -> Self {
         TypeLayout {
             byte_size,
-            align: byte_align,
+            align: byte_align.into(),
             kind,
         }
     }
@@ -268,7 +256,7 @@ impl TypeLayout {
     pub fn byte_size(&self) -> Option<u64> { self.byte_size }
 
     /// Returns the alignment requirement of the represented type.
-    pub fn align(&self) -> U32PowerOf2 { self.align }
+    pub fn align(&self) -> U32PowerOf2 { *self.align }
 
     /// a short name for this `TypeLayout`, useful for printing inline
     pub fn short_name(&self) -> String {

@@ -83,7 +83,7 @@ impl TypeLayout {
         let mut ty = Self::from_runtime_sized_array(&s.last_unsized.array, repr);
         // VERY IMPORTANT: TypeLayout::from_runtime_sized_array does not take into account
         // custom_min_align, but s.last_unsized.align does.
-        ty.align = s.last_unsized.align(repr);
+        ty.align = s.last_unsized.align(repr).into();
 
         fields.push(FieldLayoutWithOffset {
             rel_byte_offset: field_offset,
@@ -123,7 +123,7 @@ fn sized_field_to_field_layout(field: &SizedField, offset: u64, repr: Repr) -> F
     // VERY IMPORTANT: TypeLayout::from_sized_type does not take into account
     // custom_min_align and custom_min_size, but field.byte_size and field.align do.
     ty.byte_size = Some(field.byte_size(repr));
-    ty.align = field.align(repr);
+    ty.align = field.align(repr).into();
     FieldLayoutWithOffset {
         rel_byte_offset: offset,
         field: FieldLayout {
