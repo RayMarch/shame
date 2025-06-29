@@ -130,7 +130,7 @@ fn sized_field_to_field_layout(field: &SizedField, offset: u64, repr: Repr) -> F
 }
 
 impl<T: DerivableRepr> GpuTypeLayout<T> {
-    /// Creates a new `GpuTypeLayout<T>` where `T` is either `Storage` or `Packed`.
+    /// Creates a new `GpuTypeLayout<T>` where `T` implements [`DerivableRepr`].
     ///
     /// All LayoutableType's can be layed out according to storage and packed layout rules,
     /// which corresponds to the available #[gpu_repr(packed)] and #[gpu_repr(storage)]
