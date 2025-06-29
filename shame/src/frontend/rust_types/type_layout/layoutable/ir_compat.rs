@@ -222,7 +222,7 @@ impl TryFrom<RuntimeSizedArrayField> for ir::ir_type::RuntimeSizedArrayField {
 #[error("Type contains bools, which doesn't have a known layout.")]
 pub struct ContainsBoolsError;
 
-/// Errors that can occur when converting IR types to layoutable types.
+/// Errors that can occur when converting IR types to layoutable types on the gpu.
 #[derive(thiserror::Error, Debug)]
 pub enum LayoutableConversionError {
     /// Type contains bools, which don't have a standardized memory layout.
