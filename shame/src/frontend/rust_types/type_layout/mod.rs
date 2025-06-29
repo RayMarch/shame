@@ -113,7 +113,7 @@ pub struct TypeLayout {
 ///
 /// While `GpuTypeLayout<Storage>` and `GpuTypeLayout<Packed>` can be freely created
 /// from a `LayoutableType`, the only way to get a `GpuTypeLayout<Uniform>` is by
-/// using `TryFrom::try_from` on a `GpuTypeLayout<Storage>`, which only checks whether
+/// using `TryFrom::try_from` on a `GpuTypeLayout<Storage>`, which only succeeds if
 /// the storage layout also follows the uniform layout rules - it does not change the
 /// corresponding `TypeLayout`.
 #[derive(Debug, Clone)]
