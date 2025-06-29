@@ -75,30 +75,6 @@ impl std::fmt::Display for DuplicateFieldNameError {
     }
 }
 
-fn check_for_duplicate_field_names(
-    sized_fields: &[SizedField],
-    last_unsized: Option<&RuntimeSizedArrayField>,
-) -> Option<(usize, usize)> {
-    // Brute force search > HashMap for the amount of fields
-    // we'd usually deal with.
-    let mut duplicate_fields = None;
-    for (i, field1) in sized_fields.iter().enumerate() {
-        for (j, field2) in sized_fields.iter().enumerate().skip(i + 1) {
-            if field1.name == field2.name {
-                duplicate_fields = Some((i, j));
-                break;
-            }
-        }
-        if let Some(last_unsized) = last_unsized {
-            if field1.name == last_unsized.name {
-                duplicate_fields = Some((i, sized_fields.len()));
-                break;
-            }
-        }
-    }
-    duplicate_fields
-}
-
 #[track_caller]
 fn should_use_color() -> bool {
     Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages).unwrap_or(false)
@@ -148,9 +124,8 @@ impl From<ScalarType> for ir::ScalarType {
 }
 
 impl SizedStruct {
-    fn into_parts_split_last(mut self) -> (CanonName, SizedField, Vec<SizedField>) {
-        let last = self.fields.pop().expect("guaranteed to have at least one field");
-        (self.name, last, self.fields)
+    fn fields_split_last(&self) -> (&SizedField, &[SizedField]) {
+        self.fields.split_last().expect("guaranteed to have at least one field")
     }
 }
 
@@ -158,22 +133,21 @@ impl TryFrom<SizedStruct> for ir::ir_type::SizedStruct {
     type Error = IRConversionError;
 
     fn try_from(ty: SizedStruct) -> Result<Self, Self::Error> {
-        if let Some((first, second)) = check_for_duplicate_field_names(ty.fields(), None) {
-            return Err(IRConversionError::DuplicateFieldName(DuplicateFieldNameError {
-                struct_type: StructKind::Sized(ty),
-                first_occurence: first,
-                second_occurence: second,
-                use_color: should_use_color(),
-            }));
-        }
+        let (last_field, first_fields) = ty.fields_split_last();
+        let first_fields: Result<Vec<_>, _> = first_fields.into_iter().map(|f| f.clone().try_into()).collect();
+        let last_field_ir = last_field.clone().try_into()?;
 
-        let (name, last_field, first_fields) = ty.into_parts_split_last();
-        let first_fields: Result<Vec<_>, _> = first_fields.into_iter().map(|f| f.try_into()).collect();
-        let last_field_ir = last_field.try_into()?;
-
-        match ir::ir_type::SizedStruct::new_nonempty(name, first_fields?, last_field_ir) {
+        match ir::ir_type::SizedStruct::new_nonempty(ty.name.clone(), first_fields?, last_field_ir) {
             Ok(s) => Ok(s),
-            Err(StructureFieldNamesMustBeUnique) => unreachable!("checked above"),
+            Err(StructureFieldNamesMustBeUnique {
+                first_occurence,
+                second_occurence,
+            }) => Err(IRConversionError::DuplicateFieldName(DuplicateFieldNameError {
+                struct_type: StructKind::Sized(ty),
+                first_occurence,
+                second_occurence,
+                use_color: should_use_color(),
+            })),
         }
     }
 }
@@ -182,26 +156,24 @@ impl TryFrom<UnsizedStruct> for ir::ir_type::BufferBlock {
     type Error = IRConversionError;
 
     fn try_from(ty: UnsizedStruct) -> Result<Self, Self::Error> {
-        if let Some((first, second)) = check_for_duplicate_field_names(&ty.sized_fields, Some(&ty.last_unsized)) {
-            return Err(IRConversionError::DuplicateFieldName(DuplicateFieldNameError {
-                struct_type: StructKind::Unsized(ty),
-                first_occurence: first,
-                second_occurence: second,
-                use_color: should_use_color(),
-            }));
-        }
-
         let mut sized_fields: Vec<ir::ir_type::SizedField> = Vec::new();
 
-        for field in ty.sized_fields {
-            sized_fields.push(field.try_into()?);
+        for field in ty.sized_fields.iter() {
+            sized_fields.push(field.clone().try_into()?);
         }
+        let last_unsized = ty.last_unsized.clone().try_into()?;
 
-        let last_unsized = ty.last_unsized.try_into()?;
-
-        match ir::ir_type::BufferBlock::new(ty.name, sized_fields, Some(last_unsized)) {
+        match ir::ir_type::BufferBlock::new(ty.name.clone(), sized_fields, Some(last_unsized)) {
             Ok(b) => Ok(b),
-            Err(BufferBlockDefinitionError::FieldNamesMustBeUnique) => unreachable!("checked above"),
+            Err(BufferBlockDefinitionError::FieldNamesMustBeUnique(StructureFieldNamesMustBeUnique {
+                first_occurence,
+                second_occurence,
+            })) => Err(IRConversionError::DuplicateFieldName(DuplicateFieldNameError {
+                struct_type: StructKind::Unsized(ty),
+                first_occurence,
+                second_occurence,
+                use_color: should_use_color(),
+            })),
             Err(BufferBlockDefinitionError::MustHaveAtLeastOneField) => {
                 unreachable!("last_unsized is at least one field")
             }

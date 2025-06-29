@@ -420,7 +420,7 @@ impl WipPushConstantsField {
             fields.iter().map(&mut to_sized_field).collect(),
             to_sized_field(last)
         ).map_err(|err| match err {
-            StructureFieldNamesMustBeUnique => {
+            StructureFieldNamesMustBeUnique { .. } => {
                 InternalError::new(true, format!("intermediate push constants structure field names are not unique. fields: {fields:?}, last: {last:?}"))
             }
         })

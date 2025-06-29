@@ -437,7 +437,7 @@ where
         );
         match struct_ {
             Ok(s) => s,
-            Err(ir::StructureFieldNamesMustBeUnique) => unreachable!("field names are assumed unique"),
+            Err(ir::StructureFieldNamesMustBeUnique { .. }) => unreachable!("field names are assumed unique"),
         }
     }
 }
@@ -531,7 +531,9 @@ impl BufferFields for GpuT {
             Ok(t) => t,
             Err(e) => match e {
                 E::MustHaveAtLeastOneField => unreachable!(">= 1 field is ensured by derive macro"),
-                E::FieldNamesMustBeUnique => unreachable!("unique field idents are ensured by rust struct definition"),
+                E::FieldNamesMustBeUnique(_) => {
+                    unreachable!("unique field idents are ensured by rust struct definition")
+                }
             },
         }
     }

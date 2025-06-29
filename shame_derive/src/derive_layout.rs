@@ -464,7 +464,7 @@ pub fn impl_for_struct(
                                 Ok(t) => t,
                                 Err(e) => match e {
                                     E::MustHaveAtLeastOneField => unreachable!(">= 1 field is ensured by derive macro"),
-                                    E::FieldNamesMustBeUnique => unreachable!("unique field idents are ensured by rust struct definition"),
+                                    E::FieldNamesMustBeUnique(_) => unreachable!("unique field idents are ensured by rust struct definition"),
                                 }
                             }
                         }
@@ -536,7 +536,7 @@ pub fn impl_for_struct(
                             );
                             match struct_ {
                                 Ok(s) => s,
-                                Err(#re::ir::StructureFieldNamesMustBeUnique) => unreachable!("field name uniqueness is checked by rust"),
+                                Err(#re::ir::StructureFieldNamesMustBeUnique { .. }) => unreachable!("field name uniqueness is checked by rust"),
                             }
                         }
                     }
