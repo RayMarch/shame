@@ -147,6 +147,13 @@ impl From<ScalarType> for ir::ScalarType {
     }
 }
 
+impl SizedStruct {
+    fn into_parts_split_last(mut self) -> (CanonName, SizedField, Vec<SizedField>) {
+        let last = self.fields.pop().expect("guaranteed to have at least one field");
+        (self.name, last, self.fields)
+    }
+}
+
 impl TryFrom<SizedStruct> for ir::ir_type::SizedStruct {
     type Error = IRConversionError;
 
@@ -160,13 +167,11 @@ impl TryFrom<SizedStruct> for ir::ir_type::SizedStruct {
             }));
         }
 
-        let mut fields: Vec<ir::ir_type::SizedField> = Vec::new();
-        for field in ty.fields {
-            fields.push(field.try_into()?);
-        }
-        let last_field = fields.pop().unwrap();
+        let (name, last_field, first_fields) = ty.into_parts_split_last();
+        let first_fields: Result<Vec<_>, _> = first_fields.into_iter().map(|f| f.try_into()).collect();
+        let last_field_ir = last_field.try_into()?;
 
-        match ir::ir_type::SizedStruct::new_nonempty(ty.name, fields, last_field) {
+        match ir::ir_type::SizedStruct::new_nonempty(name, first_fields?, last_field_ir) {
             Ok(s) => Ok(s),
             Err(StructureFieldNamesMustBeUnique) => unreachable!("checked above"),
         }
