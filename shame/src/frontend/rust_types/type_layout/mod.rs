@@ -243,9 +243,6 @@ pub struct ElementLayout {
     /// Stride of the elements
     pub byte_stride: u64,
     /// The type layout of each element in the array.
-    ///
-    /// The element layout must be constraint::Plain because it's shared by all constraints.
-    /// `ElementLayout` could possibly be made generic too, but it would complicate a lot.
     pub ty: TypeLayout,
 }
 
