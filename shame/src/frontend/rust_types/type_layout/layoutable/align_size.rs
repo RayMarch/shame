@@ -141,7 +141,7 @@ impl<'a> FieldOffsetsSized<'a> {
     }
 
     /// Returns the inner iterator over sized fields.
-    pub fn into_sized_fields(self) -> FieldOffsets<'a> { self.0 }
+    pub fn into_inner(self) -> FieldOffsets<'a> { self.0 }
 }
 
 /// The field offsets of an `UnsizedStruct`.
