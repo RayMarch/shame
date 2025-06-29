@@ -210,8 +210,9 @@ impl Vector {
     pub const fn byte_size(&self) -> u64 { self.len.as_u64() * self.scalar.byte_size() }
 
     pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
-        if repr.is_packed() {
-            return PACKED_ALIGN;
+        match repr {
+            Repr::Packed => return PACKED_ALIGN,
+            Repr::Storage | Repr::Uniform => {}
         }
 
         let len = match self.len {
