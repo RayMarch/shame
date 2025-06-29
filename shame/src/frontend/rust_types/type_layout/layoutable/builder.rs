@@ -209,8 +209,8 @@ impl RuntimeSizedArray {
 /// Options for the field of a struct.
 ///
 /// If you only want to customize the field's name, you can convert most string types
-/// to `FieldOptions` using `Into::into`, but most methods take `impl Into<StructOptions>`,
-/// meaning you can just pass the string type directly.
+/// to `FieldOptions` using `Into::into`. For most methods that take `impl Into<FieldOptions>`
+/// parameters you can just pass the string type directly.  
 #[derive(Debug, Clone)]
 pub struct FieldOptions {
     /// Name of the field
