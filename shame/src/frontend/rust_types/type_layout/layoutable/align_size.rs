@@ -167,6 +167,7 @@ impl<'a> FieldOffsetsUnsized<'a> {
     /// Returns the last field's offset and the struct's align.
     pub fn last_field_offset_and_struct_align(mut self) -> (u64, U32PowerOf2) {
         // Finishing layout calculations
+        // using count only to advance iterator to the end
         (&mut self.sized).count();
         let array_align = self.last_unsized.array.align(self.sized.repr);
         let custom_min_align = self.last_unsized.custom_min_align;
