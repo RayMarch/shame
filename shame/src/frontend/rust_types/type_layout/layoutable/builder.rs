@@ -206,27 +206,6 @@ impl RuntimeSizedArray {
     }
 }
 
-impl<T: Into<CanonName>> From<(T, SizedType)> for SizedField {
-    fn from(value: (T, SizedType)) -> Self {
-        Self {
-            name: value.0.into(),
-            ty: value.1,
-            custom_min_size: None,
-            custom_min_align: None,
-        }
-    }
-}
-
-impl<T: Into<CanonName>> From<(T, SizedType)> for RuntimeSizedArrayField {
-    fn from(value: (T, SizedType)) -> Self {
-        Self {
-            name: value.0.into(),
-            array: RuntimeSizedArray { element: value.1 },
-            custom_min_align: None,
-        }
-    }
-}
-
 /// Options for the field of a struct.
 ///
 /// If you only want to customize the field's name, you can convert most string types
