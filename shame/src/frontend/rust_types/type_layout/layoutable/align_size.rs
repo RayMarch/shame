@@ -424,7 +424,7 @@ impl LayoutCalculator {
             // bytes between the start of that member and the start of any following
             // member must be at least roundUp(16, SizeOf(S)).
             (Repr::Uniform, true) => round_up(16, offset + size),
-            _ => offset + size,
+            (Repr::Storage | Repr::Packed, _) | (Repr::Uniform, false) => offset + size,
         };
         self.align = self.align.max(align);
 
