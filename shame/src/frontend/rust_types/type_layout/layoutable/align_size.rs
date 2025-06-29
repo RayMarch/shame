@@ -219,8 +219,8 @@ impl Vector {
             Len::X1 | Len::X2 | Len::X4 => self.len.as_u32(),
             Len::X3 => 4,
         };
-        // len * self.scalar.align() = power of 2 * power of 2 = power of 2
-        U32PowerOf2::try_from_u32(len * self.scalar.align().as_u32()).unwrap()
+        U32PowerOf2::try_from_u32(len * self.scalar.align().as_u32())
+            .expect("power of 2 * power of 2 = power of 2. Highest operands are around 4 * 16 so overflow is unlikely")
     }
 }
 
