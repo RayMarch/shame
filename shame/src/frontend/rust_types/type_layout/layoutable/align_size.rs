@@ -467,9 +467,8 @@ impl LayoutCalculator {
     /// Returns the align of the struct.
     pub const fn align(&self) -> U32PowerOf2 { self.align }
 
-    /// field_align should already respect field_custom_min_align.
-    /// field_custom_min_align is used to overwrite packing if self is packed.
     const fn next_field_offset(&self, field_align: U32PowerOf2, field_custom_min_align: Option<U32PowerOf2>) -> u64 {
+        let field_align = Self::calculate_align(field_align, field_custom_min_align);
         match (self.repr, field_custom_min_align) {
             (Repr::Packed, None) => self.next_offset_min,
             (Repr::Packed, Some(custom_align)) => round_up(custom_align.as_u64(), self.next_offset_min),
