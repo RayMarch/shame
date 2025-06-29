@@ -374,7 +374,7 @@ pub const fn round_up_align(multiple_of: U32PowerOf2, n: U32PowerOf2) -> U32Powe
 
 /// `LayoutCalculator` helps calculate the size, align and the field offsets of a struct.
 ///
-/// If `LayoutCalculator` is created with `packed = true`, provided `field_align`s
+/// If `LayoutCalculator` is created with `repr == Repr::Packed`, provided `field_align`s
 /// are ignored and the field is inserted directly after the previous field. However,
 /// a `custom_min_align` that is `Some` overwrites the "packedness" of the field.
 #[derive(Debug, Clone)]
