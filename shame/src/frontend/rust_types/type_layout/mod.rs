@@ -91,12 +91,8 @@ pub enum TypeLayoutSemantics {
 ///
 /// a layout comparison looks like this:
 /// ```
-/// assert!(f32::cpu_layout() == vec<f32, x1>::gpu_layout());
-/// // or, more explicitly
-/// assert_eq!(
-///     <f32 as CpuLayout>::cpu_layout(),
-///     <vec<f32, x1> as GpuLayout>::gpu_layout(),
-/// );
+/// use shame as sm;
+/// assert_eq!(sm::cpu_layout::<f32>(), sm::gpu_layout<sm::vec<f32, sm::x1>>());
 /// ```
 #[derive(Clone)]
 pub struct TypeLayout {
