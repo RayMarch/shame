@@ -135,8 +135,10 @@ pub use repr::{TypeRepr, Repr};
 pub mod repr {
     use super::*;
 
-    /// Type representation used by `GpuTypeLayout<T: TypeRepr>`. This provides guarantees
-    /// about the alignment rules that the type layout adheres to.
+    /// Implemented by marker types (such as [sm::repr::Storage] [sm::repr::Packed]),
+    /// which represent rulesets to lay out types in memory.
+    /// The user specifies these on the highest level via the #[gpu_repr(...)] attribute.
+    ///
     /// See [`GpuTypeLayout`] documentation for more details.
     pub trait TypeRepr: Clone + PartialEq + Eq {
         /// The corresponding enum variant of `Repr`.
