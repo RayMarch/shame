@@ -106,13 +106,14 @@ pub fn repr_c_struct_layout(
     };
     let mut fields = first_fields_with_offsets_and_sizes
         .iter()
-        .map(|(field, offset, size)| (field.clone(), *offset as u64, *size as u64))
+        .map(|(field, offset, size)| (field, *offset as u64, *size as u64))
         .map(|(mut field, offset, size)| {
-            field.layout.byte_size = new_size(field.layout.byte_size(), Some(size));
+            let mut layout = field.layout.clone();
+            layout.byte_size = new_size(field.layout.byte_size(), Some(size));
             FieldLayoutWithOffset {
                 field: FieldLayout {
                     name: field.name.into(),
-                    ty: field.layout.clone(),
+                    ty: layout,
                 },
                 rel_byte_offset: offset,
             }
