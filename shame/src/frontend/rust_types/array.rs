@@ -202,7 +202,9 @@ impl<T: GpuType + GpuSized + GpuLayout + LayoutableSized, N: ArrayLen> GpuLayout
                 t_cpu_layout.align(),
                 TypeLayoutSemantics::Array(
                     Rc::new(ElementLayout {
-                        byte_stride: layoutable::array_stride(t_cpu_layout.align(), t_cpu_size),
+                        // array stride is element size according to
+                        // https://doc.rust-lang.org/reference/type-layout.html#r-layout.properties.size
+                        byte_stride: t_cpu_size,
                         ty: t_cpu_layout,
                     }),
                     N::LEN.map(NonZeroU32::get),
