@@ -6,10 +6,7 @@ use super::*;
 #[derive(thiserror::Error, Debug)]
 pub enum IRConversionError {
     /// Packed vectors do not exist in the shader type system.
-    #[error(
-        "Type is or contains a packed vector, which does not exist in the shader type system.\n\
-        Packed vectors may only be used in vertex buffers."
-    )]
+    #[error("Type is or contains a packed vector, which does not exist in the shader type system.")]
     ContainsPackedVector,
     /// Struct field names must be unique in the shader type system.
     #[error("{0}")]
