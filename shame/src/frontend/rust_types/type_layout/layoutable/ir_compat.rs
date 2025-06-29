@@ -100,7 +100,9 @@ fn check_for_duplicate_field_names(
 }
 
 #[track_caller]
-fn use_color() -> bool { Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages).unwrap_or(false) }
+fn should_use_color() -> bool {
+    Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages).unwrap_or(false)
+}
 
 impl TryFrom<LayoutableType> for ir::StoreType {
     type Error = IRConversionError;
@@ -154,7 +156,7 @@ impl TryFrom<SizedStruct> for ir::ir_type::SizedStruct {
                 struct_type: StructKind::Sized(ty),
                 first_occurence: first,
                 second_occurence: second,
-                use_color: use_color(),
+                use_color: should_use_color(),
             }));
         }
 
@@ -180,7 +182,7 @@ impl TryFrom<UnsizedStruct> for ir::ir_type::BufferBlock {
                 struct_type: StructKind::Unsized(ty),
                 first_occurence: first,
                 second_occurence: second,
-                use_color: use_color(),
+                use_color: should_use_color(),
             }));
         }
 
