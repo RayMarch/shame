@@ -22,7 +22,7 @@ use super::error::FrontendError;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable};
 use super::struct_::{BufferFields, SizedFields, Struct};
-use super::type_layout::repr::{TypeRepr, TypeReprStorageOrPacked};
+use super::type_layout::repr::{TypeRepr, DerivableRepr};
 use super::type_layout::layoutable::{self, array_stride, Vector};
 use super::type_layout::{
     self, repr, ElementLayout, FieldLayout, FieldLayoutWithOffset, GpuTypeLayout, StructLayout, TypeLayout,
@@ -143,7 +143,7 @@ pub trait GpuLayout: Layoutable {
     ///
     /// `GpuRepr` only exists so a (derived) struct can be packed for use in vertex buffer usage.
     /// It is `repr::Storage` in all other cases.
-    type GpuRepr: TypeReprStorageOrPacked;
+    type GpuRepr: DerivableRepr;
 
     /// the `#[cpu(...)]` in `#[derive(GpuLayout)]` allows the definition of a
     /// corresponding Cpu type to the Gpu type that the derive macro is used on.

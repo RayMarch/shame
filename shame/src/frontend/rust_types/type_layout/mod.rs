@@ -129,7 +129,7 @@ impl<T: TypeRepr> GpuTypeLayout<T> {
     pub fn layoutable_type(&self) -> &LayoutableType { &self.ty }
 }
 
-use repr::TypeReprStorageOrPacked;
+use repr::DerivableRepr;
 pub use repr::{TypeRepr, Repr};
 /// Module for all restrictions on `GpuTypeLayout<T: TypeRepr>`.
 pub mod repr {
@@ -144,11 +144,10 @@ pub mod repr {
         /// The corresponding enum variant of `Repr`.
         const REPR: Repr;
     }
-    /// A subset of the types implementing `TypeRepr`. As the name suggests
-    /// only `Storage` and `Packed` implement this trait.
-    pub trait TypeReprStorageOrPacked: TypeRepr {}
-    impl TypeReprStorageOrPacked for Storage {}
-    impl TypeReprStorageOrPacked for Packed {}
+    /// A subset of the types implementing `TypeRepr`, which are derivable.
+    pub trait DerivableRepr: TypeRepr {}
+    impl DerivableRepr for Storage {}
+    impl DerivableRepr for Packed {}
 
     /// Enum of layout rules.
     #[derive(Debug, Clone, Copy)]
