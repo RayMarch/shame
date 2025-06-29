@@ -103,7 +103,7 @@ pub struct SizedStruct {
     fields: Vec<SizedField>,
 }
 
-/// A struct whose size is not known at compile time.
+/// A struct whose size is not known before shader runtime.
 ///
 /// This struct has a runtime sized array as it's last field.
 #[derive(Debug, Clone)]
