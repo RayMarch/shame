@@ -189,9 +189,9 @@ impl RuntimeSizedArrayField {
 
 impl SizedArray {
     /// Creates a new `SizedArray` from it's element type and length.
-    pub fn new(element_ty: impl Into<SizedType>, len: NonZeroU32) -> Self {
+    pub fn new(element_ty: Rc<SizedType>, len: NonZeroU32) -> Self {
         Self {
-            element: Rc::new(element_ty.into()),
+            element: element_ty,
             len,
         }
     }

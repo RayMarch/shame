@@ -158,13 +158,13 @@ impl<T: GpuType + GpuSized, const N: usize> GpuSized for Array<T, Size<N>> {
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoBools  , N: ArrayLen> NoBools   for Array<T, N> {}
 impl<T: GpuType + GpuSized + LayoutableSized, const N: usize> LayoutableSized for Array<T, Size<N>> {
     fn layoutable_type_sized() -> layoutable::SizedType {
-        layoutable::SizedArray::new(T::layoutable_type_sized(), Size::<N>::nonzero()).into()
+        layoutable::SizedArray::new(Rc::new(T::layoutable_type_sized()), Size::<N>::nonzero()).into()
     }
 }
 impl<T: GpuType + GpuSized + LayoutableSized, N: ArrayLen> Layoutable for Array<T, N> {
     fn layoutable_type() -> layoutable::LayoutableType {
         match N::LEN {
-            Some(n) => layoutable::SizedArray::new(T::layoutable_type_sized(), n).into(),
+            Some(n) => layoutable::SizedArray::new(Rc::new(T::layoutable_type_sized()), n).into(),
             None => layoutable::RuntimeSizedArray::new(T::layoutable_type_sized()).into(),
         }
     }
