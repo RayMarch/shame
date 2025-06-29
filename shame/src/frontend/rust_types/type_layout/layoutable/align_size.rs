@@ -409,8 +409,9 @@ impl LayoutCalculator {
         is_struct: bool,
     ) -> u64 {
         // Just in case the user didn't already do this.
-        if self.repr.is_packed() {
-            field_align = PACKED_ALIGN;
+        match self.repr {
+            Repr::Packed => field_align = PACKED_ALIGN,
+            Repr::Storage | Repr::Uniform => {}
         }
 
         let size = Self::calculate_byte_size(field_size, custom_min_size);
