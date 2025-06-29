@@ -472,7 +472,7 @@ impl LayoutCalculator {
         match (self.repr, field_custom_min_align) {
             (Repr::Packed, None) => self.next_offset_min,
             (Repr::Packed, Some(custom_align)) => round_up(custom_align.as_u64(), self.next_offset_min),
-            (_, _) => round_up(field_align.as_u64(), self.next_offset_min),
+            (Repr::Storage | Repr::Uniform, _) => round_up(field_align.as_u64(), self.next_offset_min),
         }
     }
 
