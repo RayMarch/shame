@@ -190,9 +190,11 @@ fn check_repr_equivalence_for_type(
             check_sized_fields(
                 ctx,
                 s,
-                &s.sized_fields,
-                actual_offsets.sized_field_offsets(),
-                expected_offsets.sized_field_offsets(),
+                s.sized_fields.iter().zip(
+                    actual_offsets
+                        .sized_field_offsets()
+                        .zip(expected_offsets.sized_field_offsets()),
+                ),
             )?;
 
             let (actual_last_offset, _) = actual_offsets.last_field_offset_and_struct_align();
@@ -236,7 +238,13 @@ fn check_compare_sized(ctx: LayoutContext, ty: &SizedType) -> Result<(), LayoutE
         SizedType::Struct(s) => {
             let mut actual_offsets = s.field_offsets(ctx.actual_repr);
             let mut expected_offsets = s.field_offsets(ctx.expected_repr);
-            check_sized_fields(ctx, s, s.fields(), &mut actual_offsets, &mut expected_offsets)
+            check_sized_fields(
+                ctx,
+                s,
+                s.fields()
+                    .into_iter()
+                    .zip((&mut actual_offsets).zip(&mut expected_offsets)),
+            )
         }
         SizedType::Array(a) => {
             let actual_stride = a.byte_stride(ctx.actual_repr);
@@ -259,16 +267,12 @@ fn check_compare_sized(ctx: LayoutContext, ty: &SizedType) -> Result<(), LayoutE
     }
 }
 
-fn check_sized_fields(
+fn check_sized_fields<'a>(
     ctx: LayoutContext,
     s: &(impl Into<StructKind> + Clone),
-    fields: &[SizedField],
-    actual_offsets: impl Iterator<Item = u64>,
-    expected_offsets: impl Iterator<Item = u64>,
+    fields_actual_and_expected_offsets: impl Iterator<Item = (&'a SizedField, (u64, u64))>,
 ) -> Result<(), LayoutError> {
-    for (i, (field, (actual_offset, expected_offset))) in
-        fields.iter().zip(actual_offsets.zip(expected_offsets)).enumerate()
-    {
+    for (i, (field, (actual_offset, expected_offset))) in fields_actual_and_expected_offsets.enumerate() {
         if actual_offset != expected_offset {
             return Err(StructFieldOffsetError {
                 ctx: ctx.into(),
