@@ -87,6 +87,7 @@ pub fn impl_for_struct(
     if let (Some((span, _)), WhichDerive::CpuLayout) = (&gpu_repr, &which_derive) {
         bail!(*span, "`gpu_repr` attribute is only supported by `derive(GpuLayout)`")
     }
+    // if no `#[gpu_repr(_)]` attribute was explicitly specified, we default to `Repr::Storage`
     let gpu_repr = gpu_repr.map(|(_, repr)| repr).unwrap_or(util::Repr::Storage);
     let gpu_repr_shame = match gpu_repr {
         Repr::Packed => quote!( #re::repr::Packed ),
