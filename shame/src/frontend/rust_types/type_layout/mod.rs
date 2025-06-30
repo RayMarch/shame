@@ -68,7 +68,10 @@ pub enum TypeLayoutSemantics {
 ///
 /// The following method exists for creating new type layouts based on a [`LayoutableType`]
 /// ```
-/// let layout_type: LayoutableType = f32x1::layoutable_type();
+/// use shame as sm;
+/// use sm::any::layout::Layoutable;
+///
+/// let layout_type: sm::any::layout::LayoutableType = sm::f32x1::layoutable_type();
 /// let repr = Repr::Storage; // or Uniform or Packed
 /// let _ = TypeLayout::new_layout_for(layout_type, repr);
 /// ```
