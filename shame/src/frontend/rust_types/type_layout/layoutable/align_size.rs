@@ -73,9 +73,9 @@ impl SizedType {
 
 
 impl SizedStruct {
-    /// Returns [`FieldOffsets`], which serves as an iterator over the offsets of the
-    /// fields of this struct. `SizedStruct::byte_size_and_align_from_offsets` can be
-    /// used to efficiently obtain the byte_size
+    /// Returns [`FieldOffsetsSized`], which serves as an iterator over the offsets of the
+    /// fields of this struct. `FieldOffsetsSized::struct_byte_size_and_align` can be
+    /// used to efficiently obtain the byte_size and align.
     pub fn field_offsets(&self, repr: Repr) -> FieldOffsetsSized {
         FieldOffsetsSized(FieldOffsets::new(self.fields(), repr))
     }
