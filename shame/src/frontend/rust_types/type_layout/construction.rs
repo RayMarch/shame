@@ -355,7 +355,7 @@ impl Display for ArrayStrideError {
         writeln!(
             f,
             "array elements within type `{}` do not satisfy {} layout requirements.",
-            self.ctx.expected_repr, top_level
+            top_level, self.ctx.expected_repr,
         )?;
         writeln!(
             f,
