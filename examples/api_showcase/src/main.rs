@@ -498,15 +498,19 @@ impl sm::CpuLayout for Mat4 {
 // using "duck-traiting" allows you to define layouts for foreign cpu-types,
 // sidestepping the orphan-rule:
 
+// // if you want to try this, add `glam = "0.30.4"` to the Cargo.toml of this
+// // example, comment the `Mat4` definition above and uncomment below
 // use glam::Mat4;
 
 // // declare your own trait with a `layout()` function like this
-// // This function will be used by the `derive(GpuLayout)` proc macro
+// // This function will be used by the `derive(sm::CpuLayout)` proc macro
 // pub trait MyCpuLayoutTrait {
-//     fn layout() -> shame::TypeLayout;
+//     fn cpu_layout() -> shame::TypeLayout;
 // }
 
 // // tell `shame` about the layout semantics of `glam` types
+// // here make a promise to `shame` that `glam::Mat4` has identical memory layout
+// // to `sm::f32x4x4`
 // impl MyCpuLayoutTrait for glam::Mat4 {
-//     fn layout() -> shame::TypeLayout { sm::gpu_layout::<sm::f32x4x4>() }
+//     fn cpu_layout() -> shame::TypeLayout { sm::gpu_layout::<sm::f32x4x4>() }
 // }
