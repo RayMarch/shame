@@ -303,7 +303,7 @@ pub enum LayoutError {
     requires that the size of uniform buffers on the gpu is known at compile time."
     )]
     UniformBufferMustBeSized(&'static str, LayoutableType),
-    #[error("{0} contains a `PackedVector`, which are not allowed in {1} address space. ")]
+    #[error("{0} contains a `PackedVector`, which are not allowed in {1} memory layouts ")]
     MayNotContainPackedVec(LayoutableType, Repr),
 }
 
