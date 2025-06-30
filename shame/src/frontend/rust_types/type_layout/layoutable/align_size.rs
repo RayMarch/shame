@@ -62,7 +62,7 @@ impl SizedType {
         }
     }
 
-    /// This is expensive for structs as it calculates the byte size and align from scratch.
+    /// This is expensive for structs as it calculates the byte size and align by traversing all fields recursively.
     pub fn byte_size_and_align(&self, repr: Repr) -> (u64, U32PowerOf2) {
         match self {
             SizedType::Struct(s) => s.byte_size_and_align(repr),
@@ -82,10 +82,7 @@ impl SizedStruct {
 
     /// Returns (byte_size, align)
     ///
-    /// ### Careful!
-    /// This is an expensive operation as it calculates byte size and align from scratch.
-    /// If you also need field offsets, use [`SizedStruct::field_offsets`] instead and
-    /// read the documentation of [`FieldOffsets`] on how to obtain the byte size and align from it.
+    /// This is expensive for structs as it calculates the byte size and align by traversing all fields recursively.
     pub fn byte_size_and_align(&self, repr: Repr) -> (u64, U32PowerOf2) {
         self.field_offsets(repr).struct_byte_size_and_align()
     }
