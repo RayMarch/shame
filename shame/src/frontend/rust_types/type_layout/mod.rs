@@ -57,8 +57,8 @@ pub enum TypeLayoutSemantics {
 /// The following types implementing `TypeRepr` exist and can be found in [`shame::any::repr`]:
 ///
 /// ```
-/// struct Storage; /// wgsl storage address space layout / OpenGL std430
-/// struct Uniform; /// wgsl uniform address space layout / OpenGL std140
+/// struct Storage; /// wgsl storage address space layout
+/// struct Uniform; /// wgsl uniform address space layout
 /// struct Packed;  /// Packed layout
 /// ```
 ///
