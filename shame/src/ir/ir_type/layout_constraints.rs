@@ -6,14 +6,12 @@ use std::{
 
 use thiserror::Error;
 
-use crate::{common::proc_macro_reexports::TypeLayoutRules, frontend::rust_types::type_layout::TypeLayout};
+use crate::frontend::rust_types::type_layout::{eq::LayoutMismatch, TypeLayout};
 use crate::{
     backend::language::Language,
     call_info,
     common::prettify::set_color,
-    frontend::{
-        any::shared_io::BufferBindingType, encoding::EncodingErrorKind, rust_types::type_layout::LayoutMismatch,
-    },
+    frontend::{any::shared_io::BufferBindingType, encoding::EncodingErrorKind},
     ir::{
         ir_type::{max_u64_po2_dividing, AccessModeReadable},
         recording::{Context, MemoryRegion},
@@ -507,7 +505,7 @@ impl Display for ArrayStrideAlignmentError {
             "The array with `{}` elements requires that every element is {expected_align}-byte aligned, but the array has a stride of {actual_stride} bytes, which means subsequent elements are not {expected_align}-byte aligned.",
             self.element_ty
         );
-        if let Ok(layout) = TypeLayout::from_store_ty(TypeLayoutRules::Wgsl, &self.ctx.top_level_type) {
+        if let Ok(layout) = TypeLayout::from_store_ty(self.ctx.top_level_type.clone()) {
             writeln!(f, "The full layout of `{}` is:", self.ctx.top_level_type);
             layout.write("", self.ctx.use_color, f)?;
             writeln!(f);
@@ -542,7 +540,7 @@ impl Display for ArrayStrideError {
             "The array with `{}` elements requires stride {}, but has stride {}.",
             self.element_ty, self.expected, self.actual
         );
-        if let Ok(layout) = TypeLayout::from_store_ty(TypeLayoutRules::Wgsl, &self.ctx.top_level_type) {
+        if let Ok(layout) = TypeLayout::from_store_ty(self.ctx.top_level_type.clone()) {
             writeln!(f, "The full layout of `{}` is:", self.ctx.top_level_type);
             layout.write("", self.ctx.use_color, f)?;
             writeln!(f);
@@ -577,7 +575,7 @@ impl Display for ArrayAlignmentError {
             "The array with `{}` elements requires alignment {}, but has alignment {}.",
             self.element_ty, self.expected, self.actual
         );
-        if let Ok(layout) = TypeLayout::from_store_ty(TypeLayoutRules::Wgsl, &self.ctx.top_level_type) {
+        if let Ok(layout) = TypeLayout::from_store_ty(self.ctx.top_level_type.clone()) {
             writeln!(f, "The full layout of `{}` is:", self.ctx.top_level_type);
             layout.write("", self.ctx.use_color, f)?;
             writeln!(f);

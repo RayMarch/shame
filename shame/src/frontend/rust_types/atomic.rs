@@ -6,7 +6,11 @@ use super::{
     mem::{AddressSpace, AddressSpaceAtomic},
     reference::{AccessMode, AccessModeReadable, ReadWrite},
     scalar_type::{ScalarType, ScalarTypeInteger},
-    type_layout::{TypeLayout, TypeLayoutRules},
+    type_layout::{
+        self,
+        layoutable::{self, LayoutableSized},
+        repr, TypeLayout,
+    },
     type_traits::{
         BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools,
         NoHandles,
@@ -14,7 +18,7 @@ use super::{
     vec::vec,
     AsAny, GpuType, To, ToGpuType,
 };
-use crate::frontend::rust_types::reference::Ref;
+use crate::{any::layout::Layoutable, frontend::rust_types::reference::Ref};
 use crate::{
     boolx1,
     frontend::{
@@ -129,8 +133,20 @@ impl<T: ScalarTypeInteger> GetAllFields for Atomic<T> {
     fn fields_as_anys_unchecked(self_as_any: Any) -> impl std::borrow::Borrow<[Any]> { [] }
 }
 
+impl<T: ScalarTypeInteger> LayoutableSized for Atomic<T> {
+    fn layoutable_type_sized() -> layoutable::SizedType {
+        layoutable::Atomic {
+            scalar: T::SCALAR_TYPE_INTEGER,
+        }
+        .into()
+    }
+}
+impl<T: ScalarTypeInteger> Layoutable for Atomic<T> {
+    fn layoutable_type() -> layoutable::LayoutableType { Self::layoutable_type_sized().into() }
+}
+
 impl<T: ScalarTypeInteger> GpuLayout for Atomic<T> {
-    fn gpu_layout() -> TypeLayout { TypeLayout::from_sized_ty(TypeLayoutRules::Wgsl, &<Self as GpuSized>::sized_ty()) }
+    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout()
     -> Option<Result<(std::borrow::Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {

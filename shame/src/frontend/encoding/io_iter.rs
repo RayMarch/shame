@@ -454,13 +454,13 @@ impl BindingIter<'_> {
     /// let texarr: sm::TextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
     /// let texarr: sm::TextureArray<sm::Filterable<f32x4>, 4> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## storage textures
     /// ```
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm> = bind_group.next();
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm, u32x2> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## Arrays of storage textures
     /// ```
     /// let texstoarr: sm::StorageTextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
@@ -558,7 +558,7 @@ impl PushConstants<'_> {
     #[track_caller]
     pub fn get<T>(self) -> T
     where
-        T: GpuStore + GpuSized + NoAtomics + NoBools,
+        T: GpuStore + GpuSized + NoAtomics + NoBools + GpuLayout,
     {
         let _caller_scope = Context::call_info_scope();
 
