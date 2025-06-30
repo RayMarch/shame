@@ -414,7 +414,10 @@ impl Display for StructFieldOffsetError {
             StructKind::Unsized(s) => &s.name,
         };
 
-        let is_top_level = top_level_name == Some(struct_name);
+        let is_top_level = match &self.struct_type {
+            StructKind::Sized(s) => top_level_type == &LayoutableType::Sized(SizedType::Struct(s.clone())),
+            StructKind::Unsized(s) => top_level_type == &LayoutableType::UnsizedStruct(s.clone()),
+        };
 
         let structure_def_location = Context::try_with(call_info!(), |ctx| -> Option<_> {
             match &self.struct_type {

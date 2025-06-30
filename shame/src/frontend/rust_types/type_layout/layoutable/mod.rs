@@ -24,7 +24,7 @@ pub use builder::{SizedOrArray, FieldOptions};
 /// `LayoutableType` does not contain any layout information itself, but a layout
 /// can be assigned to it using [`GpuTypeLayout`] according to one of the available layout rules:
 /// storage, uniform or packed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum LayoutableType {
     /// A type with a known size.
     Sized(SizedType),
@@ -36,7 +36,7 @@ pub enum LayoutableType {
 
 /// Types that have a size which is known at shader creation time.
 #[allow(missing_docs)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SizedType {
     Vector(Vector),
     Matrix(Matrix),
@@ -62,20 +62,20 @@ pub struct Matrix {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SizedArray {
     pub element: Rc<SizedType>,
     pub len: NonZeroU32,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Atomic {
     pub scalar: ScalarTypeInteger,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RuntimeSizedArray {
     pub element: SizedType,
 }
@@ -95,7 +95,7 @@ pub enum ScalarType {
 }
 
 /// A struct with a known fixed size.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SizedStruct {
     /// The canonical name of the struct.
     pub name: CanonName,
@@ -106,7 +106,7 @@ pub struct SizedStruct {
 /// A struct whose size is not known before shader runtime.
 ///
 /// This struct has a runtime sized array as it's last field.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnsizedStruct {
     /// The canonical name of the struct.
     pub name: CanonName,
@@ -117,7 +117,7 @@ pub struct UnsizedStruct {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SizedField {
     pub name: CanonName,
     pub custom_min_size: Option<u64>,
@@ -126,7 +126,7 @@ pub struct SizedField {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RuntimeSizedArrayField {
     pub name: CanonName,
     pub custom_min_align: Option<U32PowerOf2>,
