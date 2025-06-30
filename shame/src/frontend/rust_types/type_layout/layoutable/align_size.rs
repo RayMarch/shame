@@ -134,7 +134,10 @@ impl<'a> FieldOffsetsSized<'a> {
         // Finishing layout calculations
         // using count only to advance iterator to the end
         (&mut self.0).count();
-        (self.0.calc.byte_size(), struct_align(self.0.calc.align(), self.0.repr))
+        (
+            self.0.calc.byte_size(),
+            adjust_struct_alignment_for_repr(self.0.calc.align(), self.0.repr),
+        )
     }
 
     /// Returns the inner iterator over sized fields.
@@ -170,7 +173,7 @@ impl<'a> FieldOffsetsUnsized<'a> {
         let array_align = self.last_unsized.array.align(self.sized.repr);
         let custom_min_align = self.last_unsized.custom_min_align;
         let (offset, align) = self.sized.calc.extend_unsized(array_align, custom_min_align);
-        (offset, struct_align(align, self.sized.repr))
+        (offset, adjust_struct_alignment_for_repr(align, self.sized.repr))
     }
 
     /// Returns the inner iterator over sized fields.
@@ -191,7 +194,7 @@ impl UnsizedStruct {
     pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.field_offsets(repr).last_field_offset_and_struct_align().1 }
 }
 
-const fn struct_align(align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {
+const fn adjust_struct_alignment_for_repr(align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {
     match repr {
         // Packedness is ensured by the `LayoutCalculator`.
         Repr::Storage => align,
