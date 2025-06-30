@@ -710,7 +710,7 @@ where
 
 impl CpuLayout for f32 {
     fn cpu_layout() -> TypeLayout {
-        TypeLayout::from_rust_sized::<f32>(TypeLayoutSemantics::Vector(Vector::new(
+        TypeLayout::from_rust_sized::<Self>(TypeLayoutSemantics::Vector(Vector::new(
             layoutable::ScalarType::F32,
             layoutable::Len::X1,
         )))
