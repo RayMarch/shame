@@ -73,7 +73,7 @@ pub enum TypeLayoutSemantics {
 ///
 /// let layout_type: sm::any::layout::LayoutableType = sm::f32x1::layoutable_type();
 /// let repr = Repr::Storage; // or Uniform or Packed
-/// let _ = TypeLayout::new_layout_for(layout_type, repr);
+/// let _ = TypeLayout::new_layout_for(&layout_type, repr);
 /// ```
 ///
 /// The resulting layout will always follow the layout rules of the `Repr`, however, this
