@@ -112,7 +112,7 @@ pub struct TypeLayout {
 /// A version of TypeLayout that provides additional compile-time guarantees.
 /// It is guaranteed to represent a LayoutableType that is layed out in memory using T's layout rules.
 ///
-/// The actual `TypeLayout` can be obtained via `GpuTypeLayout::layout`.
+/// An instance of `TypeLayout` (which drops compile time guarantees) can be obtained via `GpuTypeLayout::layout`.
 ///
 /// While `GpuTypeLayout<Storage>` and `GpuTypeLayout<Packed>` can be freely created
 /// from a `LayoutableType`, the only way to get a `GpuTypeLayout<Uniform>` is by
