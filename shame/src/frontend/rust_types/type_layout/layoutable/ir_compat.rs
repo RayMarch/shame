@@ -222,13 +222,12 @@ impl TryFrom<RuntimeSizedArrayField> for ir::ir_type::RuntimeSizedArrayField {
 #[error("Type contains bools, which doesn't have a known layout.")]
 pub struct ContainsBoolsError;
 
-/// Errors that can occur when converting IR types to layoutable types on the gpu.
+/// Errors that can occur when converting IR types to layoutable types.
+#[allow(missing_docs)]
 #[derive(thiserror::Error, Debug)]
 pub enum LayoutableConversionError {
-    /// Type contains bools, which don't have a standardized memory layout.
-    #[error("Type contains bools, which don't have a standardized memory layout.")]
+    #[error("Type contains bools, which don't have a standardized memory layout on the gpu.")]
     ContainsBool,
-    /// Type is a handle, which don't have a standardized memory layout.
     #[error("Type is a handle, which don't have a standardized memory layout.")]
     IsHandle,
 }
