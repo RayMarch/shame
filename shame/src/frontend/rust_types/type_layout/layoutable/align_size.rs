@@ -42,7 +42,7 @@ impl SizedType {
     pub fn byte_size(&self, repr: Repr) -> u64 {
         match self {
             SizedType::Array(a) => a.byte_size(repr),
-            SizedType::Vector(v) => v.byte_size(),
+            SizedType::Vector(v) => v.byte_size(repr),
             SizedType::Matrix(m) => m.byte_size(repr),
             SizedType::Atomic(a) => a.byte_size(),
             SizedType::PackedVec(v) => u8::from(v.byte_size()) as u64,
@@ -207,20 +207,26 @@ const fn adjust_struct_alignment_for_repr(align: U32PowerOf2, repr: Repr) -> U32
 impl Vector {
     pub const fn new(scalar: ScalarType, len: Len) -> Self { Self { scalar, len } }
 
-    pub const fn byte_size(&self) -> u64 { self.len.as_u64() * self.scalar.byte_size() }
+    pub const fn byte_size(&self, repr: Repr) -> u64 {
+        match repr {
+            Repr::Storage | Repr::Uniform | Repr::Packed => self.len.as_u64() * self.scalar.byte_size(),
+        }
+    }
 
     pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
         match repr {
-            Repr::Packed => return PACKED_ALIGN,
-            Repr::Storage | Repr::Uniform => {}
+            Repr::Packed => PACKED_ALIGN,
+            Repr::Storage | Repr::Uniform => {
+                let po2_len = match self.len {
+                    Len::X1 | Len::X2 | Len::X4 => self.len.as_u32(),
+                    Len::X3 => 4,
+                };
+                let po2_align = self.scalar.align();
+                U32PowerOf2::try_from_u32(po2_len * po2_align.as_u32()).expect(
+                    "power of 2 * power of 2 = power of 2. Highest operands are around 4 * 16 so overflow is unlikely",
+                )
+            }
         }
-
-        let len = match self.len {
-            Len::X1 | Len::X2 | Len::X4 => self.len.as_u32(),
-            Len::X3 => 4,
-        };
-        U32PowerOf2::try_from_u32(len * self.scalar.align().as_u32())
-            .expect("power of 2 * power of 2 = power of 2. Highest operands are around 4 * 16 so overflow is unlikely")
     }
 }
 
@@ -254,7 +260,7 @@ pub enum MatrixMajor {
 impl Matrix {
     pub const fn byte_size(&self, repr: Repr) -> u64 {
         let (vec, array_len) = self.as_vector_array();
-        let array_stride = array_stride(vec.align(repr), vec.byte_size());
+        let array_stride = array_stride(vec.align(repr), vec.byte_size(repr));
         array_size(array_stride, array_len)
     }
 

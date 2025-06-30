@@ -26,7 +26,7 @@ impl TypeLayout {
 
     fn from_sized_type(ty: &SizedType, repr: Repr) -> Self {
         let (size, align, tls) = match &ty {
-            SizedType::Vector(v) => (v.byte_size(), v.align(repr), TLS::Vector(*v)),
+            SizedType::Vector(v) => (v.byte_size(repr), v.align(repr), TLS::Vector(*v)),
             SizedType::Atomic(a) => (
                 a.byte_size(),
                 a.align(repr),
