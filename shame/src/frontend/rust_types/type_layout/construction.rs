@@ -517,11 +517,7 @@ where
 
     let (struct_name, sized_fields, mut field_offsets) = match struct_type {
         StructKind::Sized(s) => (&s.name, s.fields(), s.field_offsets(repr).into_inner()),
-        StructKind::Unsized(s) => (
-            &s.name,
-            s.sized_fields.as_slice(),
-            s.field_offsets(repr).into_sized_fields(),
-        ),
+        StructKind::Unsized(s) => (&s.name, s.sized_fields.as_slice(), s.field_offsets(repr).into_inner()),
     };
 
     let indent = "  ";

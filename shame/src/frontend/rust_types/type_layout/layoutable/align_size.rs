@@ -174,7 +174,7 @@ impl<'a> FieldOffsetsUnsized<'a> {
     }
 
     /// Returns the inner iterator over sized fields.
-    pub fn into_sized_fields(self) -> FieldOffsets<'a> { self.sized }
+    pub fn into_inner(self) -> FieldOffsets<'a> { self.sized }
 }
 
 impl UnsizedStruct {
@@ -187,7 +187,7 @@ impl UnsizedStruct {
         FieldOffsetsUnsized::new(&self.sized_fields, &self.last_unsized, repr)
     }
 
-    /// This is expensive as it calculates the byte align from scratch.
+    /// This is expensive as it calculates the byte align by traversing all fields recursively.
     pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.field_offsets(repr).last_field_offset_and_struct_align().1 }
 }
 
