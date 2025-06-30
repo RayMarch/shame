@@ -24,7 +24,7 @@ impl LayoutableType {
         }
     }
 
-    /// This is expensive for structs as it calculates the byte size and align from scratch.
+    /// This is expensive for structs as it calculates the byte size and align by traversing all fields recursively.
     pub fn byte_size_and_align(&self, repr: Repr) -> (Option<u64>, U32PowerOf2) {
         match self {
             LayoutableType::Sized(s) => {
