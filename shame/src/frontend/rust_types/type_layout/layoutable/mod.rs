@@ -34,7 +34,7 @@ pub enum LayoutableType {
     RuntimeSizedArray(RuntimeSizedArray),
 }
 
-/// Types with a statically known size.
+/// Types that have a size which is known at shader creation time.
 #[allow(missing_docs)]
 #[derive(Debug, Clone)]
 pub enum SizedType {
