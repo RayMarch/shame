@@ -776,7 +776,7 @@ impl<T> CpuAligned for [T] {
 
 impl<T: CpuLayout + Sized, const N: usize> CpuLayout for [T; N] {
     fn cpu_layout() -> TypeLayout {
-        let align = U32PowerOf2::try_from(<Self as CpuAligned>::alignment() as u32).unwrap();
+        let align = <Self as CpuAligned>::alignment();
 
         TypeLayout::new(
             Some(std::mem::size_of::<Self>() as u64),
