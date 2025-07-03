@@ -722,7 +722,7 @@ impl CpuLayout for f32 {
 
 impl CpuLayout for f64 {
     fn cpu_layout() -> TypeLayout {
-        TypeLayout::from_rust_sized::<f32>(TypeLayoutSemantics::Vector(Vector::new(
+        TypeLayout::from_rust_sized::<Self>(TypeLayoutSemantics::Vector(Vector::new(
             layoutable::ScalarType::F64,
             layoutable::Len::X1,
         )))
@@ -731,7 +731,7 @@ impl CpuLayout for f64 {
 
 impl CpuLayout for u32 {
     fn cpu_layout() -> TypeLayout {
-        TypeLayout::from_rust_sized::<f32>(TypeLayoutSemantics::Vector(Vector::new(
+        TypeLayout::from_rust_sized::<Self>(TypeLayoutSemantics::Vector(Vector::new(
             layoutable::ScalarType::U32,
             layoutable::Len::X1,
         )))
@@ -740,7 +740,7 @@ impl CpuLayout for u32 {
 
 impl CpuLayout for i32 {
     fn cpu_layout() -> TypeLayout {
-        TypeLayout::from_rust_sized::<f32>(TypeLayoutSemantics::Vector(Vector::new(
+        TypeLayout::from_rust_sized::<Self>(TypeLayoutSemantics::Vector(Vector::new(
             layoutable::ScalarType::I32,
             layoutable::Len::X1,
         )))
