@@ -49,43 +49,6 @@ pub enum TypeLayoutSemantics {
 /// This models only the layout, not other characteristics of the types.
 /// For example an `Atomic<vec<u32, x1>>` is treated like a regular `vec<u32, x1>` layout wise.
 ///
-/// ### Generic
-///
-/// `TypeLayout` has a generic `T: TypeRepr`, which is used to statically guarantee that
-/// it follows specific layout rules.
-///
-/// The following types implementing `TypeRepr` exist and can be found in [`shame::any::repr`]:
-///
-/// ```
-/// struct Storage; /// wgsl storage address space layout
-/// struct Uniform; /// wgsl uniform address space layout
-/// struct Packed;  /// Packed layout
-/// ```
-///
-/// More information on the exact details of these layout rules is available here
-///
-/// https://www.w3.org/TR/WGSL/#address-space-layout-constraints
-///
-/// The following method exists for creating new type layouts based on a [`LayoutableType`]
-/// ```
-/// use shame as sm;
-/// use sm::any::layout::Layoutable;
-///
-/// let layout_type: sm::any::layout::LayoutableType = sm::f32x1::layoutable_type();
-/// let repr = Repr::Storage; // or Uniform or Packed
-/// let _ = TypeLayout::new_layout_for(&layout_type, repr);
-/// ```
-///
-/// The resulting layout will always follow the layout rules of the `Repr`, however, this
-/// can result in layouts that are not representable in wgsl, such as the uniform layout for
-/// `shame::Array<f32x1>`, which requires at least a 16 byte stride. The `TypeLayout` will
-/// contain information for the correct minimum stride, but since wgsl does not have a custom
-/// stride attribute (like `@align` or `@size` but for strides) the type layout can't be
-/// translated to wgsl.
-///
-/// For the above reason `TypeLayout` exists mainly for internal usage in shame and
-/// [`GpuTypeLayout<Repr>`] is the user interface. See it's documentation for more information.
-///
 /// ### Layout comparison
 ///
 /// The `PartialEq + Eq` implementation of `TypeLayout` is designed to answer the question
@@ -113,6 +76,25 @@ pub struct TypeLayout {
 /// It is guaranteed to represent a LayoutableType that is layed out in memory using T's layout rules.
 ///
 /// An instance of `TypeLayout` (which drops compile time guarantees) can be obtained via `GpuTypeLayout::layout`.
+///
+/// The following types implement `TypeRepr` and can be found in [`shame::any::repr`]:
+///
+/// ```
+/// struct Storage; /// wgsl storage layout rules
+/// struct Uniform; /// wgsl uniform layout rules
+/// struct Packed;  /// Packed layout
+///
+/// /// Guarantees that the corresponding `TypeLayout` can be represent by a wgsl type,
+/// /// which can be used in the storage address space.
+/// GpuTypeLayout<Storage>
+/// /// Guarantees that the corresponding `TypeLayout` can be represent by a wgsl type,
+/// /// which can be used in the uniform address space.
+/// GpuTypeLayout<Uniform>
+/// /// Can only be used in vertex buffers and is packed.
+/// GpuTypeLayout<Packed>
+/// ```
+///
+/// ## Construction
 ///
 /// While `GpuTypeLayout<Storage>` and `GpuTypeLayout<Packed>` can be freely created
 /// from a `LayoutableType`, the only way to get a `GpuTypeLayout<Uniform>` is by
