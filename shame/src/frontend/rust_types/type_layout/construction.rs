@@ -495,11 +495,15 @@ impl Display for StructFieldOffsetError {
         )?;
         writeln!(f)?;
 
-        writeln!(
-            f,
-            "In the {} address space, structs, arrays and array elements must be at least 16 byte aligned.",
-            self.ctx.expected_repr
-        )?;
+        match self.ctx.expected_repr {
+            Repr::Uniform => writeln!(
+                f,
+                "In the {} address space, structs, arrays and array elements must be at least 16 byte aligned.",
+                self.ctx.expected_repr
+            )?,
+            Repr::Packed | Repr::Storage => {}
+        }
+
         writeln!(
             f,
             "More info about the {} address space layout can be found at https://www.w3.org/TR/WGSL/#address-space-layout-constraints",
