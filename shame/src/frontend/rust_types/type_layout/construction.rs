@@ -504,11 +504,15 @@ impl Display for StructFieldOffsetError {
             Repr::Packed | Repr::Storage => {}
         }
 
-        writeln!(
-            f,
-            "More info about the {} address space layout can be found at https://www.w3.org/TR/WGSL/#address-space-layout-constraints",
-            self.ctx.expected_repr
-        )?;
+        match self.ctx.expected_repr {
+            r @ (Repr::Storage | Repr::Uniform) => writeln!(
+                f,
+                "More info about the {} address space layout can be found at https://www.w3.org/TR/WGSL/#address-space-layout-constraints",
+                r
+            )?,
+            Repr::Packed => {}
+        }
+
         Ok(())
     }
 }
