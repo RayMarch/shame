@@ -436,7 +436,7 @@ impl Display for StructFieldOffsetError {
 
         writeln!(
             f,
-            "The type `{top_level_type}` cannot be used as a {} buffer binding.",
+            "The type `{top_level_type}` cannot be layed out according to {} layout rules.",
             self.ctx.expected_repr
         )?;
         match is_top_level {
