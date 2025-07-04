@@ -352,7 +352,11 @@ fn external_vec_type() {
         }
 
         impl CpuLayoutExt for glam::Vec3 {
-            fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x3>() }
+            fn cpu_layout() -> shame::TypeLayout {
+                let mut layout = gpu_layout::<f32x3>();
+                layout.align = sm::any::U32PowerOf2::_4.into();
+                layout
+            }
         }
     }
 
