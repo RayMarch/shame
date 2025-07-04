@@ -290,9 +290,11 @@ impl Matrix {
 impl Atomic {
     pub const fn byte_size(&self) -> u64 { self.scalar.as_scalar_type().byte_size() }
     pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
-        if repr.is_packed() {
-            return PACKED_ALIGN;
+        match repr {
+            Repr::Packed => return PACKED_ALIGN,
+            Repr::Storage | Repr::Uniform => {}
         }
+
         self.scalar.as_scalar_type().align()
     }
 }
