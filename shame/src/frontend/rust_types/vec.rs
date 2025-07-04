@@ -579,7 +579,13 @@ where
     vec<T, L>: NoBools,
 {
     fn layoutable_type() -> layout::LayoutableType {
-        layout::Vector::new(T::SCALAR_TYPE.try_into().expect("no bools"), L::LEN).into()
+        layout::Vector::new(
+            T::SCALAR_TYPE
+                .try_into()
+                .expect("guaranteed via `NoBools` trait bound above"),
+            L::LEN,
+        )
+        .into()
     }
 }
 
