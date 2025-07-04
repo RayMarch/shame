@@ -1,23 +1,14 @@
 #![allow(dead_code, unused)]
 //! Demonstration of the TypeLayout and TypeLayout Builder API.
 
-use layout::{repr, Repr, SizedStruct};
-use shame::{
-    any::{
-        self,
-        layout::{
-            self, FieldOptions, Layoutable, Len, RuntimeSizedArrayField, ScalarType, SizedField, SizedType,
-            UnsizedStruct, Vector, GpuTypeLayout,
-        },
-        U32PowerOf2,
-    },
-    boolx1, f32x1, f32x2, f32x3, f32x4, gpu_layout, Array, GpuLayout, GpuSized, TypeLayout, VertexAttribute,
-    VertexLayout,
-};
+use shame as sm;
+use shame::aliases::*;
+use shame::prelude::*;
+use sm::any::layout::{GpuTypeLayout, SizedStruct, Layoutable, repr};
 
 fn main() {
     // We'll start by replicating this struct using `any::layout` types.
-    #[derive(GpuLayout)]
+    #[derive(sm::GpuLayout)]
     struct Vertex {
         position: f32x3,
         normal: f32x3,
@@ -46,7 +37,7 @@ fn main() {
     // // Let's end on a pretty error message
     let mut sized_struct = SizedStruct::new("D", "a", f32x2::layoutable_type_sized())
         // This has align of 4, which is ok for putting into `Storage` but `Uniform` memory requires 16 byte alignment of arrays
-        .extend("b", Array::<f32x1, shame::Size<1>>::layoutable_type_sized());
+        .extend("b", sm::Array::<f32x1, shame::Size<1>>::layoutable_type_sized());
 
     let storage = GpuTypeLayout::<repr::Storage>::new(sized_struct.clone());
     let uniform_result = GpuTypeLayout::<repr::Uniform>::try_from(storage.clone());
