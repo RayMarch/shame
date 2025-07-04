@@ -175,11 +175,14 @@ fn check_repr_equivalence_for_type(
         use_color: Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages).unwrap_or(false),
     };
     let is_sized = matches!(ctx.top_level_type, LayoutableType::Sized(_));
-    if ctx.expected_repr.is_uniform() && !is_sized {
-        return Err(LayoutError::UniformBufferMustBeSized(
-            "wgsl",
-            ctx.top_level_type.clone(),
-        ));
+    match (ctx.expected_repr, is_sized) {
+        (Repr::Uniform, false) => {
+            return Err(LayoutError::UniformBufferMustBeSized(
+                ctx.top_level_type.clone(),
+                Repr::Uniform,
+            ));
+        }
+        (Repr::Storage | Repr::Packed, _) | (Repr::Uniform, true) => {}
     }
 
     match &ctx.top_level_type {
@@ -302,7 +305,7 @@ pub enum LayoutError {
         "The size of `{1}` on the gpu is not known at compile time. `{0}` \
     requires that the size of uniform buffers on the gpu is known at compile time."
     )]
-    UniformBufferMustBeSized(&'static str, LayoutableType),
+    UniformBufferMustBeSized(LayoutableType, Repr),
     #[error("{0} contains a `PackedVector`, which are not allowed in {1} memory layouts ")]
     MayNotContainPackedVec(LayoutableType, Repr),
 }
