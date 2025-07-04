@@ -83,7 +83,7 @@ pub fn impl_for_struct(
     let none_if_no_cpu_equivalent_type = cpu_attr.is_none().then_some(quote! { None }).into_iter();
 
     // #[gpu_repr(packed | storage)]
-    let gpu_repr = util::determine_gpu_repr(&input.attrs)?;
+    let gpu_repr = util::try_find_gpu_repr(&input.attrs)?;
     if let (Some((span, _)), WhichDerive::CpuLayout) = (&gpu_repr, &which_derive) {
         bail!(*span, "`gpu_repr` attribute is only supported by `derive(GpuLayout)`")
     }

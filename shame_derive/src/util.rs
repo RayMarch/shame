@@ -32,7 +32,7 @@ pub enum Repr {
     Storage,
 }
 
-pub fn determine_gpu_repr(attribs: &[syn::Attribute]) -> Result<Option<(Span, Repr)>> {
+pub fn try_find_gpu_repr(attribs: &[syn::Attribute]) -> Result<Option<(Span, Repr)>> {
     let mut repr = Repr::Storage;
     for a in attribs {
         if a.path().is_ident("gpu_repr") {
