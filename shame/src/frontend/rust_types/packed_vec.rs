@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     any::{
-        layout::{Layoutable, LayoutableSized},
+        layout::{Layoutable},
         AsAny, DataPackingFn,
     },
     common::floating_point::f16,
@@ -133,8 +133,8 @@ impl<T: PackedScalarType, L: LenEven> GpuAligned for PackedVec<T, L> {
 impl<T: PackedScalarType, L: LenEven> NoBools for PackedVec<T, L> {}
 impl<T: PackedScalarType, L: LenEven> NoHandles for PackedVec<T, L> {}
 impl<T: PackedScalarType, L: LenEven> NoAtomics for PackedVec<T, L> {}
-impl<T: PackedScalarType, L: LenEven> LayoutableSized for PackedVec<T, L> {
-    fn layoutable_type_sized() -> layoutable::SizedType {
+impl<T: PackedScalarType, L: LenEven> Layoutable for PackedVec<T, L> {
+    fn layoutable_type() -> layoutable::LayoutableType {
         layoutable::PackedVector {
             scalar_type: T::SCALAR_TYPE,
             bits_per_component: T::BITS_PER_COMPONENT,
@@ -142,9 +142,6 @@ impl<T: PackedScalarType, L: LenEven> LayoutableSized for PackedVec<T, L> {
         }
         .into()
     }
-}
-impl<T: PackedScalarType, L: LenEven> Layoutable for PackedVec<T, L> {
-    fn layoutable_type() -> layoutable::LayoutableType { Self::layoutable_type_sized().into() }
 }
 
 impl<T: PackedScalarType, L: LenEven> GpuLayout for PackedVec<T, L> {

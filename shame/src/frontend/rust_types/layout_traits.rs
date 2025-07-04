@@ -1,4 +1,4 @@
-use crate::any::layout::{Layoutable, LayoutableSized, Repr};
+use crate::any::layout::{Layoutable, Repr};
 use crate::call_info;
 use crate::common::po2::U32PowerOf2;
 use crate::common::proc_macro_utils::{self, repr_c_struct_layout, ReprCError, ReprCField};
@@ -554,9 +554,6 @@ where
     }
 }
 
-impl LayoutableSized for GpuT {
-    fn layoutable_type_sized() -> layoutable::SizedType { todo!() }
-}
 impl Layoutable for GpuT {
     fn layoutable_type() -> layoutable::LayoutableType { todo!() }
 }

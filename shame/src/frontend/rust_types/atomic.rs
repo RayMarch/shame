@@ -8,7 +8,7 @@ use super::{
     scalar_type::{ScalarType, ScalarTypeInteger},
     type_layout::{
         self,
-        layoutable::{self, LayoutableSized},
+        layoutable::{self},
         repr, TypeLayout,
     },
     type_traits::{
@@ -133,16 +133,13 @@ impl<T: ScalarTypeInteger> GetAllFields for Atomic<T> {
     fn fields_as_anys_unchecked(self_as_any: Any) -> impl std::borrow::Borrow<[Any]> { [] }
 }
 
-impl<T: ScalarTypeInteger> LayoutableSized for Atomic<T> {
-    fn layoutable_type_sized() -> layoutable::SizedType {
+impl<T: ScalarTypeInteger> Layoutable for Atomic<T> {
+    fn layoutable_type() -> layoutable::LayoutableType {
         layoutable::Atomic {
             scalar: T::SCALAR_TYPE_INTEGER,
         }
         .into()
     }
-}
-impl<T: ScalarTypeInteger> Layoutable for Atomic<T> {
-    fn layoutable_type() -> layoutable::LayoutableType { Self::layoutable_type_sized().into() }
 }
 
 impl<T: ScalarTypeInteger> GpuLayout for Atomic<T> {

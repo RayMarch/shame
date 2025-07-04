@@ -7,6 +7,7 @@ use crate::{
     call_info,
     common::prettify::set_color,
     ir::{self, ir_type::BufferBlockDefinitionError, recording::Context, StructureFieldNamesMustBeUnique},
+    GpuSized,
 };
 
 pub use crate::ir::{Len, Len2, PackedVector, ScalarTypeFp, ScalarTypeInteger, ir_type::CanonName};
@@ -137,11 +138,20 @@ pub struct RuntimeSizedArrayField {
 pub trait Layoutable {
     /// Returns the `LayoutableType` representation for this type.
     fn layoutable_type() -> LayoutableType;
-}
-/// Trait for types that have a well-defined memory layout and statically known size.
-pub trait LayoutableSized: Layoutable {
-    /// Returns the `SizedType` representation for this type.
-    fn layoutable_type_sized() -> SizedType;
+
+    /// When the type is `GpuSized`, this method can be used to immediately get
+    /// the `LayoutableType::Sized` variant's inner `SizedType`.
+    fn layoutable_type_sized() -> SizedType
+    where
+        Self: GpuSized,
+    {
+        match Self::layoutable_type() {
+            LayoutableType::Sized(s) => s,
+            LayoutableType::RuntimeSizedArray(_) | LayoutableType::UnsizedStruct(_) => {
+                unreachable!("Self is GpuSized, which these LayoutableType variants aren't.")
+            }
+        }
+    }
 }
 
 //   Conversions to ScalarType, SizedType and LayoutableType   //

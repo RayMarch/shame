@@ -12,7 +12,7 @@ use super::{
     AsAny, GpuType, To, ToGpuType,
 };
 use crate::{
-    any::layout::{self, Layoutable, LayoutableSized},
+    any::layout::{self, Layoutable},
     call_info,
     common::{
         proc_macro_utils::{collect_into_array_exact, push_wrong_amount_of_args_error},
@@ -574,19 +574,13 @@ impl<T: ScalarType, L: Len> GpuStore for vec<T, L> {
 }
 
 
-impl<T: ScalarType, L: Len> LayoutableSized for vec<T, L>
-where
-    vec<T, L>: NoBools,
-{
-    fn layoutable_type_sized() -> layout::SizedType {
-        layout::Vector::new(T::SCALAR_TYPE.try_into().expect("no bools"), L::LEN).into()
-    }
-}
 impl<T: ScalarType, L: Len> Layoutable for vec<T, L>
 where
     vec<T, L>: NoBools,
 {
-    fn layoutable_type() -> layout::LayoutableType { Self::layoutable_type_sized().into() }
+    fn layoutable_type() -> layout::LayoutableType {
+        layout::Vector::new(T::SCALAR_TYPE.try_into().expect("no bools"), L::LEN).into()
+    }
 }
 
 impl<T: ScalarType, L: Len> GpuLayout for vec<T, L>

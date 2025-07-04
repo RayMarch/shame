@@ -12,7 +12,7 @@ use super::type_traits::{
 use super::vec::{ToInteger, ToVec};
 use super::{AsAny, GpuType};
 use super::{To, ToGpuType};
-use crate::any::layout::{Layoutable, LayoutableSized};
+use crate::any::layout::{Layoutable};
 use crate::common::small_vec::SmallVec;
 use crate::frontend::any::shared_io::{BindPath, BindingType};
 use crate::frontend::any::Any;
@@ -156,12 +156,7 @@ impl<T: GpuType + GpuSized, const N: usize> GpuSized for Array<T, Size<N>> {
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoHandles, N: ArrayLen> NoHandles for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoAtomics, N: ArrayLen> NoAtomics for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoBools  , N: ArrayLen> NoBools   for Array<T, N> {}
-impl<T: GpuType + GpuSized + LayoutableSized, const N: usize> LayoutableSized for Array<T, Size<N>> {
-    fn layoutable_type_sized() -> layoutable::SizedType {
-        layoutable::SizedArray::new(Rc::new(T::layoutable_type_sized()), Size::<N>::nonzero()).into()
-    }
-}
-impl<T: GpuType + GpuSized + LayoutableSized, N: ArrayLen> Layoutable for Array<T, N> {
+impl<T: GpuType + GpuSized + Layoutable, N: ArrayLen> Layoutable for Array<T, N> {
     fn layoutable_type() -> layoutable::LayoutableType {
         match N::LEN {
             Some(n) => layoutable::SizedArray::new(Rc::new(T::layoutable_type_sized()), n).into(),
@@ -178,7 +173,7 @@ impl<T: GpuType + GpuStore + GpuSized, N: ArrayLen> ToGpuType for Array<T, N> {
     fn as_gpu_type_ref(&self) -> Option<&Self::Gpu> { Some(self) }
 }
 
-impl<T: GpuType + GpuSized + GpuLayout + LayoutableSized, N: ArrayLen> GpuLayout for Array<T, N> {
+impl<T: GpuType + GpuSized + GpuLayout + Layoutable, N: ArrayLen> GpuLayout for Array<T, N> {
     type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {

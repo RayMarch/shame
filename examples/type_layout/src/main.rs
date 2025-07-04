@@ -6,7 +6,7 @@ use shame::{
     any::{
         self,
         layout::{
-            self, FieldOptions, LayoutableSized, Len, RuntimeSizedArrayField, ScalarType, SizedField, SizedType,
+            self, FieldOptions, Layoutable, Len, RuntimeSizedArrayField, ScalarType, SizedField, SizedType,
             UnsizedStruct, Vector, GpuTypeLayout,
         },
         U32PowerOf2,

@@ -43,7 +43,6 @@ pub use crate::frontend::rust_types::type_traits::VertexAttribute;
 pub use crate::frontend::rust_types::type_traits::GpuLayoutField;
 pub use crate::frontend::rust_types::type_layout::layoutable::SizedStruct;
 pub use crate::frontend::rust_types::type_layout::layoutable::Layoutable;
-pub use crate::frontend::rust_types::type_layout::layoutable::LayoutableSized;
 pub use crate::frontend::rust_types::type_layout::layoutable::LayoutableType;
 pub use crate::frontend::rust_types::type_layout::layoutable::SizedType;
 pub use crate::frontend::rust_types::type_layout::layoutable::SizedOrArray;

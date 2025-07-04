@@ -9,7 +9,7 @@ use super::{
     scalar_type::{ScalarType, ScalarTypeFp},
     type_layout::{
         self,
-        layoutable::{self, LayoutableSized},
+        layoutable::{self},
         repr, TypeLayout,
     },
     type_traits::{
@@ -54,8 +54,8 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> Default for mat<T, C, R> {
     }
 }
 
-impl<T: ScalarTypeFp, C: Len2, R: Len2> LayoutableSized for mat<T, C, R> {
-    fn layoutable_type_sized() -> layoutable::SizedType {
+impl<T: ScalarTypeFp, C: Len2, R: Len2> Layoutable for mat<T, C, R> {
+    fn layoutable_type() -> layoutable::LayoutableType {
         layoutable::Matrix {
             columns: C::LEN2,
             rows: R::LEN2,
@@ -63,9 +63,6 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> LayoutableSized for mat<T, C, R> {
         }
         .into()
     }
-}
-impl<T: ScalarTypeFp, C: Len2, R: Len2> Layoutable for mat<T, C, R> {
-    fn layoutable_type() -> layoutable::LayoutableType { Self::layoutable_type_sized().into() }
 }
 
 impl<T: ScalarTypeFp, C: Len2, R: Len2> GpuLayout for mat<T, C, R> {
