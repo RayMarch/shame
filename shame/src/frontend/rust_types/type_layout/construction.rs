@@ -480,7 +480,14 @@ impl Display for StructFieldOffsetError {
             "- add an #[align({})] attribute to the definition of `{}` (not supported by OpenGL/GLSL pipelines)",
             expected_alignment, self.field_name
         )?;
-        writeln!(f, "- use a storage binding instead of a uniform binding")?;
+        match (self.ctx.actual_repr, self.ctx.expected_repr) {
+            (Repr::Storage, Repr::Uniform) => writeln!(
+                f,
+                "- use the storage address space instead of the uniform address space"
+            )?,
+            _ => {}
+        }
+
         writeln!(
             f,
             "- increase the offset of `{}` until it is divisible by {} by making previous fields larger or adding fields before it",
