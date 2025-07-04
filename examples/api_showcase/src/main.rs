@@ -5,11 +5,11 @@ use shame::aliases::*;
 
 #[rustfmt::skip]
 fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::EncodingErrors> {
- 
+
     // start a pipeline encoding with the default settings.
     // (in the `shame_wgpu` examples, this is wrapped by the `Gpu` object)
-    // 
-    // compared to earlier versions of `shame`, pipeline 
+    //
+    // compared to earlier versions of `shame`, pipeline
     // encoding is no longer based on a closure, but based on a
     // RAII guard `sm::EncodingGuard<...>` instead.
     // That way you can use the `?` operator for your own
@@ -60,7 +60,7 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
     // only supported in vertex buffers, not storage/uniform buffers.
     // This is reflected in the traits that are derived for `MyVertexFormat`.
     //
-    // note: vertex layouts support #[gpu_repr(packed)] to prevent padding 
+    // note: vertex layouts support #[gpu_repr(packed)] to prevent padding
     // between fields of a struct, which often happens with 3 dimensional vectors
     #[derive(sm::GpuLayout)]
     struct MyVertexFormat {
@@ -76,7 +76,7 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
     // import storage or uniform buffers via the `group0` iterator
     //
     // these iterators exist so that you can abstract them away in your own
-    // api-specific layer that suits your needs such that you can represent 
+    // api-specific layer that suits your needs such that you can represent
     // bind groups as types.
     //
     // `Transforms` is checked for compatibility with `TransformsOnCpu` here.
@@ -85,7 +85,7 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
     // (once rusts const-generics are more powerful this may be moved to compile-time)
     let xforms_sto: sm::Buffer<Transforms, sm::mem::Storage> = group0.next();
     let xforms_uni: sm::Buffer<Transforms, sm::mem::Uniform> = group0.next();
-    
+
     // conditional code generation based on pipeline parameter
     if some_param > 0 {
         // if not further specified, defaults to `sm::mem::Storage`
@@ -99,7 +99,7 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
     let my_vec3 = sm::vec!(1.0, 2.0, 3.0);
     let my_vec4 = sm::vec!(my_vec3, 0.0); // component concatenation, like usual in shaders
     let my_vec4 = my_vec3.extend(0.0); // or like this
-    
+
     let my_normal = sm::vec!(1.0, 1.0, 0.0).normalize();
     let rgb = my_normal.remap(-1.0..=1.0, 0.0..=1.0); // remap linear ranges (instead of " * 0.5 + 0.5")
 
@@ -117,7 +117,7 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
     let k = alpha.rsub1().sqrt().rsub1(); // same as above
 
     // iterate over components of vec
-    let sum: f32x1 = my_vec4.into_iter().map(|x| x * x).sum(); 
+    let sum: f32x1 = my_vec4.into_iter().map(|x| x * x).sum();
 
     let linear = xform.resize() as f32x3x3; // generic matrix resize
     let linear = linear * sm::mat::id(); // generic identity matrix
@@ -162,8 +162,8 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
     my_vec.y.set(3.0);
 
     // rusts `if/while/for` means conditional code generation and loop-unrolling,
-    // 
-    // therefore shader control flow uses closures. 
+    //
+    // therefore shader control flow uses closures.
     // The api is designed after rusts `bool::then` and the likes:
 
     let rust_bool = true;
@@ -172,12 +172,12 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
 
     let shame_bool = true.to_gpu();
     // condition appears in the shader as `if true { k = 1 }`
-    // (the `move` keyword is required for safety, 
+    // (the `move` keyword is required for safety,
     // but can be turned off via a shame crate-feature)
     shame_bool.then(move || k.set(1));
 
     // a variety of different shader-loop functions also exist
-    
+
     // for loop doesn't appear in the shader, only `k = 1; k = 2; k = 3; ...`
     for i in 0..=10 {
         k.set(i)
@@ -202,7 +202,7 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
 
     // clipping planes
     let primitive = primitive.clip(mirror_distances);
-    
+
     // use `rasterize`, `rasterize_multisample` or `rasterize_supersample`.
     // Rasterization gives access to the fragment-stage api via `frag`
     let frag = primitive.rasterize(sm::Accuracy::Relaxed);
@@ -225,7 +225,7 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
     // individual partial derivatives are accessible as fields.
     duv.dx;
     duv.dy;
-    
+
     // `fwidth` was renamed to `dxy_manhattan` because "width" is misleading
     frag.quad.dxy_manhattan(uv, sm::GradPrecision::Coarse);
 
@@ -270,7 +270,7 @@ fn make_pipeline(some_param: u32) -> Result<sm::results::RenderPipeline, sm::Enc
     // `shame` makes it impossible to use these features if they don't apply to the situation.
 
     // this causes a compiler error, because Rg8Unorm has no alpha channel:
-    // targets.next::<tfmt::Rg8Unorm>().set_with_alpha_to_coverage(rg); 
+    // targets.next::<tfmt::Rg8Unorm>().set_with_alpha_to_coverage(rg);
 
     // finish the encoding and obtain the pipeline setup info + shader code.
     encoder.finish()
@@ -486,27 +486,31 @@ struct Mat2([[f32; 2]; 2]);
 // tell `shame` about the layout semantics of your cpu types
 // Mat2::layout() == sm::f32x2x2::layout()
 impl sm::CpuLayout for Mat2 {
-    fn cpu_layout() -> sm::TypeLayout { sm::f32x2x2::gpu_layout() }
+    fn cpu_layout() -> sm::TypeLayout { sm::gpu_layout::<sm::f32x2x2>() }
 }
 
 #[repr(C, align(16))]
 struct Mat4([[f32; 4]; 4]);
 impl sm::CpuLayout for Mat4 {
-    fn cpu_layout() -> sm::TypeLayout { sm::f32x4x4::gpu_layout() }
+    fn cpu_layout() -> sm::TypeLayout { sm::gpu_layout::<sm::f32x4x4>() }
 }
 
 // using "duck-traiting" allows you to define layouts for foreign cpu-types,
 // sidestepping the orphan-rule:
 
+// // if you want to try this, add `glam = "0.30.4"` to the Cargo.toml of this
+// // example, comment the `Mat4` definition above and uncomment below
 // use glam::Mat4;
 
 // // declare your own trait with a `layout()` function like this
-// // This function will be used by the `derive(GpuLayout)` proc macro
+// // This function will be used by the `derive(sm::CpuLayout)` proc macro
 // pub trait MyCpuLayoutTrait {
-//     fn layout() -> shame::TypeLayout;
+//     fn cpu_layout() -> shame::TypeLayout;
 // }
 
 // // tell `shame` about the layout semantics of `glam` types
+// // here make a promise to `shame` that `glam::Mat4` has identical memory layout
+// // to `sm::f32x4x4`
 // impl MyCpuLayoutTrait for glam::Mat4 {
-//     fn layout() -> shame::TypeLayout { sm::f32x4x4::layout() }
+//     fn cpu_layout() -> shame::TypeLayout { sm::gpu_layout::<sm::f32x4x4>() }
 // }

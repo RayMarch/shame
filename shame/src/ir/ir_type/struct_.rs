@@ -42,7 +42,7 @@ pub enum StructureDefinitionError {
     )]
     RuntimeSizedArrayNotAllowedInSizedStruct,
     #[error("field names must be unique within a structure definition")]
-    FieldNamesMustBeUnique,
+    FieldNamesMustBeUnique(StructureFieldNamesMustBeUnique),
 }
 
 pub trait Field {
@@ -164,10 +164,7 @@ impl Struct {
         first_sized_fields.push(last_sized_field);
         let sized_fields = first_sized_fields;
         assert!(!sized_fields.is_empty());
-        use crate::common::iterator_ext::IteratorExt;
-        if !sized_fields.iter().all_unique_by(|a, b| a.name == b.name) {
-            return Err(StructureFieldNamesMustBeUnique);
-        }
+        check_for_duplicate_field_names(&sized_fields, None)?;
         let struct_ = Rc::new(Self {
             kind: StructKind::Sized,
             name,
@@ -210,9 +207,10 @@ impl Struct {
                 ctx.latest_user_caller(),
             );
         });
-        if !struct_.fields().all_unique_by(|a, b| a.name() == b.name()) {
-            return Err(StructureDefinitionError::FieldNamesMustBeUnique);
+        if let Err(e) = check_for_duplicate_field_names(&struct_.sized_fields, struct_.last_unsized.as_ref()) {
+            return Err(StructureDefinitionError::FieldNamesMustBeUnique(e));
         }
+
         Ok(struct_)
     }
 
@@ -426,7 +424,42 @@ impl TryFrom<Rc<Struct>> for BufferBlock {
 }
 
 /// an error created if a struct contains two or more fields of the same name
-pub struct StructureFieldNamesMustBeUnique;
+#[allow(missing_docs)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructureFieldNamesMustBeUnique {
+    pub first_occurence: usize,
+    pub second_occurence: usize,
+}
+
+fn check_for_duplicate_field_names(
+    sized_fields: &[SizedField],
+    last_unsized: Option<&RuntimeSizedArrayField>,
+) -> Result<(), StructureFieldNamesMustBeUnique> {
+    // Brute force search > HashMap for the amount of fields
+    // we'd usually deal with.
+    let mut duplicate_fields = None;
+    for (i, field1) in sized_fields.iter().enumerate() {
+        for (j, field2) in sized_fields.iter().enumerate().skip(i + 1) {
+            if field1.name == field2.name {
+                duplicate_fields = Some((i, j));
+                break;
+            }
+        }
+        if let Some(last_unsized) = last_unsized {
+            if field1.name == last_unsized.name {
+                duplicate_fields = Some((i, sized_fields.len()));
+                break;
+            }
+        }
+    }
+    match duplicate_fields {
+        Some((first_occurence, second_occurence)) => Err(StructureFieldNamesMustBeUnique {
+            first_occurence,
+            second_occurence,
+        }),
+        None => Ok(()),
+    }
+}
 
 impl SizedStruct {
     #[track_caller]
@@ -467,12 +500,12 @@ impl SizedStruct {
 }
 
 #[allow(missing_docs)]
-#[derive(Error, Debug, Clone, Copy)]
+#[derive(Error, Debug, Clone)]
 pub enum BufferBlockDefinitionError {
     #[error("buffer block must have at least one field")]
     MustHaveAtLeastOneField,
     #[error("field names of a buffer block must be unique")]
-    FieldNamesMustBeUnique,
+    FieldNamesMustBeUnique(StructureFieldNamesMustBeUnique),
 }
 
 impl BufferBlock {
@@ -489,7 +522,7 @@ impl BufferBlock {
                 E::WrongStructKindForStructType(_, _) => unreachable!("error never created by Struct::new"),
                 E::RuntimeSizedArrayNotAllowedInSizedStruct => unreachable!("not a sized struct"),
                 E::MustHaveAtLeastOneField(_) => BufferBlockDefinitionError::MustHaveAtLeastOneField,
-                E::FieldNamesMustBeUnique => BufferBlockDefinitionError::FieldNamesMustBeUnique,
+                E::FieldNamesMustBeUnique(e) => BufferBlockDefinitionError::FieldNamesMustBeUnique(e),
             }),
         }
     }
