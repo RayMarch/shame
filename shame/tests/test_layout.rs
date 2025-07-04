@@ -236,8 +236,6 @@ fn unsized_struct_vec3_align_layout_eq() {
         a: f32x4_align4, // size=16, align=4
     }
 
-    println!("{}", cpu_layout::<OnCpu>());
-
     // the alignment on the top level of the layout doesn't matter.
     // two layouts are only considered different if an alignment mismatch
     // leads to different offsets of fields or array elements
