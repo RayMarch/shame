@@ -169,7 +169,11 @@ impl CpuLayout for f32x2_align4 {
 struct f32x4_align4(pub [f32; 4]);
 
 impl CpuLayout for f32x4_align4 {
-    fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x4>() }
+    fn cpu_layout() -> shame::TypeLayout {
+        let mut layout = gpu_layout::<f32x4>();
+        layout.align = shame::any::U32PowerOf2::_4.into();
+        layout
+    }
 }
 
 #[derive(Clone, Copy)]
