@@ -508,9 +508,6 @@ pub mod any {
         pub use type_layout::layoutable::FieldOptions;
         // layout calculation utility
         pub use type_layout::layoutable::LayoutCalculator;
-        pub use type_layout::layoutable::array_stride;
-        pub use type_layout::layoutable::array_size;
-        pub use type_layout::layoutable::array_align;
         pub use type_layout::layoutable::FieldOffsets;
         // conversion and builder errors
         pub use type_layout::layoutable::builder::IsUnsizedStructError;
