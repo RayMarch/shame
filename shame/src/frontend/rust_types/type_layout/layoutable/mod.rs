@@ -24,7 +24,8 @@ pub use builder::{SizedOrArray, FieldOptions};
 ///
 /// `LayoutableType` does not contain any layout information itself, but a layout
 /// can be assigned to it using [`GpuTypeLayout`] according to one of the available layout rules:
-/// storage, uniform or packed.
+/// `repr::Storage`, `repr::Uniform`` or `repr::Packed`, see [`GpuTypeLayout`] documentation
+/// for more details.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum LayoutableType {
     /// A type with a known size.
