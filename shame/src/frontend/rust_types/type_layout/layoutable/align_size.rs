@@ -260,8 +260,9 @@ pub enum MatrixMajor {
 impl Matrix {
     pub const fn byte_size(&self, repr: Repr) -> u64 {
         let (vec, array_len) = self.as_vector_array();
-        let array_stride = array_stride(vec.align(repr), vec.byte_size(repr));
-        array_size(array_stride, array_len)
+        // According to https://www.w3.org/TR/WGSL/#alignment-and-size
+        // SizeOf(matCxR) = SizeOf(array<vecR, C>) = C × roundUp(AlignOf(vecR), SizeOf(vecR))
+        array_len.get() as u64 * round_up(vec.align(repr).as_u64(), vec.byte_size(repr))
     }
 
     pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
