@@ -355,7 +355,7 @@ impl WipPushConstantsField {
         // TODO(release) the `.expect()` calls here can be removed by building a `std::alloc::Layout`-like builder for struct layouts.
         let sized_struct: layoutable::SizedStruct = sized_struct
             .try_into()
-            .expect("push constants are NoBools and NoHandles");
+            .map_err(|e| InternalError::new(true, format!("{e}")))?;
         let layout = TypeLayout::new_layout_for(&sized_struct.into(), Repr::Storage);
         let layout = match &layout.kind {
             type_layout::TypeLayoutSemantics::Structure(layout) => &**layout,
