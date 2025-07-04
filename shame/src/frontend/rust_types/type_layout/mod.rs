@@ -79,28 +79,64 @@ pub struct TypeLayout {
 ///
 /// The following types implement `TypeRepr` and can be found in [`shame::any::repr`]:
 ///
-/// ```
+/// ``` ignore
 /// struct Storage; /// wgsl storage layout rules
 /// struct Uniform; /// wgsl uniform layout rules
 /// struct Packed;  /// Packed layout
 ///
-/// /// Guarantees that the corresponding `TypeLayout` can be represent by a wgsl type,
+/// use shame::any::layout::GpuTypeLayout;
+/// /// Guarantees that the corresponding `TypeLayout` can be represent by a wgsl type
 /// /// which can be used in the storage address space.
 /// GpuTypeLayout<Storage>
-/// /// Guarantees that the corresponding `TypeLayout` can be represent by a wgsl type,
+/// /// Guarantees that the corresponding `TypeLayout` can be represent by a wgsl type
 /// /// which can be used in the uniform address space.
 /// GpuTypeLayout<Uniform>
 /// /// Can only be used in vertex buffers and is packed.
 /// GpuTypeLayout<Packed>
 /// ```
 ///
-/// ## Construction
+/// # Construction
 ///
 /// While `GpuTypeLayout<Storage>` and `GpuTypeLayout<Packed>` can be freely created
 /// from a `LayoutableType`, the only way to get a `GpuTypeLayout<Uniform>` is by
 /// using `TryFrom::try_from` on a `GpuTypeLayout<Storage>`, which only succeeds if
 /// the storage layout also follows the uniform layout rules - it does not change the
 /// corresponding `TypeLayout`.
+///
+/// # Example
+/// ```
+/// use shame as sm;
+/// use shame::prelude::*;
+/// use shame::aliases::*;
+/// use shame::any::layout::{GpuTypeLayout, SizedStruct, Layoutable, repr};
+///
+/// // We replicate this struct's `GpuLayout` using `shame::any::layout` types.
+/// #[derive(sm::GpuLayout)]
+/// struct Vertex {
+///     position: f32x3,
+///     normal: f32x3,
+///     uv: f32x2,
+/// }
+///
+/// // SizedStruct::new immediately takes the first field of the struct, because
+/// // structs need to have at least one field.
+/// let sized_struct = SizedStruct::new("Vertex", "position", f32x3::layoutable_type_sized())
+///     .extend("normal", f32x3::layoutable_type_sized())
+///     .extend("uv", f32x1::layoutable_type_sized());
+///
+/// let storage = GpuTypeLayout::<repr::Storage>::new(sized_struct.clone());
+/// let packed = GpuTypeLayout::<repr::Packed>::new(sized_struct);
+/// assert_ne!(storage.layout(), packed.layout());
+///
+/// // Does not exist:
+/// // let uniform = GpuTypeLayout::<repr::Uniform>::new(sized_struct.clone());
+///
+/// // However we can try to upgrade a GpuTypeLayout::<repr::Storage>
+/// let uniform = GpuTypeLayout::<repr::Uniform>::try_from(storage.clone()).unwrap();
+///
+/// // Which if it succeeds, guarantees:
+/// assert_eq!(storage.layout(), uniform.layout());
+/// ```
 #[derive(Debug, Clone)]
 pub struct GpuTypeLayout<T: TypeRepr = repr::Storage> {
     ty: LayoutableType,
