@@ -465,6 +465,7 @@ pub mod any {
 
     pub mod layout {
         use crate::frontend::rust_types::type_layout;
+
         // type layout
         pub use type_layout::TypeLayout;
         pub use type_layout::GpuTypeLayout;
@@ -481,8 +482,10 @@ pub mod any {
         pub use type_layout::FieldLayoutWithOffset;
         pub use type_layout::FieldLayout;
         pub use type_layout::ElementLayout;
+
         // layoutable traits
         pub use type_layout::layoutable::Layoutable;
+
         // layoutable types
         pub use type_layout::layoutable::LayoutableType;
         pub use type_layout::layoutable::UnsizedStruct;
@@ -495,6 +498,7 @@ pub mod any {
         pub use type_layout::layoutable::Atomic;
         pub use type_layout::layoutable::PackedVector;
         pub use type_layout::layoutable::SizedStruct;
+
         // layoutable type parts
         pub use type_layout::layoutable::ScalarType;
         pub use type_layout::layoutable::ScalarTypeFp;
@@ -506,9 +510,11 @@ pub mod any {
         pub use type_layout::layoutable::CanonName;
         pub use type_layout::layoutable::SizedOrArray;
         pub use type_layout::layoutable::FieldOptions;
+
         // layout calculation utility
         pub use type_layout::layoutable::LayoutCalculator;
         pub use type_layout::layoutable::FieldOffsets;
+
         // conversion and builder errors
         pub use type_layout::layoutable::builder::IsUnsizedStructError;
         pub use type_layout::layoutable::builder::StructFromPartsError;
