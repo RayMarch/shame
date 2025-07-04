@@ -1,9 +1,9 @@
 use std::{fmt::Display, num::NonZeroU32};
 
 use crate::{
-    any::U32PowerOf2,
+    any::{U32PowerOf2},
     common::floating_point::{f16, f32_eq_where_nans_are_equal, f64_eq_where_nans_are_equal},
-    frontend::rust_types::type_layout::{self, layoutable::align_size::PACKED_ALIGN},
+    frontend::rust_types::type_layout::{self, layoutable::align_size::PACKED_ALIGN, Repr},
     ir::Comp4,
 };
 
@@ -530,9 +530,10 @@ impl PackedVector {
         }
     }
 
-    pub fn align(&self, repr: type_layout::Repr) -> U32PowerOf2 {
-        if repr.is_packed() {
-            return PACKED_ALIGN;
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
+        match repr {
+            Repr::Packed => return PACKED_ALIGN,
+            Repr::Storage | Repr::Uniform => {}
         }
 
         let align = match self.byte_size() {
