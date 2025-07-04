@@ -1110,7 +1110,12 @@ where
     Self: NoBools,
 {
     fn vertex_attrib_format() -> VertexAttribFormat {
-        VertexAttribFormat::Fine(L::LEN, T::SCALAR_TYPE.try_into().expect("no bools vec"))
+        VertexAttribFormat::Fine(
+            L::LEN,
+            T::SCALAR_TYPE
+                .try_into()
+                .expect("Self: NoBools bound on impl ensures no bools"),
+        )
     }
 }
 
