@@ -186,7 +186,11 @@ static_assertions::assert_eq_align!(glam::Vec3, f32x3_align4);
 static_assertions::assert_eq_align!(glam::Vec4, f32x4_cpu);
 
 impl CpuLayout for f32x3_align4 {
-    fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x3>() }
+    fn cpu_layout() -> shame::TypeLayout {
+        let mut layout = gpu_layout::<f32x3>();
+        layout.align = shame::any::U32PowerOf2::_4.into();
+        layout
+    }
 }
 
 #[derive(Clone, Copy)]
