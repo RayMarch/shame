@@ -308,7 +308,7 @@ impl SizedArray {
 
     pub fn byte_stride(&self, repr: Repr) -> u64 {
         let (element_size, element_align) = self.element.byte_size_and_align(repr);
-        array_stride(element_align, element_size)
+        array_stride(element_align, element_size, repr)
     }
 }
 
@@ -328,9 +328,18 @@ pub const fn array_align(element_align: U32PowerOf2, repr: Repr) -> U32PowerOf2 
 }
 
 /// Returns an array's size=>stride (the distance between consecutive elements) given the alignment and size of its elements.
-pub const fn array_stride(element_align: U32PowerOf2, element_size: u64) -> u64 {
-    // Arrays of element type T must have an element stride that is a multiple of the
-    // RequiredAlignOf(T, C) for the address space C:
+pub const fn array_stride(element_align: U32PowerOf2, element_size: u64, repr: Repr) -> u64 {
+    let element_align = match repr {
+        Repr::Storage => element_align,
+        // This should already be the case, but doesn't hurt to ensure.
+        Repr::Packed => PACKED_ALIGN,
+        // The uniform address space also requires that:
+        // Array elements are aligned to 16 byte boundaries.
+        // That is, StrideOf(array<T,N>) = 16 × k’ for some positive integer k'.
+        // - https://www.w3.org/TR/WGSL/#address-space-layout-constraints
+        Repr::Uniform => round_up_align(U32PowerOf2::_16, element_align),
+    };
+
     round_up(element_align.as_u64(), element_size)
 }
 
@@ -338,7 +347,7 @@ pub const fn array_stride(element_align: U32PowerOf2, element_size: u64) -> u64 
 impl RuntimeSizedArray {
     pub fn align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.align(repr), repr) }
 
-    pub fn byte_stride(&self, repr: Repr) -> u64 { array_stride(self.align(repr), self.element.byte_size(repr)) }
+    pub fn byte_stride(&self, repr: Repr) -> u64 { array_stride(self.align(repr), self.element.byte_size(repr), repr) }
 }
 
 #[allow(missing_docs)]

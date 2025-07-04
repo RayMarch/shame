@@ -110,7 +110,7 @@ impl<T: VertexLayout> VertexBuffer<'_, T> {
             let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check);
 
             let attribs_and_stride = Attrib::get_attribs_and_stride(&gpu_layout, &location_counter).ok_or_else(|| {
-                ctx.push_error(FrontendError::MalformedVertexBufferLayout(gpu_layout).into());
+                ctx.push_error(FrontendError::MalformedVertexBufferLayout(gpu_layout.layout()).into());
                 InvalidReason::ErrorThatWasPushed
             });
 

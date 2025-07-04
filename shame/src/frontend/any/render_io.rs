@@ -2,6 +2,7 @@ use std::{fmt::Display, rc::Rc};
 
 use thiserror::Error;
 
+use crate::any::layout::{GpuTypeLayout, TypeRepr};
 use crate::frontend::any::Any;
 use crate::frontend::rust_types::type_layout::{layoutable, TypeLayout};
 use crate::{
@@ -245,13 +246,14 @@ impl VertexAttribFormat {
 }
 
 impl Attrib {
-    pub(crate) fn get_attribs_and_stride(
-        layout: &TypeLayout,
+    pub(crate) fn get_attribs_and_stride<T: TypeRepr>(
+        gpu_layout: &GpuTypeLayout<T>,
         mut location_counter: &LocationCounter,
     ) -> Option<(Box<[Attrib]>, u64)> {
+        let layout = gpu_layout.layout();
         let stride = {
             let size = layout.byte_size()?;
-            layoutable::array_stride(layout.align(), size)
+            layoutable::array_stride(layout.align(), size, T::REPR)
         };
         use TypeLayoutSemantics as TLS;
 
