@@ -71,7 +71,6 @@ impl SizedType {
     }
 }
 
-
 impl SizedStruct {
     /// Returns [`FieldOffsetsSized`], which serves as an iterator over the offsets of the
     /// fields of this struct. `FieldOffsetsSized::struct_byte_size_and_align` can be
@@ -125,7 +124,9 @@ impl<'a> FieldOffsets<'a> {
 pub struct FieldOffsetsSized<'a>(FieldOffsets<'a>);
 impl Iterator for FieldOffsetsSized<'_> {
     type Item = u64;
-    fn next(&mut self) -> Option<Self::Item> { self.0.next() }
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
+    }
 }
 impl<'a> FieldOffsetsSized<'a> {
     /// Consumes self and calculates the byte size and align of a struct
@@ -141,7 +142,9 @@ impl<'a> FieldOffsetsSized<'a> {
     }
 
     /// Returns the inner iterator over sized fields.
-    pub fn into_inner(self) -> FieldOffsets<'a> { self.0 }
+    pub fn into_inner(self) -> FieldOffsets<'a> {
+        self.0
+    }
 }
 
 /// The field offsets of an `UnsizedStruct`.
@@ -163,7 +166,9 @@ impl<'a> FieldOffsetsUnsized<'a> {
     }
 
     /// Returns an iterator over the sized field offsets.
-    pub fn sized_field_offsets(&mut self) -> &mut FieldOffsets<'a> { &mut self.sized }
+    pub fn sized_field_offsets(&mut self) -> &mut FieldOffsets<'a> {
+        &mut self.sized
+    }
 
     /// Returns the last field's offset and the struct's align.
     pub fn last_field_offset_and_struct_align(mut self) -> (u64, U32PowerOf2) {
@@ -177,7 +182,9 @@ impl<'a> FieldOffsetsUnsized<'a> {
     }
 
     /// Returns the inner iterator over sized fields.
-    pub fn into_inner(self) -> FieldOffsets<'a> { self.sized }
+    pub fn into_inner(self) -> FieldOffsets<'a> {
+        self.sized
+    }
 }
 
 impl UnsizedStruct {
@@ -191,7 +198,9 @@ impl UnsizedStruct {
     }
 
     /// This is expensive as it calculates the byte align by traversing all fields recursively.
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.field_offsets(repr).last_field_offset_and_struct_align().1 }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
+        self.field_offsets(repr).last_field_offset_and_struct_align().1
+    }
 }
 
 const fn adjust_struct_alignment_for_repr(align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {
@@ -205,7 +214,9 @@ const fn adjust_struct_alignment_for_repr(align: U32PowerOf2, repr: Repr) -> U32
 
 #[allow(missing_docs)]
 impl Vector {
-    pub const fn new(scalar: ScalarType, len: Len) -> Self { Self { scalar, len } }
+    pub const fn new(scalar: ScalarType, len: Len) -> Self {
+        Self { scalar, len }
+    }
 
     pub const fn byte_size(&self, repr: Repr) -> u64 {
         match repr {
@@ -221,7 +232,7 @@ impl Vector {
                     Len::X1 | Len::X2 | Len::X4 => self.len.as_u32(),
                     Len::X3 => 4,
                 };
-                let po2_align = self.scalar.align();
+                let po2_align = self.scalar.align(repr);
                 U32PowerOf2::try_from_u32(po2_len * po2_align.as_u32()).expect(
                     "power of 2 * power of 2 = power of 2. Highest operands are around 4 * 16 so overflow is unlikely",
                 )
@@ -240,11 +251,14 @@ impl ScalarType {
         }
     }
 
-    pub const fn align(&self) -> U32PowerOf2 {
-        match self {
-            ScalarType::F16 => U32PowerOf2::_2,
-            ScalarType::F32 | ScalarType::U32 | ScalarType::I32 => U32PowerOf2::_4,
-            ScalarType::F64 => U32PowerOf2::_8,
+    pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
+        match repr {
+            Repr::Packed => return PACKED_ALIGN,
+            Repr::Storage | Repr::Uniform => match self {
+                ScalarType::F16 => U32PowerOf2::_2,
+                ScalarType::F32 | ScalarType::U32 | ScalarType::I32 => U32PowerOf2::_4,
+                ScalarType::F64 => U32PowerOf2::_8,
+            },
         }
     }
 }
@@ -289,22 +303,28 @@ impl Matrix {
 
 #[allow(missing_docs)]
 impl Atomic {
-    pub const fn byte_size(&self) -> u64 { self.scalar.as_scalar_type().byte_size() }
+    pub const fn byte_size(&self) -> u64 {
+        self.scalar.as_scalar_type().byte_size()
+    }
     pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
         match repr {
             Repr::Packed => return PACKED_ALIGN,
             Repr::Storage | Repr::Uniform => {}
         }
 
-        self.scalar.as_scalar_type().align()
+        self.scalar.as_scalar_type().align(repr)
     }
 }
 
 #[allow(missing_docs)]
 impl SizedArray {
-    pub fn byte_size(&self, repr: Repr) -> u64 { array_size(self.byte_stride(repr), self.len) }
+    pub fn byte_size(&self, repr: Repr) -> u64 {
+        array_size(self.byte_stride(repr), self.len)
+    }
 
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.align(repr), repr) }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
+        array_align(self.element.align(repr), repr)
+    }
 
     pub fn byte_stride(&self, repr: Repr) -> u64 {
         let (element_size, element_align) = self.element.byte_size_and_align(repr);
@@ -315,7 +335,9 @@ impl SizedArray {
 /// Returns an array's size given it's stride and length.
 ///
 /// Note, this is independent of layout rules (`Repr`).
-pub const fn array_size(array_stride: u64, len: NonZeroU32) -> u64 { array_stride * len.get() as u64 }
+pub const fn array_size(array_stride: u64, len: NonZeroU32) -> u64 {
+    array_stride * len.get() as u64
+}
 
 /// Returns an array's size given the alignment of it's elements.
 pub const fn array_align(element_align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {
@@ -345,9 +367,13 @@ pub const fn array_stride(element_align: U32PowerOf2, element_size: u64, repr: R
 
 #[allow(missing_docs)]
 impl RuntimeSizedArray {
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.align(repr), repr) }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
+        array_align(self.element.align(repr), repr)
+    }
 
-    pub fn byte_stride(&self, repr: Repr) -> u64 { array_stride(self.align(repr), self.element.byte_size(repr), repr) }
+    pub fn byte_stride(&self, repr: Repr) -> u64 {
+        array_stride(self.align(repr), self.element.byte_size(repr), repr)
+    }
 }
 
 #[allow(missing_docs)]
@@ -480,10 +506,14 @@ impl LayoutCalculator {
     //   where justPastLastMember = OffsetOfMember(S,N) + SizeOfMember(S,N)
     //
     // self.next_offset_min is justPastLastMember already.
-    pub const fn byte_size(&self) -> u64 { round_up(self.align.as_u64(), self.next_offset_min) }
+    pub const fn byte_size(&self) -> u64 {
+        round_up(self.align.as_u64(), self.next_offset_min)
+    }
 
     /// Returns the align of the struct.
-    pub const fn align(&self) -> U32PowerOf2 { self.align }
+    pub const fn align(&self) -> U32PowerOf2 {
+        self.align
+    }
 
     const fn next_field_offset(&self, field_align: U32PowerOf2, field_custom_min_align: Option<U32PowerOf2>) -> u64 {
         let field_align = Self::calculate_align(field_align, field_custom_min_align);
@@ -511,5 +541,575 @@ impl LayoutCalculator {
         } else {
             align
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::any::U32PowerOf2;
+    use crate::frontend::rust_types::type_layout::Repr;
+    use crate::ir::{Len, Len2, ScalarTypeFp, ScalarTypeInteger};
+    use std::num::NonZeroU32;
+    use std::rc::Rc;
+    use super::super::builder::FieldOptions;
+
+    #[test]
+    fn test_primitives_layout() {
+        // Testing all aligns and sizes found here (and some more that aren't in the spec like f64)
+        // https://www.w3.org/TR/WGSL/#alignment-and-size
+
+        // i32, u32, or f32: AlilgnOf(T) = 4, SizeOf(T) = 4
+        assert_eq!(ScalarType::I32.byte_size(), 4);
+        assert_eq!(ScalarType::I32.align(Repr::Storage), U32PowerOf2::_4);
+        assert_eq!(ScalarType::U32.byte_size(), 4);
+        assert_eq!(ScalarType::U32.align(Repr::Storage), U32PowerOf2::_4);
+        assert_eq!(ScalarType::F32.byte_size(), 4);
+        assert_eq!(ScalarType::F32.align(Repr::Storage), U32PowerOf2::_4);
+        // f16: AlilgnOf(T) = 2, SizeOf(T) = 2
+        assert_eq!(ScalarType::F16.byte_size(), 2);
+        assert_eq!(ScalarType::F16.align(Repr::Storage), U32PowerOf2::_2);
+        // not found in spec
+        assert_eq!(ScalarType::F64.byte_size(), 8);
+        assert_eq!(ScalarType::F64.align(Repr::Storage), U32PowerOf2::_8);
+
+        // Test atomics
+        let atomic_u32 = Atomic {
+            scalar: ScalarTypeInteger::U32,
+        };
+        let atomic_i32 = Atomic {
+            scalar: ScalarTypeInteger::I32,
+        };
+        // atomic<T>: AlignOf(T) = 4, SizeOf(T) = 4
+        assert_eq!(atomic_u32.align(Repr::Storage), U32PowerOf2::_4);
+        assert_eq!(atomic_u32.byte_size(), 4);
+        assert_eq!(atomic_i32.align(Repr::Storage), U32PowerOf2::_4);
+        assert_eq!(atomic_i32.byte_size(), 4);
+
+        // Test vectors
+        let vec2_f32 = Vector::new(ScalarType::F32, Len::X2);
+        let vec2_f16 = Vector::new(ScalarType::F16, Len::X2);
+        let vec3_f32 = Vector::new(ScalarType::F32, Len::X3);
+        let vec3_f16 = Vector::new(ScalarType::F16, Len::X3);
+        let vec4_f32 = Vector::new(ScalarType::F32, Len::X4);
+        let vec4_f16 = Vector::new(ScalarType::F16, Len::X4);
+        // vec2<T>, T is i32, u32, or f32: AlignOf(T) = 8, SizeOf(T) = 8
+        assert_eq!(vec2_f32.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(vec2_f32.byte_size(Repr::Storage), 8);
+        // vec2<f16>: AlignOf(T) = 4, SizeOf(T) = 4
+        assert_eq!(vec2_f16.align(Repr::Storage), U32PowerOf2::_4);
+        assert_eq!(vec2_f16.byte_size(Repr::Storage), 4);
+        // vec3<T>, T is i32, u32, or f32: AlignOf(T) = 16, SizeOf(T) = 12
+        assert_eq!(vec3_f32.align(Repr::Storage), U32PowerOf2::_16);
+        assert_eq!(vec3_f32.byte_size(Repr::Storage), 12);
+        // vec3<f16>: AlignOf(T) = 8, SizeOf(T) = 6
+        assert_eq!(vec3_f16.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(vec3_f16.byte_size(Repr::Storage), 6);
+        // vec4<T>, T is i32, u32, or f32: AlignOf(T) = 16, SizeOf(T) = 16
+        assert_eq!(vec4_f32.align(Repr::Storage), U32PowerOf2::_16);
+        assert_eq!(vec4_f32.byte_size(Repr::Storage), 16);
+        // vec4<f16>: AlignOf(T) = 8, SizeOf(T) = 8
+        assert_eq!(vec4_f16.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(vec4_f16.byte_size(Repr::Storage), 8);
+
+        // Test matrices
+        let mat2x2_f32 = Matrix {
+            scalar: ScalarTypeFp::F32,
+            columns: Len2::X2,
+            rows: Len2::X2,
+        };
+        let mat2x2_f16 = Matrix {
+            scalar: ScalarTypeFp::F16,
+            columns: Len2::X2,
+            rows: Len2::X2,
+        };
+        let mat3x2_f32 = Matrix {
+            scalar: ScalarTypeFp::F32,
+            columns: Len2::X3,
+            rows: Len2::X2,
+        };
+        let mat3x2_f16 = Matrix {
+            scalar: ScalarTypeFp::F16,
+            columns: Len2::X3,
+            rows: Len2::X2,
+        };
+        let mat4x2_f32 = Matrix {
+            scalar: ScalarTypeFp::F32,
+            columns: Len2::X4,
+            rows: Len2::X2,
+        };
+        let mat4x2_f16 = Matrix {
+            scalar: ScalarTypeFp::F16,
+            columns: Len2::X4,
+            rows: Len2::X2,
+        };
+        let mat2x3_f32 = Matrix {
+            scalar: ScalarTypeFp::F32,
+            columns: Len2::X2,
+            rows: Len2::X3,
+        };
+        let mat2x3_f16 = Matrix {
+            scalar: ScalarTypeFp::F16,
+            columns: Len2::X2,
+            rows: Len2::X3,
+        };
+        let mat3x3_f32 = Matrix {
+            scalar: ScalarTypeFp::F32,
+            columns: Len2::X3,
+            rows: Len2::X3,
+        };
+        let mat3x3_f16 = Matrix {
+            scalar: ScalarTypeFp::F16,
+            columns: Len2::X3,
+            rows: Len2::X3,
+        };
+        let mat4x3_f32 = Matrix {
+            scalar: ScalarTypeFp::F32,
+            columns: Len2::X4,
+            rows: Len2::X3,
+        };
+        let mat4x3_f16 = Matrix {
+            scalar: ScalarTypeFp::F16,
+            columns: Len2::X4,
+            rows: Len2::X3,
+        };
+        let mat2x4_f32 = Matrix {
+            scalar: ScalarTypeFp::F32,
+            columns: Len2::X2,
+            rows: Len2::X4,
+        };
+        let mat2x4_f16 = Matrix {
+            scalar: ScalarTypeFp::F16,
+            columns: Len2::X2,
+            rows: Len2::X4,
+        };
+        let mat3x4_f32 = Matrix {
+            scalar: ScalarTypeFp::F32,
+            columns: Len2::X3,
+            rows: Len2::X4,
+        };
+        let mat3x4_f16 = Matrix {
+            scalar: ScalarTypeFp::F16,
+            columns: Len2::X3,
+            rows: Len2::X4,
+        };
+        let mat4x4_f32 = Matrix {
+            scalar: ScalarTypeFp::F32,
+            columns: Len2::X4,
+            rows: Len2::X4,
+        };
+        let mat4x4_f16 = Matrix {
+            scalar: ScalarTypeFp::F16,
+            columns: Len2::X4,
+            rows: Len2::X4,
+        };
+        // mat2x2<f32>: AlignOf(T) = 8, SizeOf(T) = 16
+        assert_eq!(mat2x2_f32.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(mat2x2_f32.byte_size(Repr::Storage), 16);
+        // mat2x2<f16>: AlignOf(T) = 4, SizeOf(T) = 8
+        assert_eq!(mat2x2_f16.align(Repr::Storage), U32PowerOf2::_4);
+        assert_eq!(mat2x2_f16.byte_size(Repr::Storage), 8);
+        // mat3x2<f32>: AlignOf(T) = 8, SizeOf(T) = 24
+        assert_eq!(mat3x2_f32.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(mat3x2_f32.byte_size(Repr::Storage), 24);
+        // mat3x2<f16>: AlignOf(T) = 4, SizeOf(T) = 12
+        assert_eq!(mat3x2_f16.align(Repr::Storage), U32PowerOf2::_4);
+        assert_eq!(mat3x2_f16.byte_size(Repr::Storage), 12);
+        // mat4x2<f32>: AlignOf(T) = 8, SizeOf(T) = 32
+        assert_eq!(mat4x2_f32.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(mat4x2_f32.byte_size(Repr::Storage), 32);
+        // mat4x2<f16>: AlignOf(T) = 4, SizeOf(T) = 16
+        assert_eq!(mat4x2_f16.align(Repr::Storage), U32PowerOf2::_4);
+        assert_eq!(mat4x2_f16.byte_size(Repr::Storage), 16);
+        // mat2x3<f32>: AlignOf(T) = 16, SizeOf(T) = 32
+        assert_eq!(mat2x3_f32.align(Repr::Storage), U32PowerOf2::_16);
+        assert_eq!(mat2x3_f32.byte_size(Repr::Storage), 32);
+        // mat2x3<f16>: AlignOf(T) = 8, SizeOf(T) = 16
+        assert_eq!(mat2x3_f16.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(mat2x3_f16.byte_size(Repr::Storage), 16);
+        // mat3x3<f32>: AlignOf(T) = 16, SizeOf(T) = 48
+        assert_eq!(mat3x3_f32.align(Repr::Storage), U32PowerOf2::_16);
+        assert_eq!(mat3x3_f32.byte_size(Repr::Storage), 48);
+        // mat3x3<f16>: AlignOf(T) = 8, SizeOf(T) = 24
+        assert_eq!(mat3x3_f16.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(mat3x3_f16.byte_size(Repr::Storage), 24);
+        // mat4x3<f32>: AlignOf(T) = 16, SizeOf(T) = 64
+        assert_eq!(mat4x3_f32.align(Repr::Storage), U32PowerOf2::_16);
+        assert_eq!(mat4x3_f32.byte_size(Repr::Storage), 64);
+        // mat4x3<f16>: AlignOf(T) = 8, SizeOf(T) = 32
+        assert_eq!(mat4x3_f16.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(mat4x3_f16.byte_size(Repr::Storage), 32);
+        // mat2x4<f32>: AlignOf(T) = 16, SizeOf(T) = 32
+        assert_eq!(mat2x4_f32.align(Repr::Storage), U32PowerOf2::_16);
+        assert_eq!(mat2x4_f32.byte_size(Repr::Storage), 32);
+        // mat2x4<f16>: AlignOf(T) = 8, SizeOf(T) = 16
+        assert_eq!(mat2x4_f16.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(mat2x4_f16.byte_size(Repr::Storage), 16);
+        // mat3x4<f32>: AlignOf(T) = 16, SizeOf(T) = 48
+        assert_eq!(mat3x4_f32.align(Repr::Storage), U32PowerOf2::_16);
+        assert_eq!(mat3x4_f32.byte_size(Repr::Storage), 48);
+        // mat3x4<f16>: AlignOf(T) = 8, SizeOf(T) = 24
+        assert_eq!(mat3x4_f16.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(mat3x4_f16.byte_size(Repr::Storage), 24);
+        // mat4x4<f32>: AlignOf(T) = 16, SizeOf(T) = 64
+        assert_eq!(mat4x4_f32.align(Repr::Storage), U32PowerOf2::_16);
+        assert_eq!(mat4x4_f32.byte_size(Repr::Storage), 64);
+        // mat4x4<f16>: AlignOf(T) = 8, SizeOf(T) = 32
+        assert_eq!(mat4x4_f16.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(mat4x4_f16.byte_size(Repr::Storage), 32);
+
+        //   Testing Repr::Uniform and Repr::Packed    //
+
+        let scalars = [
+            ScalarType::F16,
+            ScalarType::F32,
+            ScalarType::F64,
+            ScalarType::I32,
+            ScalarType::U32,
+        ];
+        let atomics = [atomic_u32, atomic_i32];
+        let vectors = [vec2_f32, vec2_f16, vec3_f32, vec3_f16, vec4_f32, vec4_f16];
+        let matrices = [
+            mat2x2_f32, mat2x2_f16, mat3x2_f32, mat3x2_f16, mat4x2_f32, mat4x2_f16, mat2x3_f32, mat2x3_f16, mat3x3_f32,
+            mat3x3_f16, mat4x3_f32, mat4x3_f16, mat2x4_f32, mat2x4_f16, mat3x4_f32, mat3x4_f16, mat4x4_f32, mat4x4_f16,
+        ];
+
+        // Testing
+        // - byte size for Storage, Uniform and Packed is the same
+        // - align of Storage and Uniform is the same
+        // - align of Packed is 1
+        for scalar in scalars {
+            // Looks silly, because byte_size doesn't have a repr argument.
+            assert_eq!(scalar.byte_size(), scalar.byte_size());
+            assert_eq!(scalar.align(Repr::Storage), scalar.align(Repr::Uniform));
+            assert_eq!(scalar.align(Repr::Packed), U32PowerOf2::_1);
+        }
+        for atomic in atomics {
+            // Looks silly, because byte_size doesn't have a repr argument.
+            assert_eq!(atomic.byte_size(), atomic.byte_size());
+            assert_eq!(atomic.align(Repr::Storage), atomic.align(Repr::Uniform));
+            assert_eq!(atomic.align(Repr::Packed), U32PowerOf2::_1);
+        }
+        for vector in vectors {
+            assert_eq!(vector.byte_size(Repr::Storage), vector.byte_size(Repr::Uniform));
+            assert_eq!(vector.align(Repr::Storage), vector.align(Repr::Uniform));
+            assert_eq!(vector.align(Repr::Packed), U32PowerOf2::_1);
+        }
+        for matrix in matrices {
+            assert_eq!(matrix.byte_size(Repr::Storage), matrix.byte_size(Repr::Uniform));
+            assert_eq!(matrix.align(Repr::Storage), matrix.align(Repr::Uniform));
+            assert_eq!(matrix.align(Repr::Packed), U32PowerOf2::_1);
+        }
+    }
+
+    #[test]
+    fn test_sized_array_layout() {
+        let element = SizedType::Vector(Vector::new(ScalarType::F32, Len::X2));
+        let array = SizedArray {
+            element: Rc::new(element),
+            len: NonZeroU32::new(5).unwrap(),
+        };
+
+        // vec2<f32> is 8 bytes, aligned to 8 bytes
+        assert_eq!(array.byte_stride(Repr::Storage), 8);
+        assert_eq!(array.byte_size(Repr::Storage), 40); // 5 * 8
+        assert_eq!(array.align(Repr::Storage), U32PowerOf2::_8);
+
+        // Uniform requires 16-byte alignment for array elements
+        assert_eq!(array.byte_stride(Repr::Uniform), 16);
+        assert_eq!(array.byte_size(Repr::Uniform), 80); // 5 * 16
+        assert_eq!(array.align(Repr::Uniform), U32PowerOf2::_16);
+
+        // Packed has 1-byte alignment
+        assert_eq!(array.byte_stride(Repr::Packed), 8);
+        assert_eq!(array.byte_size(Repr::Packed), 40); // 5 * 8
+        assert_eq!(array.align(Repr::Packed), U32PowerOf2::_1);
+    }
+
+    #[test]
+    fn test_runtime_sized_array_layout() {
+        let element = SizedType::Vector(Vector::new(ScalarType::F32, Len::X2));
+        let array = RuntimeSizedArray { element };
+
+        assert_eq!(array.byte_stride(Repr::Storage), 8);
+        assert_eq!(array.align(Repr::Storage), U32PowerOf2::_8);
+
+        assert_eq!(array.byte_stride(Repr::Uniform), 16);
+        assert_eq!(array.align(Repr::Uniform), U32PowerOf2::_16);
+
+        assert_eq!(array.byte_stride(Repr::Packed), 8);
+        assert_eq!(array.align(Repr::Packed), U32PowerOf2::_1);
+    }
+
+    #[test]
+    fn test_array_size() {
+        let len = NonZeroU32::new(5).unwrap();
+        assert_eq!(array_size(8, len), 40);
+        assert_eq!(array_size(16, len), 80);
+        assert_eq!(array_size(1, len), 5);
+    }
+
+    #[test]
+    fn test_array_align() {
+        let element_align = U32PowerOf2::_8;
+
+        assert_eq!(array_align(element_align, Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(array_align(element_align, Repr::Uniform), U32PowerOf2::_16);
+        assert_eq!(array_align(element_align, Repr::Packed), U32PowerOf2::_1);
+
+        // Test with smaller alignment
+        let small_align = U32PowerOf2::_4;
+        assert_eq!(array_align(small_align, Repr::Storage), U32PowerOf2::_4);
+        assert_eq!(array_align(small_align, Repr::Uniform), U32PowerOf2::_16);
+        assert_eq!(array_align(small_align, Repr::Packed), U32PowerOf2::_1);
+    }
+
+    #[test]
+    fn test_array_stride() {
+        let element_align = U32PowerOf2::_8;
+        let element_size = 12;
+
+        // Storage: round up to element alignment
+        assert_eq!(array_stride(element_align, element_size, Repr::Storage), 16);
+        // Uniform: round up to 16-byte alignment
+        assert_eq!(array_stride(element_align, element_size, Repr::Uniform), 16);
+        // Packed: round up to 1-byte alignment (no padding)
+        assert_eq!(array_stride(element_align, element_size, Repr::Packed), 12);
+    }
+
+    #[test]
+    fn test_layout_calculator_basic() {
+        let mut calc = LayoutCalculator::new(Repr::Storage);
+
+        // Add a u32 field
+        let offset1 = calc.extend(4, U32PowerOf2::_4, None, None, false);
+        assert_eq!(offset1, 0);
+        // Add another u32 field
+        let offset2 = calc.extend(4, U32PowerOf2::_4, None, None, false);
+        assert_eq!(offset2, 4);
+        // Add a vec2<f32> field (8 bytes, 8-byte aligned)
+        let offset3 = calc.extend(8, U32PowerOf2::_8, None, None, false);
+        assert_eq!(offset3, 8);
+
+        assert_eq!(calc.byte_size(), 16);
+        assert_eq!(calc.align(), U32PowerOf2::_8);
+    }
+
+    #[test]
+    fn test_layout_calculator_packed() {
+        let mut calc = LayoutCalculator::new(Repr::Packed);
+
+        // Add a u32 field - should be packed without padding
+        let offset1 = calc.extend(4, U32PowerOf2::_4, None, None, false);
+        assert_eq!(offset1, 0);
+
+        // Add a vec2<f32> field - should be packed directly after
+        let offset2 = calc.extend(8, U32PowerOf2::_8, None, None, false);
+        assert_eq!(offset2, 4);
+
+        assert_eq!(calc.byte_size(), 12);
+        assert_eq!(calc.align(), U32PowerOf2::_1);
+
+        // Add a vec2<f32> field - but with custom min align, which overwrites paacked alignment
+        let offset3 = calc.extend(8, U32PowerOf2::_8, None, Some(U32PowerOf2::_16), false);
+        assert_eq!(offset3, 16);
+        // TODO(chronicl) not sure whether the alignment shouldn't stay 1 for a packesd struct
+        // with custom min align field.
+        assert_eq!(calc.align(), U32PowerOf2::_16);
+    }
+
+    #[test]
+    fn test_layout_calculator_uniform_struct_padding() {
+        let mut calc = LayoutCalculator::new(Repr::Uniform);
+
+        // Add a nested struct with size 12
+        let offset1 = calc.extend(12, U32PowerOf2::_4, None, None, true);
+        assert_eq!(offset1, 0);
+        // Add another field - should be padded to 16-byte boundary from struct
+        let offset2 = calc.extend(4, U32PowerOf2::_4, None, None, false);
+        assert_eq!(offset2, 16);
+
+        assert_eq!(calc.byte_size(), 20);
+        // TODO(chronicl) make this pass
+        assert_eq!(calc.align(), U32PowerOf2::_16); // Uniform struct alignment is multipole of 16
+    }
+
+    #[test]
+    fn test_layout_calculator_custom_sizes_and_aligns() {
+        let mut calc = LayoutCalculator::new(Repr::Storage);
+
+        // Add field with custom minimum size
+        let offset1 = calc.extend(4, U32PowerOf2::_4, Some(33), None, false);
+        assert_eq!(offset1, 0);
+        assert_eq!(calc.byte_size(), 36); // 33 rounded up to multiple of align
+
+        // Add field with custom minimum alignment
+        let offset2 = calc.extend(4, U32PowerOf2::_4, None, Some(U32PowerOf2::_16), false);
+        assert_eq!(offset2, 48);
+
+        // 33 -> placed at 48 due to 16 align -> 64 size because rounded up to multiple of align
+        assert_eq!(calc.byte_size(), 64);
+        assert_eq!(calc.align(), U32PowerOf2::_16);
+    }
+
+    #[test]
+    fn test_layout_calculator_extend_unsized() {
+        let mut calc = LayoutCalculator::new(Repr::Storage);
+
+        // Add some sized fields first
+        calc.extend(4, U32PowerOf2::_4, None, None, false);
+        calc.extend(8, U32PowerOf2::_8, None, None, false);
+
+        // Add unsized field
+        let (offset, align) = calc.extend_unsized(U32PowerOf2::_4, None);
+        assert_eq!(offset, 16);
+        assert_eq!(align, U32PowerOf2::_8);
+    }
+
+    #[test]
+    fn test_sized_field_calculations() {
+        let field = SizedField::new(
+            FieldOptions::new("test_field", None, Some(16)),
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)),
+        );
+
+        // Vector is 8 bytes, but field has custom min size of 16
+        assert_eq!(field.byte_size(Repr::Storage), 16);
+        assert_eq!(field.align(Repr::Storage), U32PowerOf2::_8);
+
+        // Test custom alignment
+        let field2 = SizedField::new(
+            FieldOptions::new("test_field2", Some(U32PowerOf2::_16), None),
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)),
+        );
+
+        assert_eq!(field2.align(Repr::Storage), U32PowerOf2::_16);
+    }
+
+    #[test]
+    fn test_runtime_sized_array_field_align() {
+        let field = RuntimeSizedArrayField::new(
+            "test_array",
+            Some(U32PowerOf2::_16),
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)),
+        );
+
+        // Array has 8-byte alignment, but field has custom min align of 16
+        assert_eq!(field.align(Repr::Storage), U32PowerOf2::_16);
+        // Test packed representation with custom alignment
+        assert_eq!(field.align(Repr::Packed), U32PowerOf2::_16);
+    }
+
+    #[test]
+    fn test_complex_struct_layout() {
+        // Create a struct with mixed field types
+        let sized_struct = SizedStruct::new(
+            "TestStruct",
+            "field1",
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X1)), // 4 bytes, 4-byte aligned
+        )
+        .extend(
+            "field2",
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)), // 8 bytes, 8-byte aligned
+        )
+        .extend(
+            "field3",
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X1)), // 4 bytes, 4-byte aligned
+        );
+
+        // Test field offsets
+        let mut field_offsets = sized_struct.field_offsets(Repr::Storage);
+
+        // Field 1: offset 0
+        assert_eq!(field_offsets.next(), Some(0));
+        // Field 2: offset 8 (aligned to 8-byte boundary)
+        assert_eq!(field_offsets.next(), Some(8));
+        // Field 3: offset 16 (directly after field 2)
+        assert_eq!(field_offsets.next(), Some(16));
+        // No more fields
+        assert_eq!(field_offsets.next(), None);
+
+        // Test struct size and alignment
+        let (size, align) = sized_struct.byte_size_and_align(Repr::Storage);
+        assert_eq!(size, 24); // Round up to 8-byte alignment: round_up(8, 20) = 24
+        assert_eq!(align, U32PowerOf2::_8);
+    }
+
+    #[test]
+    fn test_uniform_struct_alignment() {
+        let sized_struct = SizedStruct::new(
+            "TestStruct",
+            "field1",
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)), // 8 bytes, 8-byte aligned
+        );
+
+        let (size, align) = sized_struct.byte_size_and_align(Repr::Uniform);
+
+        // TODO(chronicl) this shouldn't be 8, it should be 16, because struct size is
+        // roundUp(AlignOf(S), justPastLastMember) where justPastLastMember = OffsetOfMember(S,N) + SizeOfMember(S,N)
+        assert_eq!(size, 8); // Size calculated with original 8-byte alignment
+        assert_eq!(align, U32PowerOf2::_16); // Alignment adjusted for uniform
+    }
+
+    #[test]
+    fn test_unsized_struct_layout() {
+        // Test UnsizedStruct with sized fields and a runtime sized array
+        let unsized_struct = SizedStruct::new(
+            "UnsizedStruct",
+            "field1",
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)), // 4 bytes, 4-byte aligned
+        )
+        .extend(
+            "field2",
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X1)), // 8 bytes, 8-byte aligned
+        )
+        .extend_unsized(
+            "runtime_array",
+            None,
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X1)), // 4 bytes per element
+        );
+
+        // Test field offsets
+        let mut field_offsets = unsized_struct.field_offsets(Repr::Storage);
+        let sized_offsets: Vec<u64> = field_offsets.sized_field_offsets().collect();
+        assert_eq!(sized_offsets, vec![0, 8]); // First field at 0, second at 8
+
+        // Test last field offset and struct alignment
+        let (last_offset, struct_align) = field_offsets.last_field_offset_and_struct_align();
+        assert_eq!(last_offset, 12); // Runtime array starts at offset 12
+        assert_eq!(struct_align, U32PowerOf2::_8); // Struct alignment is 8
+
+        // Test struct alignment method
+        assert_eq!(unsized_struct.align(Repr::Storage), U32PowerOf2::_8);
+
+        // Test with different repr
+        let mut field_offsets_uniform = unsized_struct.field_offsets(Repr::Uniform);
+        let (last_offset_uniform, struct_align_uniform) = field_offsets_uniform.last_field_offset_and_struct_align();
+        assert_eq!(last_offset_uniform, 16); // Different offset in uniform, because array's alignment is 16
+        assert_eq!(struct_align_uniform, U32PowerOf2::_16); // Uniform struct alignment
+    }
+
+    #[test]
+    fn test_packed_struct_layout() {
+        let sized_struct = SizedStruct::new(
+            "TestStruct",
+            "field1",
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X3)), // 8 bytes, 16 align (when not packed)
+        )
+        .extend(
+            "field2",
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X1)), // 4 bytes
+        );
+
+        let mut field_offsets = sized_struct.field_offsets(Repr::Packed);
+
+        // Field 1: offset 0
+        assert_eq!(field_offsets.next(), Some(0));
+        // Field 2: offset 12, packed directly after field 1, despite 16 alignment of field1, because packed
+        assert_eq!(field_offsets.next(), Some(12));
+
+        let (size, align) = sized_struct.byte_size_and_align(Repr::Packed);
+        assert_eq!(size, 16);
+        assert_eq!(align, U32PowerOf2::_1);
     }
 }
