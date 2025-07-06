@@ -135,10 +135,7 @@ impl<'a> FieldOffsetsSized<'a> {
         // Finishing layout calculations
         // using count only to advance iterator to the end
         (&mut self.0).count();
-        (
-            self.0.calc.byte_size(),
-            adjust_struct_alignment_for_repr(self.0.calc.align(), self.0.repr),
-        )
+        (self.0.calc.byte_size(), self.0.calc.align())
     }
 
     /// Returns the inner iterator over sized fields.
@@ -177,8 +174,7 @@ impl<'a> FieldOffsetsUnsized<'a> {
         (&mut self.sized).count();
         let array_align = self.last_unsized.array.align(self.sized.repr);
         let custom_min_align = self.last_unsized.custom_min_align;
-        let (offset, align) = self.sized.calc.extend_unsized(array_align, custom_min_align);
-        (offset, adjust_struct_alignment_for_repr(align, self.sized.repr))
+        self.sized.calc.extend_unsized(array_align, custom_min_align)
     }
 
     /// Returns the inner iterator over sized fields.
@@ -200,15 +196,6 @@ impl UnsizedStruct {
     /// This is expensive as it calculates the byte align by traversing all fields recursively.
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         self.field_offsets(repr).last_field_offset_and_struct_align().1
-    }
-}
-
-const fn adjust_struct_alignment_for_repr(align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {
-    match repr {
-        // Packedness is ensured by the `LayoutCalculator`.
-        Repr::Storage => align,
-        Repr::Uniform => round_up_align(U32PowerOf2::_16, align),
-        Repr::Packed => PACKED_ALIGN,
     }
 }
 
@@ -497,7 +484,7 @@ impl LayoutCalculator {
         let offset = self.next_field_offset(align, custom_min_align);
         self.align = self.align.max(align);
 
-        (offset, self.align)
+        (offset, self.align())
     }
 
     /// Returns the byte size of the struct.
@@ -507,12 +494,12 @@ impl LayoutCalculator {
     //
     // self.next_offset_min is justPastLastMember already.
     pub const fn byte_size(&self) -> u64 {
-        round_up(self.align.as_u64(), self.next_offset_min)
+        round_up(self.align().as_u64(), self.next_offset_min)
     }
 
     /// Returns the align of the struct.
     pub const fn align(&self) -> U32PowerOf2 {
-        self.align
+        Self::adjust_struct_alignment_for_repr(self.align, self.repr)
     }
 
     const fn next_field_offset(&self, field_align: U32PowerOf2, field_custom_min_align: Option<U32PowerOf2>) -> u64 {
@@ -540,6 +527,15 @@ impl LayoutCalculator {
             align.max(min_align)
         } else {
             align
+        }
+    }
+
+    const fn adjust_struct_alignment_for_repr(align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {
+        match repr {
+            // Packedness is ensured by the `LayoutCalculator`.
+            Repr::Storage => align,
+            Repr::Uniform => round_up_align(U32PowerOf2::_16, align),
+            Repr::Packed => PACKED_ALIGN,
         }
     }
 }
@@ -913,9 +909,9 @@ mod tests {
         // Add a vec2<f32> field - but with custom min align, which overwrites paacked alignment
         let offset3 = calc.extend(8, U32PowerOf2::_8, None, Some(U32PowerOf2::_16), false);
         assert_eq!(offset3, 16);
-        // TODO(chronicl) not sure whether the alignment shouldn't stay 1 for a packesd struct
+        // TODO(chronicl) not sure whether the alignment should stay 1 for a packesd struct
         // with custom min align field.
-        assert_eq!(calc.align(), U32PowerOf2::_16);
+        assert_eq!(calc.align(), U32PowerOf2::_1);
     }
 
     #[test]
@@ -929,9 +925,8 @@ mod tests {
         let offset2 = calc.extend(4, U32PowerOf2::_4, None, None, false);
         assert_eq!(offset2, 16);
 
-        assert_eq!(calc.byte_size(), 20);
-        // TODO(chronicl) make this pass
-        assert_eq!(calc.align(), U32PowerOf2::_16); // Uniform struct alignment is multipole of 16
+        assert_eq!(calc.align(), U32PowerOf2::_16); // Uniform struct alignment is multiple of 16
+        assert_eq!(calc.byte_size(), 32); // Byte size of struct is a multiple of it's align
     }
 
     #[test]
@@ -1045,10 +1040,8 @@ mod tests {
 
         let (size, align) = sized_struct.byte_size_and_align(Repr::Uniform);
 
-        // TODO(chronicl) this shouldn't be 8, it should be 16, because struct size is
-        // roundUp(AlignOf(S), justPastLastMember) where justPastLastMember = OffsetOfMember(S,N) + SizeOfMember(S,N)
-        assert_eq!(size, 8); // Size calculated with original 8-byte alignment
         assert_eq!(align, U32PowerOf2::_16); // Alignment adjusted for uniform
+        assert_eq!(size, 16); // Byte size of struct is a multiple of it's alignment
     }
 
     #[test]
