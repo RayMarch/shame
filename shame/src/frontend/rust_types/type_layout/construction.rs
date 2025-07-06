@@ -310,7 +310,6 @@ pub enum LayoutError {
     MayNotContainPackedVec(LayoutableType, Repr),
 }
 
-
 #[derive(Debug, Clone, Copy)]
 pub struct LayoutContext<'a> {
     top_level_type: &'a LayoutableType,
@@ -339,7 +338,9 @@ impl From<LayoutContext<'_>> for LayoutErrorContext {
 }
 
 impl Repr {
-    fn more_info_at(&self) -> &str { "https://www.w3.org/TR/WGSL/#memory-layouts" }
+    fn more_info_at(&self) -> &str {
+        "https://www.w3.org/TR/WGSL/#memory-layouts"
+    }
 }
 
 #[allow(missing_docs)]
@@ -396,10 +397,14 @@ pub enum StructKind {
 }
 
 impl From<SizedStruct> for StructKind {
-    fn from(value: SizedStruct) -> Self { StructKind::Sized(value) }
+    fn from(value: SizedStruct) -> Self {
+        StructKind::Sized(value)
+    }
 }
 impl From<UnsizedStruct> for StructKind {
-    fn from(value: UnsizedStruct) -> Self { StructKind::Unsized(value) }
+    fn from(value: UnsizedStruct) -> Self {
+        StructKind::Unsized(value)
+    }
 }
 
 impl std::error::Error for StructFieldOffsetError {}
@@ -435,7 +440,6 @@ impl Display for StructFieldOffsetError {
             }
         })
         .flatten();
-
 
         writeln!(
             f,
@@ -589,9 +593,218 @@ where
         }
         write!(f, "{:6} {:5}", last_field_offset, last_field.align(repr).as_u64())?;
 
-
         reset(f, field_index)?;
     }
     writeln!(f, "}}")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        any::U32PowerOf2,
+        frontend::rust_types::type_layout::{
+            layoutable::{*},
+            repr::Repr,
+            *,
+        },
+    };
+    use std::{rc::Rc, num::NonZeroU32};
+
+    #[test]
+    fn test_array_alignment() {
+        let array = SizedArray::new(
+            Rc::new(Vector::new(ScalarType::F32, Len::X1).into()),
+            NonZeroU32::new(1).unwrap(),
+        )
+        .into();
+
+        let storage = TypeLayout::new_layout_for(&array, Repr::Storage);
+        let uniform = TypeLayout::new_layout_for(&array, Repr::Uniform);
+        let packed = TypeLayout::new_layout_for(&array, Repr::Packed);
+
+        assert_eq!(storage.align(), U32PowerOf2::_4);
+        assert_eq!(uniform.align(), U32PowerOf2::_16);
+        assert_eq!(packed.align(), U32PowerOf2::_1);
+
+        assert_eq!(storage.byte_size(), Some(4));
+        assert_eq!(uniform.byte_size(), Some(16));
+        assert_eq!(packed.byte_size(), Some(4));
+
+        match (storage.kind, uniform.kind, packed.kind) {
+            (
+                TypeLayoutSemantics::Array(storage, Some(1)),
+                TypeLayoutSemantics::Array(uniform, Some(1)),
+                TypeLayoutSemantics::Array(packed, Some(1)),
+            ) => {
+                assert_eq!(storage.byte_stride, 4);
+                assert_eq!(uniform.byte_stride, 16);
+                assert_eq!(packed.byte_stride, 4);
+            }
+            _ => panic!("Unexpected layout kind"),
+        }
+    }
+
+    #[test]
+    fn test_struct_alignment() {
+        let s = SizedStruct::new("A", "a", Vector::new(ScalarType::F32, Len::X1)).into();
+
+        let storage = TypeLayout::new_layout_for(&s, Repr::Storage);
+        let uniform = TypeLayout::new_layout_for(&s, Repr::Uniform);
+        let packed = TypeLayout::new_layout_for(&s, Repr::Packed);
+
+        assert_eq!(storage.align(), U32PowerOf2::_4);
+        assert_eq!(uniform.align(), U32PowerOf2::_16);
+        assert_eq!(packed.align(), U32PowerOf2::_1);
+
+        assert_eq!(storage.byte_size(), Some(4));
+        assert_eq!(uniform.byte_size(), Some(16));
+        assert_eq!(packed.byte_size(), Some(4));
+    }
+
+    #[test]
+    fn test_nested_struct_field_offset() {
+        let s = SizedStruct::new("A", "a", Vector::new(ScalarType::F32, Len::X1));
+        let s = SizedStruct::new("B", "a", Vector::new(ScalarType::F32, Len::X1))
+            .extend("b", s) // offset 4 for storage and packed, offset 16 for uniform
+            .into();
+
+        let storage = TypeLayout::new_layout_for(&s, Repr::Storage);
+        let uniform = TypeLayout::new_layout_for(&s, Repr::Uniform);
+        let packed = TypeLayout::new_layout_for(&s, Repr::Packed);
+
+        assert_eq!(storage.align(), U32PowerOf2::_4);
+        assert_eq!(uniform.align(), U32PowerOf2::_16);
+        assert_eq!(packed.align(), U32PowerOf2::_1);
+
+        assert_eq!(storage.byte_size(), Some(8));
+        // field b is bytes 16..=19 and struct size must be a multiple of the struct align (16)
+        assert_eq!(uniform.byte_size(), Some(32));
+        assert_eq!(packed.byte_size(), Some(8));
+
+        match (storage.kind, uniform.kind, packed.kind) {
+            (
+                TypeLayoutSemantics::Structure(storage),
+                TypeLayoutSemantics::Structure(uniform),
+                TypeLayoutSemantics::Structure(packed),
+            ) => {
+                assert_eq!(storage.fields[1].rel_byte_offset, 4);
+                assert_eq!(uniform.fields[1].rel_byte_offset, 16);
+                assert_eq!(packed.fields[1].rel_byte_offset, 4);
+            }
+            _ => panic!("Unexpected layout kind"),
+        }
+    }
+
+    #[test]
+    fn test_array_in_struct_field_offset() {
+        let s = SizedStruct::new("B", "a", Vector::new(ScalarType::F32, Len::X1))
+            .extend(
+                "b",
+                SizedArray::new(
+                    Rc::new(Vector::new(ScalarType::F32, Len::X1).into()),
+                    NonZeroU32::new(1).unwrap(),
+                ),
+            ) // offset 4 for storage and packed, offset 16 for uniform
+            .into();
+
+        let storage = TypeLayout::new_layout_for(&s, Repr::Storage);
+        let uniform = TypeLayout::new_layout_for(&s, Repr::Uniform);
+        let packed = TypeLayout::new_layout_for(&s, Repr::Packed);
+
+        assert_eq!(storage.align(), U32PowerOf2::_4);
+        assert_eq!(uniform.align(), U32PowerOf2::_16);
+        assert_eq!(packed.align(), U32PowerOf2::_1);
+
+        assert_eq!(storage.byte_size(), Some(8));
+        // field b is bytes 16..=19 and struct size must be a multiple of the struct align (16)
+        assert_eq!(uniform.byte_size(), Some(32));
+        assert_eq!(packed.byte_size(), Some(8));
+
+        match (storage.kind, uniform.kind, packed.kind) {
+            (
+                TypeLayoutSemantics::Structure(storage),
+                TypeLayoutSemantics::Structure(uniform),
+                TypeLayoutSemantics::Structure(packed),
+            ) => {
+                assert_eq!(storage.fields[1].rel_byte_offset, 4);
+                assert_eq!(uniform.fields[1].rel_byte_offset, 16);
+                assert_eq!(packed.fields[1].rel_byte_offset, 4);
+            }
+            _ => panic!("Unexpected layout kind"),
+        }
+    }
+
+    #[test]
+    fn test_unsized_struct_layout() {
+        let unsized_struct = UnsizedStruct {
+            name: CanonName::from("TestStruct"),
+            sized_fields: vec![
+                SizedField {
+                    name: CanonName::from("field1"),
+                    custom_min_size: None,
+                    custom_min_align: None,
+                    ty: Vector::new(ScalarType::F32, Len::X2).into(),
+                },
+                SizedField {
+                    name: CanonName::from("field2"),
+                    custom_min_size: None,
+                    custom_min_align: None,
+                    ty: Vector::new(ScalarType::F32, Len::X1).into(),
+                },
+            ],
+            last_unsized: RuntimeSizedArrayField {
+                name: CanonName::from("dynamic_array"),
+                custom_min_align: None,
+                array: RuntimeSizedArray {
+                    element: Vector::new(ScalarType::F32, Len::X1).into(),
+                },
+            },
+        }
+        .into();
+
+        let layout = TypeLayout::new_layout_for(&unsized_struct, Repr::Storage);
+        assert_eq!(layout.byte_size(), None);
+        assert!(layout.align().as_u64() == 8); // align of vec2<f32>
+        match &layout.kind {
+            TypeLayoutSemantics::Structure(struct_layout) => {
+                assert_eq!(struct_layout.fields.len(), 3);
+                assert_eq!(struct_layout.fields[0].field.name, CanonName::from("field1"));
+                assert_eq!(struct_layout.fields[1].field.name, CanonName::from("field2"));
+                assert_eq!(struct_layout.fields[2].field.name, CanonName::from("dynamic_array"));
+
+                assert_eq!(struct_layout.fields[0].rel_byte_offset, 0); // vec2<f32>
+                assert_eq!(struct_layout.fields[1].rel_byte_offset, 8); // f32
+                assert_eq!(struct_layout.fields[2].rel_byte_offset, 12); // Array<f32>
+                // The last field should be an unsized array
+                match &struct_layout.fields[2].field.ty.kind {
+                    TypeLayoutSemantics::Array(array, None) => assert_eq!(array.byte_stride, 4),
+                    _ => panic!("Expected runtime-sized array for last field"),
+                }
+            }
+            _ => panic!("Expected structure layout"),
+        }
+
+        // Testing uniform representation
+        let layout = TypeLayout::new_layout_for(&unsized_struct, Repr::Uniform);
+        assert_eq!(layout.byte_size(), None);
+        // Struct alignmment has to be a multiple of 16, but the runtime sized array
+        // also has an alignment of 16, which transfers to the struct alignment.
+        assert!(layout.align().as_u64() == 16);
+        match &layout.kind {
+            TypeLayoutSemantics::Structure(struct_layout) => {
+                assert_eq!(struct_layout.fields[0].rel_byte_offset, 0); // vec2<f32>
+                assert_eq!(struct_layout.fields[1].rel_byte_offset, 8); // f32
+                // array has alignment of 16, so offset should be 16
+                assert_eq!(struct_layout.fields[2].rel_byte_offset, 16); // Array<f32>
+                match &struct_layout.fields[2].ty.kind {
+                    // Stride has to be a multiple of 16 in uniform address space
+                    TypeLayoutSemantics::Array(array, None) => assert_eq!(array.byte_stride, 16),
+                    _ => panic!("Expected runtime-sized array for last field"),
+                }
+            }
+            _ => panic!("Expected structure layout"),
+        }
+    }
 }
