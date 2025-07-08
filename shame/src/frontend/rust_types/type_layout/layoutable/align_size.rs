@@ -124,9 +124,7 @@ impl<'a> FieldOffsets<'a> {
 pub struct FieldOffsetsSized<'a>(FieldOffsets<'a>);
 impl Iterator for FieldOffsetsSized<'_> {
     type Item = u64;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
+    fn next(&mut self) -> Option<Self::Item> { self.0.next() }
 }
 impl<'a> FieldOffsetsSized<'a> {
     /// Consumes self and calculates the byte size and align of a struct
@@ -139,9 +137,7 @@ impl<'a> FieldOffsetsSized<'a> {
     }
 
     /// Returns the inner iterator over sized fields.
-    pub fn into_inner(self) -> FieldOffsets<'a> {
-        self.0
-    }
+    pub fn into_inner(self) -> FieldOffsets<'a> { self.0 }
 }
 
 /// The field offsets of an `UnsizedStruct`.
@@ -163,9 +159,7 @@ impl<'a> FieldOffsetsUnsized<'a> {
     }
 
     /// Returns an iterator over the sized field offsets.
-    pub fn sized_field_offsets(&mut self) -> &mut FieldOffsets<'a> {
-        &mut self.sized
-    }
+    pub fn sized_field_offsets(&mut self) -> &mut FieldOffsets<'a> { &mut self.sized }
 
     /// Returns the last field's offset and the struct's align.
     pub fn last_field_offset_and_struct_align(mut self) -> (u64, U32PowerOf2) {
@@ -178,9 +172,7 @@ impl<'a> FieldOffsetsUnsized<'a> {
     }
 
     /// Returns the inner iterator over sized fields.
-    pub fn into_inner(self) -> FieldOffsets<'a> {
-        self.sized
-    }
+    pub fn into_inner(self) -> FieldOffsets<'a> { self.sized }
 }
 
 impl UnsizedStruct {
@@ -194,16 +186,12 @@ impl UnsizedStruct {
     }
 
     /// This is expensive as it calculates the byte align by traversing all fields recursively.
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
-        self.field_offsets(repr).last_field_offset_and_struct_align().1
-    }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.field_offsets(repr).last_field_offset_and_struct_align().1 }
 }
 
 #[allow(missing_docs)]
 impl Vector {
-    pub const fn new(scalar: ScalarType, len: Len) -> Self {
-        Self { scalar, len }
-    }
+    pub const fn new(scalar: ScalarType, len: Len) -> Self { Self { scalar, len } }
 
     pub const fn byte_size(&self, repr: Repr) -> u64 {
         match repr {
@@ -290,9 +278,7 @@ impl Matrix {
 
 #[allow(missing_docs)]
 impl Atomic {
-    pub const fn byte_size(&self) -> u64 {
-        self.scalar.as_scalar_type().byte_size()
-    }
+    pub const fn byte_size(&self) -> u64 { self.scalar.as_scalar_type().byte_size() }
     pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
         match repr {
             Repr::Packed => return PACKED_ALIGN,
@@ -305,13 +291,9 @@ impl Atomic {
 
 #[allow(missing_docs)]
 impl SizedArray {
-    pub fn byte_size(&self, repr: Repr) -> u64 {
-        array_size(self.byte_stride(repr), self.len)
-    }
+    pub fn byte_size(&self, repr: Repr) -> u64 { array_size(self.byte_stride(repr), self.len) }
 
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
-        array_align(self.element.align(repr), repr)
-    }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.align(repr), repr) }
 
     pub fn byte_stride(&self, repr: Repr) -> u64 {
         let (element_size, element_align) = self.element.byte_size_and_align(repr);
@@ -322,9 +304,7 @@ impl SizedArray {
 /// Returns an array's size given it's stride and length.
 ///
 /// Note, this is independent of layout rules (`Repr`).
-pub const fn array_size(array_stride: u64, len: NonZeroU32) -> u64 {
-    array_stride * len.get() as u64
-}
+pub const fn array_size(array_stride: u64, len: NonZeroU32) -> u64 { array_stride * len.get() as u64 }
 
 /// Returns an array's size given the alignment of it's elements.
 pub const fn array_align(element_align: U32PowerOf2, repr: Repr) -> U32PowerOf2 {
@@ -354,13 +334,9 @@ pub const fn array_stride(element_align: U32PowerOf2, element_size: u64, repr: R
 
 #[allow(missing_docs)]
 impl RuntimeSizedArray {
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
-        array_align(self.element.align(repr), repr)
-    }
+    pub fn align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.align(repr), repr) }
 
-    pub fn byte_stride(&self, repr: Repr) -> u64 {
-        array_stride(self.align(repr), self.element.byte_size(repr), repr)
-    }
+    pub fn byte_stride(&self, repr: Repr) -> u64 { array_stride(self.align(repr), self.element.byte_size(repr), repr) }
 }
 
 #[allow(missing_docs)]
@@ -493,14 +469,10 @@ impl LayoutCalculator {
     //   where justPastLastMember = OffsetOfMember(S,N) + SizeOfMember(S,N)
     //
     // self.next_offset_min is justPastLastMember already.
-    pub const fn byte_size(&self) -> u64 {
-        round_up(self.align().as_u64(), self.next_offset_min)
-    }
+    pub const fn byte_size(&self) -> u64 { round_up(self.align().as_u64(), self.next_offset_min) }
 
     /// Returns the align of the struct.
-    pub const fn align(&self) -> U32PowerOf2 {
-        Self::adjust_struct_alignment_for_repr(self.align, self.repr)
-    }
+    pub const fn align(&self) -> U32PowerOf2 { Self::adjust_struct_alignment_for_repr(self.align, self.repr) }
 
     const fn next_field_offset(&self, field_align: U32PowerOf2, field_custom_min_align: Option<U32PowerOf2>) -> u64 {
         let field_align = Self::calculate_align(field_align, field_custom_min_align);
@@ -848,12 +820,10 @@ mod tests {
     #[test]
     fn test_array_align() {
         let element_align = U32PowerOf2::_8;
-
         assert_eq!(array_align(element_align, Repr::Storage), U32PowerOf2::_8);
         assert_eq!(array_align(element_align, Repr::Uniform), U32PowerOf2::_16);
         assert_eq!(array_align(element_align, Repr::Packed), U32PowerOf2::_1);
 
-        // Test with smaller alignment
         let small_align = U32PowerOf2::_4;
         assert_eq!(array_align(small_align, Repr::Storage), U32PowerOf2::_4);
         assert_eq!(array_align(small_align, Repr::Uniform), U32PowerOf2::_16);
@@ -898,7 +868,6 @@ mod tests {
         // Add a u32 field - should be packed without padding
         let offset1 = calc.extend(4, U32PowerOf2::_4, None, None, false);
         assert_eq!(offset1, 0);
-
         // Add a vec2<f32> field - should be packed directly after
         let offset2 = calc.extend(8, U32PowerOf2::_8, None, None, false);
         assert_eq!(offset2, 4);
@@ -906,7 +875,7 @@ mod tests {
         assert_eq!(calc.byte_size(), 12);
         assert_eq!(calc.align(), U32PowerOf2::_1);
 
-        // Add a vec2<f32> field - but with custom min align, which overwrites paacked alignment
+        // Add a vec2<f32> field - but with custom min align, which overwrites packed alignment
         let offset3 = calc.extend(8, U32PowerOf2::_8, None, Some(U32PowerOf2::_16), false);
         assert_eq!(offset3, 16);
         // TODO(chronicl) not sure whether the alignment should stay 1 for a packesd struct
@@ -937,7 +906,6 @@ mod tests {
         let offset1 = calc.extend(4, U32PowerOf2::_4, Some(33), None, false);
         assert_eq!(offset1, 0);
         assert_eq!(calc.byte_size(), 36); // 33 rounded up to multiple of align
-
         // Add field with custom minimum alignment
         let offset2 = calc.extend(4, U32PowerOf2::_4, None, Some(U32PowerOf2::_16), false);
         assert_eq!(offset2, 48);
@@ -954,7 +922,6 @@ mod tests {
         // Add some sized fields first
         calc.extend(4, U32PowerOf2::_4, None, None, false);
         calc.extend(8, U32PowerOf2::_8, None, None, false);
-
         // Add unsized field
         let (offset, align) = calc.extend_unsized(U32PowerOf2::_4, None);
         assert_eq!(offset, 16);
@@ -963,11 +930,11 @@ mod tests {
 
     #[test]
     fn test_sized_field_calculations() {
+        // Test custom size
         let field = SizedField::new(
             FieldOptions::new("test_field", None, Some(16)),
             SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)),
         );
-
         // Vector is 8 bytes, but field has custom min size of 16
         assert_eq!(field.byte_size(Repr::Storage), 16);
         assert_eq!(field.align(Repr::Storage), U32PowerOf2::_8);
@@ -977,7 +944,6 @@ mod tests {
             FieldOptions::new("test_field2", Some(U32PowerOf2::_16), None),
             SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)),
         );
-
         assert_eq!(field2.align(Repr::Storage), U32PowerOf2::_16);
     }
 
@@ -996,7 +962,7 @@ mod tests {
     }
 
     #[test]
-    fn test_complex_struct_layout() {
+    fn test_sized_struct_layout() {
         // Create a struct with mixed field types
         let sized_struct = SizedStruct::new(
             "TestStruct",
@@ -1040,7 +1006,7 @@ mod tests {
 
         let (size, align) = sized_struct.byte_size_and_align(Repr::Uniform);
 
-        assert_eq!(align, U32PowerOf2::_16); // Alignment adjusted for uniform
+        assert_eq!(align, U32PowerOf2::_16); // Alignment adjusted for uniform to multiple of 16
         assert_eq!(size, 16); // Byte size of struct is a multiple of it's alignment
     }
 
