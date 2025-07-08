@@ -416,6 +416,7 @@ impl WipPushConstantsField {
 
         // here we have to allocate unique name strings for each field,
         // so we don't fail the name uniqueness check, even though we don't need those names.
+        #[allow(clippy::match_single_binding)]
         SizedStruct::new_nonempty("PushConstants".into(),
             fields.iter().map(&mut to_sized_field).collect(),
             to_sized_field(last)

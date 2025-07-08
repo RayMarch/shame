@@ -244,9 +244,7 @@ fn check_compare_sized(ctx: LayoutContext, ty: &SizedType) -> Result<(), LayoutE
             check_sized_fields(
                 ctx,
                 s,
-                s.fields()
-                    .into_iter()
-                    .zip((&mut actual_offsets).zip(&mut expected_offsets)),
+                s.fields().iter().zip((&mut actual_offsets).zip(&mut expected_offsets)),
             )
         }
         SizedType::Array(a) => {
@@ -338,9 +336,7 @@ impl From<LayoutContext<'_>> for LayoutErrorContext {
 }
 
 impl Repr {
-    fn more_info_at(&self) -> &str {
-        "https://www.w3.org/TR/WGSL/#memory-layouts"
-    }
+    fn more_info_at(&self) -> &str { "https://www.w3.org/TR/WGSL/#memory-layouts" }
 }
 
 #[allow(missing_docs)]
@@ -397,14 +393,10 @@ pub enum StructKind {
 }
 
 impl From<SizedStruct> for StructKind {
-    fn from(value: SizedStruct) -> Self {
-        StructKind::Sized(value)
-    }
+    fn from(value: SizedStruct) -> Self { StructKind::Sized(value) }
 }
 impl From<UnsizedStruct> for StructKind {
-    fn from(value: UnsizedStruct) -> Self {
-        StructKind::Unsized(value)
-    }
+    fn from(value: UnsizedStruct) -> Self { StructKind::Unsized(value) }
 }
 
 impl std::error::Error for StructFieldOffsetError {}
@@ -487,6 +479,7 @@ impl Display for StructFieldOffsetError {
             "- add an #[align({})] attribute to the definition of `{}` (not supported by OpenGL/GLSL pipelines)",
             expected_alignment, self.field_name
         )?;
+        #[allow(clippy::single_match)]
         match (self.ctx.actual_repr, self.ctx.expected_repr) {
             (Repr::Storage, Repr::Uniform) => writeln!(
                 f,

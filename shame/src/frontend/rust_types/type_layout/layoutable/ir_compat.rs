@@ -134,7 +134,7 @@ impl TryFrom<SizedStruct> for ir::ir_type::SizedStruct {
 
     fn try_from(ty: SizedStruct) -> Result<Self, Self::Error> {
         let (last_field, first_fields) = ty.fields_split_last();
-        let first_fields: Result<Vec<_>, _> = first_fields.into_iter().map(|f| f.clone().try_into()).collect();
+        let first_fields: Result<Vec<_>, _> = first_fields.iter().map(|f| f.clone().try_into()).collect();
         let last_field_ir = last_field.clone().try_into()?;
 
         match ir::ir_type::SizedStruct::new_nonempty(ty.name.clone(), first_fields?, last_field_ir) {

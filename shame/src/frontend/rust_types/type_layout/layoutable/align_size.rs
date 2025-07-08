@@ -228,7 +228,7 @@ impl ScalarType {
 
     pub const fn align(&self, repr: Repr) -> U32PowerOf2 {
         match repr {
-            Repr::Packed => return PACKED_ALIGN,
+            Repr::Packed => PACKED_ALIGN,
             Repr::Storage | Repr::Uniform => match self {
                 ScalarType::F16 => U32PowerOf2::_2,
                 ScalarType::F32 | ScalarType::U32 | ScalarType::I32 => U32PowerOf2::_4,
