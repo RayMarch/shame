@@ -19,7 +19,7 @@ use crate::{
     },
 };
 use layoutable::{
-    align_size::{LayoutCalculator, PACKED_ALIGN},
+    align_size::{StructLayoutCalculator, PACKED_ALIGN},
     LayoutableType, Matrix, Vector,
 };
 
@@ -171,7 +171,7 @@ pub mod repr {
     impl DerivableRepr for Packed {}
 
     /// Enum of layout rules.
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum Repr {
         /// Wgsl storage address space layout
         /// https://www.w3.org/TR/WGSL/#address-space-layout-constraints

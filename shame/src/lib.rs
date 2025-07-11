@@ -512,7 +512,7 @@ pub mod any {
         pub use type_layout::layoutable::FieldOptions;
 
         // layout calculation utility
-        pub use type_layout::layoutable::LayoutCalculator;
+        pub use type_layout::layoutable::StructLayoutCalculator;
         pub use type_layout::layoutable::FieldOffsets;
 
         // conversion and builder errors

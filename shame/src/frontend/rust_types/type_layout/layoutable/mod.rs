@@ -17,7 +17,7 @@ pub(crate) mod align_size;
 pub(crate) mod builder;
 pub(crate) mod ir_compat;
 
-pub use align_size::{FieldOffsets, MatrixMajor, LayoutCalculator, array_size, array_stride, array_align};
+pub use align_size::{FieldOffsets, MatrixMajor, StructLayoutCalculator, array_size, array_stride, array_align};
 pub use builder::{SizedOrArray, FieldOptions};
 
 /// Types that can be layed out in memory.

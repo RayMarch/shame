@@ -91,7 +91,7 @@ impl SizedStruct {
 pub struct FieldOffsets<'a> {
     fields: &'a [SizedField],
     field_index: usize,
-    calc: LayoutCalculator,
+    calc: StructLayoutCalculator,
     repr: Repr,
 }
 impl Iterator for FieldOffsets<'_> {
@@ -113,7 +113,7 @@ impl<'a> FieldOffsets<'a> {
         Self {
             fields,
             field_index: 0,
-            calc: LayoutCalculator::new(repr),
+            calc: StructLayoutCalculator::new(repr),
             repr,
         }
     }
@@ -342,12 +342,12 @@ impl RuntimeSizedArray {
 #[allow(missing_docs)]
 impl SizedField {
     pub fn byte_size(&self, repr: Repr) -> u64 {
-        LayoutCalculator::calculate_byte_size(self.ty.byte_size(repr), self.custom_min_size)
+        StructLayoutCalculator::calculate_byte_size(self.ty.byte_size(repr), self.custom_min_size)
     }
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         // In case of Repr::Packed, the field's align of 1 is overwritten here by custom_min_align.
         // This is intended!
-        LayoutCalculator::calculate_align(self.ty.align(repr), self.custom_min_align)
+        StructLayoutCalculator::calculate_align(self.ty.align(repr), self.custom_min_align)
     }
 }
 
@@ -356,7 +356,7 @@ impl RuntimeSizedArrayField {
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         // In case of Repr::Packed, the field's align of 1 is overwritten here by custom_min_align.
         // This is intended!
-        LayoutCalculator::calculate_align(self.array.align(repr), self.custom_min_align)
+        StructLayoutCalculator::calculate_align(self.array.align(repr), self.custom_min_align)
     }
 }
 
@@ -385,13 +385,13 @@ pub const fn round_up_align(multiple_of: U32PowerOf2, n: U32PowerOf2) -> U32Powe
 /// are ignored and the field is inserted directly after the previous field. However,
 /// a `custom_min_align` that is `Some` overwrites the "packedness" of the field.
 #[derive(Debug, Clone)]
-pub struct LayoutCalculator {
+pub struct StructLayoutCalculator {
     next_offset_min: u64,
     align: U32PowerOf2,
     repr: Repr,
 }
 
-impl LayoutCalculator {
+impl StructLayoutCalculator {
     /// Creates a new `LayoutCalculator`, which calculates the size, align and
     /// the field offsets of a gpu struct.
     pub const fn new(repr: Repr) -> Self {
@@ -845,7 +845,7 @@ mod tests {
 
     #[test]
     fn test_layout_calculator_basic() {
-        let mut calc = LayoutCalculator::new(Repr::Storage);
+        let mut calc = StructLayoutCalculator::new(Repr::Storage);
 
         // Add a u32 field
         let offset1 = calc.extend(4, U32PowerOf2::_4, None, None, false);
@@ -863,7 +863,7 @@ mod tests {
 
     #[test]
     fn test_layout_calculator_packed() {
-        let mut calc = LayoutCalculator::new(Repr::Packed);
+        let mut calc = StructLayoutCalculator::new(Repr::Packed);
 
         // Add a u32 field - should be packed without padding
         let offset1 = calc.extend(4, U32PowerOf2::_4, None, None, false);
@@ -885,7 +885,7 @@ mod tests {
 
     #[test]
     fn test_layout_calculator_uniform_struct_padding() {
-        let mut calc = LayoutCalculator::new(Repr::Uniform);
+        let mut calc = StructLayoutCalculator::new(Repr::Uniform);
 
         // Add a nested struct with size 12
         let offset1 = calc.extend(12, U32PowerOf2::_4, None, None, true);
@@ -900,7 +900,7 @@ mod tests {
 
     #[test]
     fn test_layout_calculator_custom_sizes_and_aligns() {
-        let mut calc = LayoutCalculator::new(Repr::Storage);
+        let mut calc = StructLayoutCalculator::new(Repr::Storage);
 
         // Add field with custom minimum size
         let offset1 = calc.extend(4, U32PowerOf2::_4, Some(33), None, false);
@@ -917,7 +917,7 @@ mod tests {
 
     #[test]
     fn test_layout_calculator_extend_unsized() {
-        let mut calc = LayoutCalculator::new(Repr::Storage);
+        let mut calc = StructLayoutCalculator::new(Repr::Storage);
 
         // Add some sized fields first
         calc.extend(4, U32PowerOf2::_4, None, None, false);
