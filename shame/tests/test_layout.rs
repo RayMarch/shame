@@ -384,15 +384,6 @@ fn external_vec_type() {
         c: f32x4,
     }
 
-    #[derive(sm::GpuLayout)]
-    #[gpu_repr(packed)]
-    struct OnGpu2Packed {
-        a: f32x3,
-        b: f32x3,
-        #[align(16)]
-        c: f32x4,
-    }
-
     #[derive(sm::CpuLayout)]
     #[repr(C)]
     struct OnCpu2 {
@@ -402,7 +393,19 @@ fn external_vec_type() {
     }
 
     assert_ne!(gpu_layout::<OnGpu2>(), cpu_layout::<OnCpu2>());
-    assert_eq!(gpu_layout::<OnGpu2Packed>(), cpu_layout::<OnCpu2>());
+
+    // TODO: delete or use compile fail test crate like trybuild to make
+    // sure that align and size attributes aren't allowed on packed structs.
+    // #[derive(sm::GpuLayout)]
+    // #[gpu_repr(packed)]
+    // struct OnGpu2Packed {
+    //     a: f32x3,
+    //     b: f32x3,
+    //     #[align(16)]
+    //     c: f32x4,
+    // }
+
+    // assert_eq!(gpu_layout::<OnGpu2Packed>(), cpu_layout::<OnCpu2>());
 }
 
 #[test]
@@ -427,23 +430,25 @@ fn external_vec_type() {
         assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
     }
     {
-        #[derive(sm::GpuLayout)]
-        #[gpu_repr(packed)]
-        struct OnGpu {
-            pos: f32x3,
-            nor: f32x3,
-            #[align(8)] uv : f32x2,
-        }
+        // TODO: delete or use compile fail test crate like trybuild to make
+        // sure that align and size attributes aren't allowed on packed structs.
+        // #[derive(sm::GpuLayout)]
+        // #[gpu_repr(packed)]
+        // struct OnGpu {
+        //     pos: f32x3,
+        //     nor: f32x3,
+        //     #[align(8)] uv : f32x2,
+        // }
 
-        #[derive(sm::CpuLayout)]
-        #[repr(C)]
-        struct OnCpu {
-            pos: f32x3_align4,
-            nor: f32x3_align4,
-            uv : f32x2_cpu,
-        }
+        // #[derive(sm::CpuLayout)]
+        // #[repr(C)]
+        // struct OnCpu {
+        //     pos: f32x3_align4,
+        //     nor: f32x3_align4,
+        //     uv : f32x2_cpu,
+        // }
 
-        assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
-        enum __ where OnGpu: sm::VertexLayout {}
+        // assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
+        // enum __ where OnGpu: sm::VertexLayout {}
     }
 }

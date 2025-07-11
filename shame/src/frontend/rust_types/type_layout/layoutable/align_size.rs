@@ -347,7 +347,7 @@ impl SizedField {
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         // In case of Repr::Packed, the field's align of 1 is overwritten here by custom_min_align.
         // This is intended!
-        StructLayoutCalculator::calculate_align(self.ty.align(repr), self.custom_min_align)
+        StructLayoutCalculator::calculate_align(self.ty.align(repr), self.custom_min_align, repr)
     }
 }
 
@@ -356,7 +356,7 @@ impl RuntimeSizedArrayField {
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         // In case of Repr::Packed, the field's align of 1 is overwritten here by custom_min_align.
         // This is intended!
-        StructLayoutCalculator::calculate_align(self.array.align(repr), self.custom_min_align)
+        StructLayoutCalculator::calculate_align(self.array.align(repr), self.custom_min_align, repr)
     }
 }
 
@@ -422,7 +422,7 @@ impl StructLayoutCalculator {
         }
 
         let size = Self::calculate_byte_size(field_size, custom_min_size);
-        let align = Self::calculate_align(field_align, custom_min_align);
+        let align = Self::calculate_align(field_align, custom_min_align, self.repr);
 
         let offset = self.next_field_offset(align, custom_min_align);
         self.next_offset_min = match (self.repr, is_struct) {
@@ -455,7 +455,7 @@ impl StructLayoutCalculator {
             Repr::Storage | Repr::Uniform => {}
         }
 
-        let align = Self::calculate_align(field_align, custom_min_align);
+        let align = Self::calculate_align(field_align, custom_min_align, self.repr);
 
         let offset = self.next_field_offset(align, custom_min_align);
         self.align = self.align.max(align);
@@ -475,7 +475,7 @@ impl StructLayoutCalculator {
     pub const fn align(&self) -> U32PowerOf2 { Self::adjust_struct_alignment_for_repr(self.align, self.repr) }
 
     const fn next_field_offset(&self, field_align: U32PowerOf2, field_custom_min_align: Option<U32PowerOf2>) -> u64 {
-        let field_align = Self::calculate_align(field_align, field_custom_min_align);
+        let field_align = Self::calculate_align(field_align, field_custom_min_align, self.repr);
         match (self.repr, field_custom_min_align) {
             (Repr::Packed, None) => self.next_offset_min,
             (Repr::Packed, Some(custom_align)) => round_up(custom_align.as_u64(), self.next_offset_min),
@@ -493,12 +493,22 @@ impl StructLayoutCalculator {
         byte_size
     }
 
-    pub(crate) const fn calculate_align(align: U32PowerOf2, custom_min_align: Option<U32PowerOf2>) -> U32PowerOf2 {
-        // const align.max(custom_min_align.unwrap_or(U32PowerOf2::_1))
-        if let Some(min_align) = custom_min_align {
-            align.max(min_align)
-        } else {
-            align
+    pub(crate) const fn calculate_align(
+        align: U32PowerOf2,
+        custom_min_align: Option<U32PowerOf2>,
+        repr: Repr,
+    ) -> U32PowerOf2 {
+        match repr {
+            Repr::Storage | Repr::Uniform => {
+                // const align.max(custom_min_align.unwrap_or(U32PowerOf2::_1))
+                if let Some(min_align) = custom_min_align {
+                    align.max(min_align)
+                } else {
+                    align
+                }
+            }
+            // custom_min_align is ignored in packed structs and the align is always 1.
+            Repr::Packed => PACKED_ALIGN,
         }
     }
 
@@ -957,8 +967,8 @@ mod tests {
 
         // Array has 8-byte alignment, but field has custom min align of 16
         assert_eq!(field.align(Repr::Storage), U32PowerOf2::_16);
-        // Test packed representation with custom alignment
-        assert_eq!(field.align(Repr::Packed), U32PowerOf2::_16);
+        // Custom min align is ignored by packed
+        assert_eq!(field.align(Repr::Packed), U32PowerOf2::_1);
     }
 
     #[test]
@@ -1070,5 +1080,30 @@ mod tests {
         let (size, align) = sized_struct.byte_size_and_align(Repr::Packed);
         assert_eq!(size, 16);
         assert_eq!(align, U32PowerOf2::_1);
+    }
+
+    #[test]
+    fn test_packed_ignores_custom_min_align() {
+        let mut calc = StructLayoutCalculator::new(Repr::Packed);
+
+        // Add a u32 field with custom min align of 16
+        let offset1 = calc.extend(4, U32PowerOf2::_4, None, Some(U32PowerOf2::_16), false);
+        assert_eq!(offset1, 0);
+        // Add a vec2<f32> field - should be packed directly after
+        let offset2 = calc.extend(8, U32PowerOf2::_8, None, None, false);
+        assert_eq!(offset2, 4);
+
+        assert_eq!(calc.byte_size(), 12);
+        assert_eq!(calc.align(), U32PowerOf2::_1); // Packed structs always have align of 1
+
+        let s = SizedStruct::new(
+            "TestStruct",
+            FieldOptions::new("field1", Some(U32PowerOf2::_16), None),
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)), // 8 bytes, 8-byte aligned
+        );
+
+        // The custom min align is ignored in packed structs
+        assert_eq!(s.byte_size_and_align(Repr::Packed).1, U32PowerOf2::_1);
+        assert_eq!(s.fields()[0].align(Repr::Packed), U32PowerOf2::_1);
     }
 }

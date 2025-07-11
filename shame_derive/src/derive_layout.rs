@@ -156,6 +156,26 @@ pub fn impl_for_struct(
             align: util::find_literal_list_attr::<syn::LitInt>("align", &field.attrs)?,
         };
 
+        match gpu_repr {
+            Repr::Packed => {
+                if fwa.align.is_some() {
+                    bail!(
+                        field.span(),
+                        "`#[gpu_repr(packed)]` structs do not support `#[align(N)]` attributes"
+                    );
+                }
+                // TODO(chronicl) decide on whether size attribute is allowed. Will have to be adjusted in
+                // LayoutCalculator too!
+                // if fwa.size.is_some() {
+                //     bail!(
+                //         field.span(),
+                //         "`#[gpu_repr(packed)]` structs do not support `#[size(N)]` attributes"
+                //     );
+                // }
+            }
+            Repr::Storage => {}
+        }
+
         if let Some((span, align_lit)) = &fwa.align {
             match align_lit.base10_parse().map(u32::is_power_of_two) {
                 Ok(true) => (),
