@@ -228,7 +228,18 @@ pub fn impl_for_struct(
                     #last_field_type: #re::NoBools + #re::NoHandles + #re::Layoutable,
                     #where_clause_predicates
                 {
-                    fn layoutable_type() -> #re::LayoutableType {
+
+                }
+            };
+
+            let impl_gpu_layout = quote! {
+                impl<#generics_decl> #re::GpuLayout for #derive_struct_ident<#(#idents_of_generics),*>
+                where
+                    #(#first_fields_type: #re::NoBools + #re::NoHandles + #re::GpuLayout + #re::GpuSized,)*
+                    #last_field_type: #re::NoBools + #re::NoHandles + #re::GpuLayout,
+                    #where_clause_predicates
+                {
+                    fn layout_recipe() -> #re::LayoutableType {
                         let result = #re::LayoutableType::struct_from_parts(
                             std::stringify!(#derive_struct_ident),
                             [
@@ -240,7 +251,8 @@ pub fn impl_for_struct(
                                     ),
                                     <#field_type as #re::Layoutable>::layoutable_type()
                                 ),)*
-                            ]
+                            ],
+                            #gpu_repr_shame,
                         );
 
                         match result {
@@ -253,17 +265,6 @@ pub fn impl_for_struct(
                             Err(#re::StructFromPartsError::MustNotHaveUnsizedStructField) => unreachable!("GpuType bound  for fields makes this impossible"),
                         }
                     }
-                }
-            };
-
-            let impl_gpu_layout = quote! {
-                impl<#generics_decl> #re::GpuLayout for #derive_struct_ident<#(#idents_of_generics),*>
-                where
-                    #(#first_fields_type: #re::Layoutable + #re::GpuSized,)*
-                    #last_field_type: #re::Layoutable,
-                    #where_clause_predicates
-                {
-                    type GpuRepr = #gpu_repr_shame;
 
                     fn cpu_type_name_and_layout() -> Option<Result<(std::borrow::Cow<'static, str>, #re::TypeLayout), #re::ArrayElementsUnsizedError>> {
                         use #re::CpuLayout as _;
@@ -368,7 +369,6 @@ pub fn impl_for_struct(
                 // we only implement `GpuLayout` and `VertexLayout`, as well as their implied traits
                 {
                     Ok(quote! {
-                        #impl_layoutable
                         #impl_gpu_layout
                         #impl_vertex_buffer_layout
                         #impl_fake_auto_traits

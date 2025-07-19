@@ -1,3 +1,5 @@
+use crate::GpuLayout;
+
 use super::*;
 
 //     Conversions to ir types     //
@@ -285,6 +287,9 @@ impl TryFrom<ir::ir_type::SizedStruct> for SizedStruct {
         Ok(SizedStruct {
             name: structure.name().clone(),
             fields,
+            // TODO(chronicl) hardcoding this is a temporary solution. This whole
+            // TryFrom should be removed in future PRs.
+            repr: Repr::Storage,
         })
     }
 }
@@ -335,6 +340,9 @@ impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
             return Ok(SizedStruct {
                 name: buffer_block.name().clone(),
                 fields: sized_fields,
+                // TODO(chronicl) hardcoding this is a temporary solution. This whole
+                // TryFrom should be removed in future PRs.
+                repr: Repr::Storage,
             }
             .into());
         };
@@ -343,6 +351,9 @@ impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
             name: buffer_block.name().clone(),
             sized_fields,
             last_unsized,
+            // TODO(chronicl) hardcoding this is a temporary solution. This whole
+            // TryFrom should be removed in future PRs.
+            repr: Repr::Storage,
         }
         .into())
     }
@@ -353,9 +364,9 @@ impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
 fn test_ir_conversion_error() {
     use crate::{f32x1, packed::unorm8x2};
 
-    let ty: LayoutableType = SizedStruct::new("A", "a", f32x1::layoutable_type_sized())
-        .extend("b", f32x1::layoutable_type_sized())
-        .extend("a", f32x1::layoutable_type_sized())
+    let ty: LayoutableType = SizedStruct::new("A", "a", f32x1::layout_recipe_sized(), Repr::Storage)
+        .extend("b", f32x1::layout_recipe_sized())
+        .extend("a", f32x1::layout_recipe_sized())
         .into();
     let result: Result<ir::StoreType, _> = ty.try_into();
     assert!(matches!(
@@ -368,7 +379,7 @@ fn test_ir_conversion_error() {
         }))
     ));
 
-    let ty: LayoutableType = SizedStruct::new("A", "a", unorm8x2::layoutable_type_sized()).into();
+    let ty: LayoutableType = SizedStruct::new("A", "a", unorm8x2::layout_recipe_sized(), Repr::Storage).into();
     let result: Result<ir::StoreType, _> = ty.try_into();
     assert!(matches!(result, Err(IRConversionError::ContainsPackedVector)));
 }

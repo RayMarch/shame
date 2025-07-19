@@ -12,7 +12,6 @@ use super::type_traits::{
 use super::vec::{ToInteger, ToVec};
 use super::{AsAny, GpuType};
 use super::{To, ToGpuType};
-use crate::any::layout::{Layoutable};
 use crate::common::small_vec::SmallVec;
 use crate::frontend::any::shared_io::{BindPath, BindingType};
 use crate::frontend::any::Any;
@@ -21,6 +20,7 @@ use crate::frontend::encoding::buffer::{Buffer, BufferAddressSpace, BufferInner,
 use crate::frontend::encoding::flow::{for_range_impl, FlowFn};
 use crate::frontend::error::InternalError;
 use crate::frontend::rust_types::reference::Ref;
+use crate::frontend::rust_types::type_layout::ArrayLayout;
 use crate::frontend::rust_types::vec::vec;
 use crate::ir::ir_type::stride_of_array_from_element_align_size;
 use crate::ir::pipeline::StageMask;
@@ -156,14 +156,6 @@ impl<T: GpuType + GpuSized, const N: usize> GpuSized for Array<T, Size<N>> {
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoHandles, N: ArrayLen> NoHandles for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoAtomics, N: ArrayLen> NoAtomics for Array<T, N> {}
 #[rustfmt::skip] impl<T: GpuType + GpuSized + NoBools  , N: ArrayLen> NoBools   for Array<T, N> {}
-impl<T: GpuType + GpuSized + Layoutable, N: ArrayLen> Layoutable for Array<T, N> {
-    fn layoutable_type() -> layoutable::LayoutableType {
-        match N::LEN {
-            Some(n) => layoutable::SizedArray::new(Rc::new(T::layoutable_type_sized()), n).into(),
-            None => layoutable::RuntimeSizedArray::new(T::layoutable_type_sized()).into(),
-        }
-    }
-}
 
 impl<T: GpuType + GpuStore + GpuSized, N: ArrayLen> ToGpuType for Array<T, N> {
     type Gpu = Self;
@@ -173,8 +165,13 @@ impl<T: GpuType + GpuStore + GpuSized, N: ArrayLen> ToGpuType for Array<T, N> {
     fn as_gpu_type_ref(&self) -> Option<&Self::Gpu> { Some(self) }
 }
 
-impl<T: GpuType + GpuSized + GpuLayout + Layoutable, N: ArrayLen> GpuLayout for Array<T, N> {
-    type GpuRepr = repr::Storage;
+impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
+    fn layout_recipe() -> layoutable::LayoutableType {
+        match N::LEN {
+            Some(n) => layoutable::SizedArray::new(Rc::new(T::layout_recipe_sized()), n).into(),
+            None => layoutable::RuntimeSizedArray::new(T::layout_recipe_sized()).into(),
+        }
+    }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         let (t_cpu_name, t_cpu_layout) = match T::cpu_type_name_and_layout()? {
@@ -195,15 +192,13 @@ impl<T: GpuType + GpuSized + GpuLayout + Layoutable, N: ArrayLen> GpuLayout for 
             TypeLayout::new(
                 N::LEN.map(|n| n.get() as u64 * t_cpu_size),
                 t_cpu_layout.align(),
-                TypeLayoutSemantics::Array(
-                    Rc::new(ElementLayout {
-                        // array stride is element size according to
-                        // https://doc.rust-lang.org/reference/type-layout.html#r-layout.properties.size
-                        byte_stride: t_cpu_size,
-                        ty: t_cpu_layout,
-                    }),
-                    N::LEN.map(NonZeroU32::get),
-                ),
+                TypeLayoutSemantics::Array(Rc::new(ArrayLayout {
+                    // array stride is element size according to
+                    // https://doc.rust-lang.org/reference/type-layout.html#r-layout.properties.size
+                    byte_stride: t_cpu_size,
+                    element_ty: t_cpu_layout,
+                    len: N::LEN.map(NonZeroU32::get),
+                })),
             ),
         );
 

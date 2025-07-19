@@ -311,8 +311,8 @@ impl LayoutMismatch {
                 // this should never happen, returning Ok(KeepWriting) will trigger the internal error in the Display impl
                 return Ok(KeepWriting);
             }
-            (S::Array(ta, na), S::Array(tb, nb)) => {
-                if na != nb {
+            (S::Array(a), S::Array(b)) => {
+                if a.len != b.len {
                     writeln!(f);
                     color_a(f);
                     write!(f, "{a_name}{SEP}");
@@ -320,7 +320,7 @@ impl LayoutMismatch {
                     write!(
                         f,
                         "array<…, {}>",
-                        match na {
+                        match a.len {
                             Some(n) => n as &dyn Display,
                             None => (&"runtime-sized") as &dyn Display,
                         }
@@ -334,7 +334,7 @@ impl LayoutMismatch {
                     write!(
                         f,
                         "array<…, {}>",
-                        match nb {
+                        match b.len {
                             Some(n) => n as &dyn Display,
                             None => (&"runtime-sized") as &dyn Display,
                         }

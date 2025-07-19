@@ -5,10 +5,7 @@ use std::{
 };
 
 use crate::{
-    any::{
-        layout::{Layoutable},
-        AsAny, DataPackingFn,
-    },
+    any::{AsAny, DataPackingFn},
     common::floating_point::f16,
     f32x2, f32x4, gpu_layout, i32x4, u32x1, u32x4,
 };
@@ -25,7 +22,7 @@ use super::{
     layout_traits::{from_single_any, ArrayElementsUnsizedError, FromAnys, GpuLayout},
     len::LenEven,
     scalar_type::ScalarType,
-    type_layout::{self, layoutable, repr, Repr, TypeLayout, TypeLayoutSemantics},
+    type_layout::{self, layoutable, repr, Repr, TypeLayout, TypeLayoutSemantics, DEFAULT_REPR},
     type_traits::{GpuAligned, GpuSized, NoAtomics, NoBools, NoHandles, VertexAttribute},
     vec::IsVec,
     GpuType,
@@ -133,8 +130,9 @@ impl<T: PackedScalarType, L: LenEven> GpuAligned for PackedVec<T, L> {
 impl<T: PackedScalarType, L: LenEven> NoBools for PackedVec<T, L> {}
 impl<T: PackedScalarType, L: LenEven> NoHandles for PackedVec<T, L> {}
 impl<T: PackedScalarType, L: LenEven> NoAtomics for PackedVec<T, L> {}
-impl<T: PackedScalarType, L: LenEven> Layoutable for PackedVec<T, L> {
-    fn layoutable_type() -> layoutable::LayoutableType {
+
+impl<T: PackedScalarType, L: LenEven> GpuLayout for PackedVec<T, L> {
+    fn layout_recipe() -> layoutable::LayoutableType {
         layoutable::PackedVector {
             scalar_type: T::SCALAR_TYPE,
             bits_per_component: T::BITS_PER_COMPONENT,
@@ -142,15 +140,11 @@ impl<T: PackedScalarType, L: LenEven> Layoutable for PackedVec<T, L> {
         }
         .into()
     }
-}
-
-impl<T: PackedScalarType, L: LenEven> GpuLayout for PackedVec<T, L> {
-    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
-        let sized_ty: layoutable::SizedType = Self::layoutable_type_sized();
+        let sized_ty: layoutable::SizedType = Self::layout_recipe_sized();
         let name = sized_ty.to_string().into();
-        let layout = TypeLayout::new_layout_for(&sized_ty.into(), Repr::Storage);
+        let layout = sized_ty.layout(DEFAULT_REPR);
         Some(Ok((name, layout)))
     }
 }

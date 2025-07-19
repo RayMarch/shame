@@ -12,7 +12,7 @@ use super::{
     AsAny, GpuType, To, ToGpuType,
 };
 use crate::{
-    any::layout::{self, Layoutable},
+    any::layout::{self},
     call_info,
     common::{
         proc_macro_utils::{collect_into_array_exact, push_wrong_amount_of_args_error},
@@ -573,12 +573,11 @@ impl<T: ScalarType, L: Len> GpuStore for vec<T, L> {
     fn impl_category() -> GpuStoreImplCategory { GpuStoreImplCategory::GpuType(Self::store_ty()) }
 }
 
-
-impl<T: ScalarType, L: Len> Layoutable for vec<T, L>
+impl<T: ScalarType, L: Len> GpuLayout for vec<T, L>
 where
     vec<T, L>: NoBools,
 {
-    fn layoutable_type() -> layout::LayoutableType {
+    fn layout_recipe() -> layout::LayoutableType {
         layout::Vector::new(
             T::SCALAR_TYPE
                 .try_into()
@@ -587,13 +586,6 @@ where
         )
         .into()
     }
-}
-
-impl<T: ScalarType, L: Len> GpuLayout for vec<T, L>
-where
-    vec<T, L>: NoBools,
-{
-    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout()
     -> Option<Result<(std::borrow::Cow<'static, str>, TypeLayout), super::layout_traits::ArrayElementsUnsizedError>>

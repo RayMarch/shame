@@ -1,4 +1,4 @@
-use crate::any::layout::{Layoutable, Repr};
+use crate::any::layout::{LayoutableType, Repr, SizedType};
 use crate::call_info;
 use crate::common::po2::U32PowerOf2;
 use crate::common::proc_macro_utils::{self, repr_c_struct_layout, ReprCError, ReprCField};
@@ -10,6 +10,7 @@ use crate::frontend::encoding::buffer::{BufferAddressSpace, BufferInner, BufferR
 use crate::frontend::encoding::{EncodingError, EncodingErrorKind};
 use crate::frontend::error::InternalError;
 use crate::frontend::rust_types::len::*;
+use crate::frontend::rust_types::type_layout::ArrayLayout;
 use crate::ir::ir_type::{
     align_of_array, align_of_array_from_element_alignment, byte_size_of_array_from_stride_len, round_up,
     stride_of_array_from_element_align_size, CanonName, LayoutError, ScalarTypeFp, ScalarTypeInteger,
@@ -26,7 +27,7 @@ use super::type_layout::repr::{TypeRepr, DerivableRepr};
 use super::type_layout::layoutable::{self, array_stride, Vector};
 use super::type_layout::{
     self, repr, ElementLayout, FieldLayout, FieldLayoutWithOffset, GpuTypeLayout, StructLayout, TypeLayout,
-    TypeLayoutSemantics,
+    TypeLayoutSemantics, DEFAULT_REPR,
 };
 use super::type_traits::{
     BindingArgs, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles, VertexAttribute,
@@ -35,7 +36,7 @@ use super::{len::Len, scalar_type::ScalarType, vec::vec};
 use super::{AsAny, GpuType, ToGpuType};
 use crate::frontend::any::{shared_io::BindPath, shared_io::BindingType};
 use crate::frontend::rust_types::reference::Ref;
-use crate::ir::{self, AlignedType, ScalarType as ST, SizedStruct, SizedType, StoreType};
+use crate::ir::{self, AlignedType, ScalarType as ST, SizedStruct, StoreType};
 use std::borrow::{Borrow, Cow};
 use std::iter::Empty;
 use std::mem::size_of;
@@ -138,12 +139,21 @@ use std::rc::Rc;
 /// [`Texture`]: crate::Texture
 /// [`StorageTexture`]: crate::StorageTexture
 ///
-pub trait GpuLayout: Layoutable {
-    /// Returns the `Repr` of the `TypeLayout` from `GpuLayout::gpu_layout`.
-    ///
-    /// `GpuRepr` only exists so a (derived) struct can be packed for use in vertex buffer usage.
-    /// It is `repr::Storage` in all other cases.
-    type GpuRepr: DerivableRepr;
+pub trait GpuLayout {
+    /// TODO(chronicl)
+    fn layout_recipe() -> LayoutableType;
+    /// TODO(chronicl)
+    fn layout_recipe_sized() -> SizedType
+    where
+        Self: GpuSized,
+    {
+        match Self::layout_recipe() {
+            LayoutableType::Sized(s) => s,
+            LayoutableType::RuntimeSizedArray(_) | LayoutableType::UnsizedStruct(_) => {
+                unreachable!("Self is GpuSized, which these LayoutableType variants aren't.")
+            }
+        }
+    }
 
     /// the `#[cpu(...)]` in `#[derive(GpuLayout)]` allows the definition of a
     /// corresponding Cpu type to the Gpu type that the derive macro is used on.
@@ -178,11 +188,7 @@ pub trait GpuLayout: Layoutable {
 /// println!("OnGpu:\n{}\n", OnGpu::gpu_layout());
 /// println!("OnCpu:\n{}\n", OnCpu::cpu_layout());
 /// ```
-pub fn gpu_layout<T: GpuLayout + ?Sized>() -> TypeLayout { gpu_type_layout::<T>().layout() }
-
-pub fn gpu_type_layout<T: GpuLayout + ?Sized>() -> GpuTypeLayout<T::GpuRepr> {
-    GpuTypeLayout::new(T::layoutable_type())
-}
+pub fn gpu_layout<T: GpuLayout + ?Sized>() -> TypeLayout { T::layout_recipe().layout() }
 
 /// (no documentation yet)
 // `CpuLayout::cpu_layout` exists, but this function exists for consistency with
@@ -210,26 +216,24 @@ pub(crate) fn cpu_type_name_and_layout<T: GpuLayout>(ctx: &Context) -> Option<(C
 pub(crate) fn get_layout_compare_with_cpu_push_error<T: GpuLayout>(
     ctx: &Context,
     skip_stride_check: bool,
-) -> GpuTypeLayout<T::GpuRepr> {
+) -> TypeLayout {
     const ERR_COMMENT: &str = "`GpuLayout` uses WGSL layout rules unless #[gpu_repr(packed)] is used.\nsee https://www.w3.org/TR/WGSL/#structure-member-layout\n`CpuLayout` uses #[repr(C)].\nsee https://doc.rust-lang.org/reference/type-layout.html#r-layout.repr.c.struct";
 
-    let gpu_layout = gpu_type_layout::<T>();
+    let gpu_layout = gpu_layout::<T>();
     if let Some((cpu_name, cpu_layout)) = cpu_type_name_and_layout::<T>(ctx) {
-        check_layout_push_error::<T::GpuRepr>(ctx, &cpu_name, &cpu_layout, &gpu_layout, skip_stride_check, ERR_COMMENT)
-            .ok();
+        check_layout_push_error(ctx, &cpu_name, &cpu_layout, &gpu_layout, skip_stride_check, ERR_COMMENT).ok();
     }
     gpu_layout
 }
 
-pub(crate) fn check_layout_push_error<T: TypeRepr>(
+pub(crate) fn check_layout_push_error(
     ctx: &Context,
     cpu_name: &str,
     cpu_layout: &TypeLayout,
-    gpu_layout: &GpuTypeLayout<T>,
+    gpu_layout: &TypeLayout,
     skip_stride_check: bool,
     comment_on_mismatch_error: &str,
 ) -> Result<(), InvalidReason> {
-    let gpu_layout = &gpu_layout.layout();
     type_layout::eq::check_eq(("cpu", cpu_layout), ("gpu", gpu_layout))
         .map_err(|e| LayoutError::LayoutMismatch(e, Some(comment_on_mismatch_error.to_string())))
         .and_then(|_| {
@@ -244,7 +248,8 @@ pub(crate) fn check_layout_push_error<T: TypeRepr>(
                     }),
                     (Some(cpu_size), Some(gpu_size)) => {
                         let cpu_stride = cpu_size;
-                        let gpu_stride = array_stride(gpu_layout.align(), gpu_size, T::REPR);
+                        //
+                        let gpu_stride = array_stride(gpu_layout.align(), gpu_size, DEFAULT_REPR);
 
                         if cpu_stride != gpu_stride {
                             Err(LayoutError::StrideMismatch {
@@ -556,13 +561,8 @@ where
     }
 }
 
-impl Layoutable for GpuT {
-    fn layoutable_type() -> layoutable::LayoutableType { todo!() }
-}
-
 impl GpuLayout for GpuT {
-    // fn gpu_repr() -> Repr { todo!() }
-    type GpuRepr = repr::Storage;
+    fn layout_recipe() -> layoutable::LayoutableType { todo!() }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         Some(Ok((
@@ -780,13 +780,11 @@ impl<T: CpuLayout + Sized, const N: usize> CpuLayout for [T; N] {
         TypeLayout::new(
             Some(std::mem::size_of::<Self>() as u64),
             align,
-            TypeLayoutSemantics::Array(
-                Rc::new(ElementLayout {
-                    byte_stride: std::mem::size_of::<T>() as u64,
-                    ty: T::cpu_layout(),
-                }),
-                Some(u32::try_from(N).expect("arrays larger than u32::MAX elements are not supported by WGSL")),
-            ),
+            TypeLayoutSemantics::Array(Rc::new(ArrayLayout {
+                byte_stride: std::mem::size_of::<T>() as u64,
+                element_ty: T::cpu_layout(),
+                len: Some(u32::try_from(N).expect("arrays larger than u32::MAX elements are not supported by WGSL")),
+            })),
         )
     }
 
@@ -823,13 +821,11 @@ impl<T: CpuLayout + Sized> CpuLayout for [T] {
         TypeLayout::new(
             None,
             align,
-            TypeLayoutSemantics::Array(
-                Rc::new(ElementLayout {
-                    byte_stride: std::mem::size_of::<T>() as u64,
-                    ty: T::cpu_layout(),
-                }),
-                None,
-            ),
+            TypeLayoutSemantics::Array(Rc::new(ArrayLayout {
+                byte_stride: std::mem::size_of::<T>() as u64,
+                element_ty: T::cpu_layout(),
+                len: None,
+            })),
         )
     }
 

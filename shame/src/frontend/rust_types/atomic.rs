@@ -18,7 +18,7 @@ use super::{
     vec::vec,
     AsAny, GpuType, To, ToGpuType,
 };
-use crate::{any::layout::Layoutable, frontend::rust_types::reference::Ref};
+use crate::{frontend::rust_types::reference::Ref};
 use crate::{
     boolx1,
     frontend::{
@@ -133,17 +133,13 @@ impl<T: ScalarTypeInteger> GetAllFields for Atomic<T> {
     fn fields_as_anys_unchecked(self_as_any: Any) -> impl std::borrow::Borrow<[Any]> { [] }
 }
 
-impl<T: ScalarTypeInteger> Layoutable for Atomic<T> {
-    fn layoutable_type() -> layoutable::LayoutableType {
+impl<T: ScalarTypeInteger> GpuLayout for Atomic<T> {
+    fn layout_recipe() -> layoutable::LayoutableType {
         layoutable::Atomic {
             scalar: T::SCALAR_TYPE_INTEGER,
         }
         .into()
     }
-}
-
-impl<T: ScalarTypeInteger> GpuLayout for Atomic<T> {
-    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout()
     -> Option<Result<(std::borrow::Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {

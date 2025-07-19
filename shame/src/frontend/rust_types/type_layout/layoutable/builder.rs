@@ -10,6 +10,7 @@ impl LayoutableType {
     pub fn struct_from_parts(
         struct_name: impl Into<CanonName>,
         fields: impl IntoIterator<Item = (FieldOptions, LayoutableType)>,
+        repr: Repr,
     ) -> Result<Self, StructFromPartsError> {
         use StructFromPartsError::*;
 
@@ -58,10 +59,11 @@ impl LayoutableType {
                 name: struct_name.into(),
                 sized_fields,
                 last_unsized,
+                repr,
             }
             .into())
         } else {
-            Ok(SizedStruct::from_parts(struct_name, sized_fields).into())
+            Ok(SizedStruct::from_parts(struct_name, sized_fields, repr).into())
         }
     }
 }
@@ -81,10 +83,16 @@ impl SizedStruct {
     /// Creates a new `SizedStruct` with one field.
     ///
     /// To add additional fields to it, use [`SizedStruct::extend`] or [`SizedStruct::extend_unsized`].
-    pub fn new(name: impl Into<CanonName>, field_options: impl Into<FieldOptions>, ty: impl Into<SizedType>) -> Self {
+    pub fn new(
+        name: impl Into<CanonName>,
+        field_options: impl Into<FieldOptions>,
+        ty: impl Into<SizedType>,
+        repr: Repr,
+    ) -> Self {
         Self {
             name: name.into(),
             fields: vec![SizedField::new(field_options, ty)],
+            repr,
         }
     }
 
@@ -106,6 +114,7 @@ impl SizedStruct {
             name: self.name,
             sized_fields: self.fields,
             last_unsized: RuntimeSizedArrayField::new(name, custom_min_align, element_ty),
+            repr: self.repr,
         }
     }
 
@@ -126,10 +135,11 @@ impl SizedStruct {
     /// The fields of this struct.
     pub fn fields(&self) -> &[SizedField] { &self.fields }
 
-    pub(crate) fn from_parts(name: impl Into<CanonName>, fields: Vec<SizedField>) -> Self {
+    pub(crate) fn from_parts(name: impl Into<CanonName>, fields: Vec<SizedField>, repr: Repr) -> Self {
         Self {
             name: name.into(),
             fields,
+            repr,
         }
     }
 }
@@ -210,7 +220,7 @@ impl RuntimeSizedArray {
 ///
 /// If you only want to customize the field's name, you can convert most string types
 /// to `FieldOptions` using `Into::into`. For methods that take `impl Into<FieldOptions>`
-/// parameters you can just pass the string type directly.  
+/// parameters you can just pass the string type directly.
 #[derive(Debug, Clone)]
 pub struct FieldOptions {
     /// Name of the field

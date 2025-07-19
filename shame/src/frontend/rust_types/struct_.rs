@@ -1,4 +1,3 @@
-use crate::any::layout::{Layoutable};
 use crate::common::small_vec::SmallVec;
 use crate::frontend::any::shared_io::{BindPath, BindingType};
 use crate::frontend::any::{Any, InvalidReason};
@@ -135,12 +134,8 @@ impl<T: SizedFields + GpuStore> Deref for Struct<T> {
     fn deref(&self) -> &Self::Target { &self.fields }
 }
 
-impl<T: SizedFields + GpuStore + NoBools + Layoutable> Layoutable for Struct<T> {
-    fn layoutable_type() -> layoutable::LayoutableType { T::layoutable_type() }
-}
-
 impl<T: SizedFields + GpuStore + NoBools + GpuLayout> GpuLayout for Struct<T> {
-    type GpuRepr = T::GpuRepr;
+    fn layout_recipe() -> layoutable::LayoutableType { T::layout_recipe() }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         T::cpu_type_name_and_layout().map(|x| x.map(|(name, l)| (format!("Struct<{name}>").into(), l)))

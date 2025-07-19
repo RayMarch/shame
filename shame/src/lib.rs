@@ -483,9 +483,6 @@ pub mod any {
         pub use type_layout::FieldLayout;
         pub use type_layout::ElementLayout;
 
-        // layoutable traits
-        pub use type_layout::layoutable::Layoutable;
-
         // layoutable types
         pub use type_layout::layoutable::LayoutableType;
         pub use type_layout::layoutable::UnsizedStruct;

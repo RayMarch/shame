@@ -33,7 +33,7 @@ use crate::{
         error::InternalError,
         rust_types::{
             len::x3,
-            type_layout::{self, layoutable, StructLayout},
+            type_layout::{self, layoutable, StructLayout, DEFAULT_REPR},
         },
     },
     ir::{
@@ -356,7 +356,7 @@ impl WipPushConstantsField {
         let sized_struct: layoutable::SizedStruct = sized_struct
             .try_into()
             .map_err(|e| InternalError::new(true, format!("{e}")))?;
-        let layout = TypeLayout::new_layout_for(&sized_struct.into(), Repr::Storage);
+        let layout = sized_struct.layout(DEFAULT_REPR);
         let layout = match &layout.kind {
             type_layout::TypeLayoutSemantics::Structure(layout) => &**layout,
             _ => unreachable!("expected struct layout for type layout of struct"),

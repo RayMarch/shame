@@ -11,11 +11,12 @@ use crate::{
 };
 
 pub use crate::ir::{Len, Len2, PackedVector, ScalarTypeFp, ScalarTypeInteger, ir_type::CanonName};
-use super::{construction::StructKind};
+use super::{construction::StructKind, Repr};
 
 pub(crate) mod align_size;
 pub(crate) mod builder;
 pub(crate) mod ir_compat;
+pub(crate) mod to_layout;
 
 pub use align_size::{FieldOffsets, MatrixMajor, StructLayoutCalculator, array_size, array_stride, array_align};
 pub use builder::{SizedOrArray, FieldOptions};
@@ -103,6 +104,8 @@ pub struct SizedStruct {
     pub name: CanonName,
     // This is private to ensure a `SizedStruct` always has at least one field.
     fields: Vec<SizedField>,
+    /// The representation/layout rules for this struct. See [`Repr`] for more details.
+    pub repr: Repr,
 }
 
 /// A struct whose size is not known before shader runtime.
@@ -116,6 +119,8 @@ pub struct UnsizedStruct {
     pub sized_fields: Vec<SizedField>,
     /// Last runtime sized array field of the struct.
     pub last_unsized: RuntimeSizedArrayField,
+    /// The representation/layout rules for this struct. See [`Repr`] for more details.
+    pub repr: Repr,
 }
 
 #[allow(missing_docs)]
@@ -133,26 +138,6 @@ pub struct RuntimeSizedArrayField {
     pub name: CanonName,
     pub custom_min_align: Option<U32PowerOf2>,
     pub array: RuntimeSizedArray,
-}
-
-/// Trait for types that have a well-defined memory layout.
-pub trait Layoutable {
-    /// Returns the `LayoutableType` representation for this type.
-    fn layoutable_type() -> LayoutableType;
-
-    /// When the type is `GpuSized`, this method can be used to immediately get
-    /// the `LayoutableType::Sized` variant's inner `SizedType`.
-    fn layoutable_type_sized() -> SizedType
-    where
-        Self: GpuSized,
-    {
-        match Self::layoutable_type() {
-            LayoutableType::Sized(s) => s,
-            LayoutableType::RuntimeSizedArray(_) | LayoutableType::UnsizedStruct(_) => {
-                unreachable!("Self is GpuSized, which these LayoutableType variants aren't.")
-            }
-        }
-    }
 }
 
 //   Conversions to ScalarType, SizedType and LayoutableType   //

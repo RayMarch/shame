@@ -8,65 +8,81 @@ pub(crate) const PACKED_ALIGN: U32PowerOf2 = U32PowerOf2::_1;
 
 impl LayoutableType {
     /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
-    pub fn byte_size(&self, repr: Repr) -> Option<u64> {
+    pub fn byte_size(&self, default_repr: Repr) -> Option<u64> {
         match self {
-            LayoutableType::Sized(s) => Some(s.byte_size(repr)),
+            LayoutableType::Sized(s) => Some(s.byte_size(default_repr)),
             LayoutableType::UnsizedStruct(_) | LayoutableType::RuntimeSizedArray(_) => None,
         }
     }
 
-    /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
+    /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the size.
+    pub fn align(&self, default_repr: Repr) -> U32PowerOf2 {
         match self {
-            LayoutableType::Sized(s) => s.align(repr),
-            LayoutableType::UnsizedStruct(s) => s.align(repr),
-            LayoutableType::RuntimeSizedArray(a) => a.align(repr),
+            LayoutableType::Sized(s) => s.align(default_repr),
+            LayoutableType::UnsizedStruct(s) => s.align(),
+            LayoutableType::RuntimeSizedArray(a) => a.align(default_repr),
         }
     }
 
     /// This is expensive for structs as it calculates the byte size and align by traversing all fields recursively.
-    pub fn byte_size_and_align(&self, repr: Repr) -> (Option<u64>, U32PowerOf2) {
+    pub fn byte_size_and_align(&self, default_repr: Repr) -> (Option<u64>, U32PowerOf2) {
         match self {
             LayoutableType::Sized(s) => {
-                let (size, align) = s.byte_size_and_align(repr);
+                let (size, align) = s.byte_size_and_align(default_repr);
                 (Some(size), align)
             }
-            LayoutableType::UnsizedStruct(s) => (None, s.align(repr)),
-            LayoutableType::RuntimeSizedArray(a) => (None, a.align(repr)),
+            LayoutableType::UnsizedStruct(s) => (None, s.align()),
+            LayoutableType::RuntimeSizedArray(a) => (None, a.align(default_repr)),
+        }
+    }
+
+    pub fn to_unified_repr(&self, repr: Repr) -> Self {
+        let mut this = self.clone();
+        this.change_all_repr(repr);
+        this
+    }
+
+    // Recursively changes all struct reprs to the given `repr`.
+    pub fn change_all_repr(&mut self, repr: Repr) {
+        match self {
+            LayoutableType::Sized(s) => s.change_all_repr(repr),
+            LayoutableType::UnsizedStruct(s) => s.change_all_repr(repr),
+            LayoutableType::RuntimeSizedArray(a) => a.change_all_repr(repr),
         }
     }
 }
 
 impl SizedType {
     /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
-    pub fn byte_size(&self, repr: Repr) -> u64 {
-        match self {
-            SizedType::Array(a) => a.byte_size(repr),
-            SizedType::Vector(v) => v.byte_size(repr),
-            SizedType::Matrix(m) => m.byte_size(repr),
-            SizedType::Atomic(a) => a.byte_size(),
-            SizedType::PackedVec(v) => u8::from(v.byte_size()) as u64,
-            SizedType::Struct(s) => s.byte_size_and_align(repr).0,
-        }
-    }
+    pub fn byte_size(&self, parent_repr: Repr) -> u64 { self.byte_size_and_align(parent_repr).0 }
 
-    /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 {
-        match self {
-            SizedType::Array(a) => a.align(repr),
-            SizedType::Vector(v) => v.align(repr),
-            SizedType::Matrix(m) => m.align(repr),
-            SizedType::Atomic(a) => a.align(repr),
-            SizedType::PackedVec(v) => v.align(repr),
-            SizedType::Struct(s) => s.byte_size_and_align(repr).1,
-        }
-    }
+    /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the size.
+    pub fn align(&self, parent_repr: Repr) -> U32PowerOf2 { self.byte_size_and_align(parent_repr).1 }
 
     /// This is expensive for structs as it calculates the byte size and align by traversing all fields recursively.
-    pub fn byte_size_and_align(&self, repr: Repr) -> (u64, U32PowerOf2) {
+    pub fn byte_size_and_align(&self, parent_repr: Repr) -> (u64, U32PowerOf2) {
+        let repr = parent_repr;
         match self {
-            SizedType::Struct(s) => s.byte_size_and_align(repr),
-            non_struct => (non_struct.byte_size(repr), non_struct.align(repr)),
+            SizedType::Array(a) => (a.byte_size(parent_repr), a.align(parent_repr)),
+            SizedType::Vector(v) => (v.byte_size(parent_repr), v.align(parent_repr)),
+            SizedType::Matrix(m) => (m.byte_size(parent_repr), m.align(parent_repr)),
+            SizedType::Atomic(a) => (a.byte_size(), a.align(parent_repr)),
+            SizedType::PackedVec(v) => (u8::from(v.byte_size()) as u64, v.align(parent_repr)),
+            SizedType::Struct(s) => s.byte_size_and_align(),
+        }
+    }
+
+    // Recursively changes all struct reprs to the given `repr`.
+    pub fn change_all_repr(&mut self, repr: Repr) {
+        match self {
+            SizedType::Struct(s) => s.change_all_repr(repr),
+            SizedType::Atomic(_) |
+            SizedType::PackedVec(_) |
+            SizedType::Vector(_) |
+            SizedType::Matrix(_) |
+            SizedType::Array(_) => {
+                // No repr to change for these types.
+            }
         }
     }
 }
@@ -75,15 +91,19 @@ impl SizedStruct {
     /// Returns [`FieldOffsetsSized`], which serves as an iterator over the offsets of the
     /// fields of this struct. `FieldOffsetsSized::struct_byte_size_and_align` can be
     /// used to efficiently obtain the byte_size and align.
-    pub fn field_offsets(&self, repr: Repr) -> FieldOffsetsSized {
-        FieldOffsetsSized(FieldOffsets::new(self.fields(), repr))
-    }
+    pub fn field_offsets(&self) -> FieldOffsetsSized { FieldOffsetsSized(FieldOffsets::new(self.fields(), self.repr)) }
 
     /// Returns (byte_size, align)
     ///
     /// This is expensive for structs as it calculates the byte size and align by traversing all fields recursively.
-    pub fn byte_size_and_align(&self, repr: Repr) -> (u64, U32PowerOf2) {
-        self.field_offsets(repr).struct_byte_size_and_align()
+    pub fn byte_size_and_align(&self) -> (u64, U32PowerOf2) { self.field_offsets().struct_byte_size_and_align() }
+
+    // Recursively changes all struct reprs to the given `repr`.
+    pub fn change_all_repr(&mut self, repr: Repr) {
+        self.repr = repr;
+        for field in &mut self.fields {
+            field.ty.change_all_repr(repr);
+        }
     }
 }
 
@@ -181,12 +201,21 @@ impl UnsizedStruct {
     /// - Use [`FieldOffsetsUnsized::sized_field_offsets`] for an iterator over the sized field offsets.
     /// - Use [`FieldOffsetsUnsized::last_field_offset_and_struct_align`] for the last field's offset
     ///   and the struct's align
-    pub fn field_offsets(&self, repr: Repr) -> FieldOffsetsUnsized {
-        FieldOffsetsUnsized::new(&self.sized_fields, &self.last_unsized, repr)
+    pub fn field_offsets(&self) -> FieldOffsetsUnsized {
+        FieldOffsetsUnsized::new(&self.sized_fields, &self.last_unsized, self.repr)
     }
 
     /// This is expensive as it calculates the byte align by traversing all fields recursively.
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 { self.field_offsets(repr).last_field_offset_and_struct_align().1 }
+    pub fn align(&self) -> U32PowerOf2 { self.field_offsets().last_field_offset_and_struct_align().1 }
+
+    // Recursively changes all struct reprs to the given `repr`.
+    pub fn change_all_repr(&mut self, repr: Repr) {
+        self.repr = repr;
+        for field in &mut self.sized_fields {
+            field.ty.change_all_repr(repr);
+        }
+        self.last_unsized.array.change_all_repr(repr);
+    }
 }
 
 #[allow(missing_docs)]
@@ -299,6 +328,13 @@ impl SizedArray {
         let (element_size, element_align) = self.element.byte_size_and_align(repr);
         array_stride(element_align, element_size, repr)
     }
+
+    // Recursively changes all struct reprs to the given `repr`.
+    pub fn change_all_repr(&mut self, repr: Repr) {
+        let mut element = (*self.element).clone();
+        element.change_all_repr(repr);
+        self.element = Rc::new(element);
+    }
 }
 
 /// Returns an array's size given it's stride and length.
@@ -334,9 +370,18 @@ pub const fn array_stride(element_align: U32PowerOf2, element_size: u64, repr: R
 
 #[allow(missing_docs)]
 impl RuntimeSizedArray {
-    pub fn align(&self, repr: Repr) -> U32PowerOf2 { array_align(self.element.align(repr), repr) }
+    pub fn align(&self, parent_repr: Repr) -> U32PowerOf2 { array_align(self.element.align(parent_repr), parent_repr) }
 
-    pub fn byte_stride(&self, repr: Repr) -> u64 { array_stride(self.align(repr), self.element.byte_size(repr), repr) }
+    pub fn byte_stride(&self, parent_repr: Repr) -> u64 {
+        array_stride(
+            self.align(parent_repr),
+            self.element.byte_size(parent_repr),
+            parent_repr,
+        )
+    }
+
+    // Recursively changes all struct reprs to the given `repr`.
+    pub fn change_all_repr(&mut self, repr: Repr) { self.element.change_all_repr(repr); }
 }
 
 #[allow(missing_docs)]
@@ -345,8 +390,6 @@ impl SizedField {
         StructLayoutCalculator::calculate_byte_size(self.ty.byte_size(repr), self.custom_min_size)
     }
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
-        // In case of Repr::Packed, the field's align of 1 is overwritten here by custom_min_align.
-        // This is intended!
         StructLayoutCalculator::calculate_align(self.ty.align(repr), self.custom_min_align, repr)
     }
 }
@@ -354,8 +397,6 @@ impl SizedField {
 #[allow(missing_docs)]
 impl RuntimeSizedArrayField {
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
-        // In case of Repr::Packed, the field's align of 1 is overwritten here by custom_min_align.
-        // This is intended!
         StructLayoutCalculator::calculate_align(self.array.align(repr), self.custom_min_align, repr)
     }
 }
@@ -978,6 +1019,7 @@ mod tests {
             "TestStruct",
             "field1",
             SizedType::Vector(Vector::new(ScalarType::F32, Len::X1)), // 4 bytes, 4-byte aligned
+            Repr::Storage,
         )
         .extend(
             "field2",
@@ -989,7 +1031,7 @@ mod tests {
         );
 
         // Test field offsets
-        let mut field_offsets = sized_struct.field_offsets(Repr::Storage);
+        let mut field_offsets = sized_struct.field_offsets();
 
         // Field 1: offset 0
         assert_eq!(field_offsets.next(), Some(0));
@@ -1001,7 +1043,7 @@ mod tests {
         assert_eq!(field_offsets.next(), None);
 
         // Test struct size and alignment
-        let (size, align) = sized_struct.byte_size_and_align(Repr::Storage);
+        let (size, align) = sized_struct.byte_size_and_align();
         assert_eq!(size, 24); // Round up to 8-byte alignment: round_up(8, 20) = 24
         assert_eq!(align, U32PowerOf2::_8);
     }
@@ -1012,9 +1054,10 @@ mod tests {
             "TestStruct",
             "field1",
             SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)), // 8 bytes, 8-byte aligned
+            Repr::Uniform,
         );
 
-        let (size, align) = sized_struct.byte_size_and_align(Repr::Uniform);
+        let (size, align) = sized_struct.byte_size_and_align();
 
         assert_eq!(align, U32PowerOf2::_16); // Alignment adjusted for uniform to multiple of 16
         assert_eq!(size, 16); // Byte size of struct is a multiple of it's alignment
@@ -1023,10 +1066,11 @@ mod tests {
     #[test]
     fn test_unsized_struct_layout() {
         // Test UnsizedStruct with sized fields and a runtime sized array
-        let unsized_struct = SizedStruct::new(
+        let mut unsized_struct = SizedStruct::new(
             "UnsizedStruct",
             "field1",
             SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)), // 4 bytes, 4-byte aligned
+            Repr::Storage,
         )
         .extend(
             "field2",
@@ -1039,7 +1083,7 @@ mod tests {
         );
 
         // Test field offsets
-        let mut field_offsets = unsized_struct.field_offsets(Repr::Storage);
+        let mut field_offsets = unsized_struct.field_offsets();
         let sized_offsets: Vec<u64> = field_offsets.sized_field_offsets().collect();
         assert_eq!(sized_offsets, vec![0, 8]); // First field at 0, second at 8
 
@@ -1049,10 +1093,11 @@ mod tests {
         assert_eq!(struct_align, U32PowerOf2::_8); // Struct alignment is 8
 
         // Test struct alignment method
-        assert_eq!(unsized_struct.align(Repr::Storage), U32PowerOf2::_8);
+        assert_eq!(unsized_struct.align(), U32PowerOf2::_8);
 
         // Test with different repr
-        let mut field_offsets_uniform = unsized_struct.field_offsets(Repr::Uniform);
+        unsized_struct.change_all_repr(Repr::Uniform);
+        let mut field_offsets_uniform = unsized_struct.field_offsets();
         let (last_offset_uniform, struct_align_uniform) = field_offsets_uniform.last_field_offset_and_struct_align();
         assert_eq!(last_offset_uniform, 16); // Different offset in uniform, because array's alignment is 16
         assert_eq!(struct_align_uniform, U32PowerOf2::_16); // Uniform struct alignment
@@ -1064,20 +1109,21 @@ mod tests {
             "TestStruct",
             "field1",
             SizedType::Vector(Vector::new(ScalarType::F32, Len::X3)), // 8 bytes, 16 align (when not packed)
+            Repr::Packed,
         )
         .extend(
             "field2",
             SizedType::Vector(Vector::new(ScalarType::F32, Len::X1)), // 4 bytes
         );
 
-        let mut field_offsets = sized_struct.field_offsets(Repr::Packed);
+        let mut field_offsets = sized_struct.field_offsets();
 
         // Field 1: offset 0
         assert_eq!(field_offsets.next(), Some(0));
         // Field 2: offset 12, packed directly after field 1, despite 16 alignment of field1, because packed
         assert_eq!(field_offsets.next(), Some(12));
 
-        let (size, align) = sized_struct.byte_size_and_align(Repr::Packed);
+        let (size, align) = sized_struct.byte_size_and_align();
         assert_eq!(size, 16);
         assert_eq!(align, U32PowerOf2::_1);
     }
@@ -1098,12 +1144,19 @@ mod tests {
 
         let s = SizedStruct::new(
             "TestStruct",
-            FieldOptions::new("field1", Some(U32PowerOf2::_16), None),
+            "field1",
             SizedType::Vector(Vector::new(ScalarType::F32, Len::X2)), // 8 bytes, 8-byte aligned
+            Repr::Packed,
+        )
+        .extend(
+            FieldOptions::new("field2", Some(U32PowerOf2::_16), None),
+            SizedType::Vector(Vector::new(ScalarType::F32, Len::X1)), // 4 bytes, 4-byte aligned
         );
 
         // The custom min align is ignored in packed structs
-        assert_eq!(s.byte_size_and_align(Repr::Packed).1, U32PowerOf2::_1);
-        assert_eq!(s.fields()[0].align(Repr::Packed), U32PowerOf2::_1);
+        assert_eq!(s.byte_size_and_align().1, U32PowerOf2::_1);
+        let mut offsets = s.field_offsets();
+        assert_eq!(offsets.next(), Some(0)); // field1 at offset 0
+        assert_eq!(offsets.next(), Some(8)); // field2 at offset 8, because min align is ignored
     }
 }

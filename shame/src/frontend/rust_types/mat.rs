@@ -19,7 +19,7 @@ use super::{
     vec::{scalar, vec, ToInteger},
     AsAny, GpuType, To, ToGpuType,
 };
-use crate::{any::layout::Layoutable, frontend::rust_types::reference::Ref, ir::recording::CallInfoScope};
+use crate::{frontend::rust_types::reference::Ref, ir::recording::CallInfoScope};
 use crate::{
     call_info,
     frontend::{
@@ -54,8 +54,8 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> Default for mat<T, C, R> {
     }
 }
 
-impl<T: ScalarTypeFp, C: Len2, R: Len2> Layoutable for mat<T, C, R> {
-    fn layoutable_type() -> layoutable::LayoutableType {
+impl<T: ScalarTypeFp, C: Len2, R: Len2> GpuLayout for mat<T, C, R> {
+    fn layout_recipe() -> layoutable::LayoutableType {
         layoutable::Matrix {
             columns: C::LEN2,
             rows: R::LEN2,
@@ -63,10 +63,6 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> Layoutable for mat<T, C, R> {
         }
         .into()
     }
-}
-
-impl<T: ScalarTypeFp, C: Len2, R: Len2> GpuLayout for mat<T, C, R> {
-    type GpuRepr = repr::Storage;
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> { None }
 }

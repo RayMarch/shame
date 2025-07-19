@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    any::U32PowerOf2,
+    any::{layout::repr::Packed, U32PowerOf2},
     call_info,
     common::{ignore_eq::IgnoreInEqOrdHash, prettify::set_color},
     ir::{
@@ -20,12 +20,15 @@ use crate::{
 };
 use layoutable::{
     align_size::{StructLayoutCalculator, PACKED_ALIGN},
-    LayoutableType, Matrix, Vector,
+    LayoutableType, Matrix, Vector, PackedVector,
 };
 
+pub(crate) mod compatible_with;
 pub(crate) mod construction;
 pub(crate) mod eq;
 pub(crate) mod layoutable;
+
+pub const DEFAULT_REPR: Repr = Repr::Storage;
 
 /// The type contained in the bytes of a `TypeLayout`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -35,13 +38,44 @@ pub enum TypeLayoutSemantics {
     /// special compressed vectors for vertex attribute types
     ///
     /// see the [`crate::packed`] module
-    PackedVector(ir::PackedVector),
+    PackedVector(PackedVector),
     /// `mat<T, Cols, Rows>`, first `Len2` is cols, 2nd `Len2` is rows
     Matrix(Matrix),
     /// `Array<T>` and `Array<T, Size<N>>`
-    Array(Rc<ElementLayout>, Option<u32>), // not NonZeroU32, since for rust `CpuLayout`s the array size may be 0.
+    Array(Rc<ArrayLayout>),
     /// structures which may be empty and may have an unsized last field
     Structure(Rc<StructLayout>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct VectorLayout {
+    pub byte_size: u64,
+    pub align: IgnoreInEqOrdHash<U32PowerOf2>,
+    pub ty: Vector,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PackedVectorLayout {
+    pub byte_size: u64,
+    pub align: IgnoreInEqOrdHash<U32PowerOf2>,
+    pub ty: PackedVector,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MatrixLayout {
+    pub byte_size: u64,
+    pub align: IgnoreInEqOrdHash<U32PowerOf2>,
+    pub ty: Matrix,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ArrayLayout {
+    pub byte_stride: u64,
+    // Rc here and not in TypeLayoutSemnatics, so that matches like
+    // TypeLayoutSemantics::Array(Array { len: Some(n), .. }) = layout.kind are possible.
+    pub element_ty: TypeLayout,
+    // not NonZeroU32, since for rust `CpuLayout`s the array size may be 0.
+    pub len: Option<u32>,
 }
 
 /// The memory layout of a type.
@@ -145,7 +179,7 @@ pub struct GpuTypeLayout<T: TypeRepr = repr::Storage> {
 
 impl<T: TypeRepr> GpuTypeLayout<T> {
     /// Get the TypeLayout and remove compile time guarantees about the TypeRepr".
-    pub fn layout(&self) -> TypeLayout { TypeLayout::new_layout_for(&self.ty, T::REPR) }
+    pub fn layout(&self) -> TypeLayout { todo!() }
     /// Returns the `LayoutableType` this `GpuTypeLayout` is based on.
     pub fn layoutable_type(&self) -> &LayoutableType { &self.ty }
 }
@@ -182,6 +216,7 @@ pub mod repr {
         /// Packed layout. Vertex buffer only.
         Packed,
     }
+
 
     impl Repr {
         /// True if `Repr::Storage`
@@ -283,9 +318,9 @@ impl TypeLayout {
             TypeLayoutSemantics::Vector { .. } |
             TypeLayoutSemantics::PackedVector { .. } |
             TypeLayoutSemantics::Matrix { .. } => format!("{}", self),
-            TypeLayoutSemantics::Array(element_layout, n) => match n {
-                Some(n) => format!("array<{}, {n}>", element_layout.ty.short_name()),
-                None => format!("array<{}, runtime-sized>", element_layout.ty.short_name()),
+            TypeLayoutSemantics::Array(a) => match a.len {
+                Some(n) => format!("array<{}, {n}>", a.element_ty.short_name()),
+                None => format!("array<{}, runtime-sized>", a.element_ty.short_name()),
             },
             TypeLayoutSemantics::Structure(s) => s.name.to_string(),
         }
@@ -323,11 +358,11 @@ impl TypeLayout {
             },
             Sem::PackedVector(c) => write!(f, "{}", c)?,
             Sem::Matrix(m) => write!(f, "{}", ir::SizedType::Matrix(m.columns, m.rows, m.scalar))?,
-            Sem::Array(t, n) => {
-                let stride = t.byte_stride;
+            Sem::Array(a) => {
+                let stride = a.byte_stride;
                 write!(f, "array<")?;
-                t.ty.write(&(indent.to_string() + tab), colored, f)?;
-                if let Some(n) = n {
+                a.element_ty.write(&(indent.to_string() + tab), colored, f)?;
+                if let Some(n) = a.len {
                     write!(f, ", {n}")?;
                 }
                 write!(f, ">  stride={stride}")?;
@@ -360,6 +395,128 @@ impl TypeLayout {
         };
         Ok(())
     }
+
+    fn to_string_plain(&self) -> String {
+        use TypeLayoutSemantics::*;
+
+        match &self.kind {
+            Vector(v) => v.to_string(),
+            PackedVector(c) => c.to_string(),
+            Matrix(m) => m.to_string(),
+            Array(a) => {
+                if let Some(n) = a.len {
+                    format!("array<{}, {n}>", a.element_ty.to_string_plain())
+                } else {
+                    format!("array<{}>", a.element_ty.to_string_plain())
+                }
+            }
+            Structure(s) => format!("{}", s.name),
+        }
+    }
+
+    pub(crate) fn to_string_with_layout_information(&self) -> Result<String, std::fmt::Error> {
+        let mut s = String::new();
+        self.write2(&mut s, true)?;
+        Ok(s)
+    }
+
+    pub(crate) fn write2<W: Write>(&self, f: &mut W, include_layout_info: bool) -> std::fmt::Result {
+        use TypeLayoutSemantics::*;
+        let tab = "  ";
+
+        let struct_decl = |s: &StructLayout| format!("struct {} {{", s.name);
+        let mut field_decl =
+            |field: &FieldLayoutWithOffset| format!("{tab}{}: {},", field.name, field.ty.to_string_plain());
+
+        if !include_layout_info {
+            match &self.kind {
+                Vector(_) | PackedVector(_) | Matrix(_) | Array(_) => writeln!(f, "{}", self.to_string_plain())?,
+                Structure(s) => {
+                    writeln!(f, "{}", struct_decl(s))?;
+                    for field in s.fields.iter() {
+                        writeln!(f, "{}", field_decl(field))?;
+                    }
+                }
+            }
+        } else {
+            let align = |layout: &TypeLayout| layout.align.as_u32();
+            let size = |layout: &TypeLayout| layout.byte_size.map(|s| s.to_string()).unwrap_or("None".into());
+
+            let indent = |f: &mut W, n: usize| -> std::fmt::Result {
+                for _ in 0..n {
+                    f.write_char(' ')?
+                }
+                Ok(())
+            };
+
+            match &self.kind {
+                Vector(_) | PackedVector(_) | Matrix(_) => {
+                    let plain = self.to_string_plain();
+
+                    // Write header
+                    indent(f, plain.len() + 1)?;
+                    f.write_str("align size\n")?;
+
+                    // Write type and layout info
+                    writeln!(f, "{plain} {:5} {:4}", align(self), size(self))?;
+                }
+                Array(a) => {
+                    let plain = self.to_string_plain();
+
+                    // Write header
+                    indent(f, plain.len() + 1)?;
+                    f.write_str("align size stride\n")?;
+
+                    // Write type and layout info
+                    writeln!(f, "{plain} {:5} {:4} {:6}", align(self), size(self), a.byte_stride)?;
+                }
+                Structure(s) => {
+                    let has_array_field = s.fields.iter().any(|f| match f.ty.kind {
+                        Array(_) => true,
+                        Vector(_) | PackedVector(_) | Matrix(_) | Structure(_) => false,
+                    });
+                    let layout_info = if has_array_field {
+                        "offset align size stride"
+                    } else {
+                        "offset align size"
+                    };
+
+                    let max_line_len = 1 + s
+                        .fields
+                        .iter()
+                        .map(field_decl)
+                        .map(|s| s.len())
+                        .max()
+                        .unwrap_or(0)
+                        .max(struct_decl(s).len());
+
+                    // Write header
+                    indent(f, max_line_len);
+                    writeln!(f, "{layout_info} {:6} {:5} {:4}", "", align(self), size(self))?;
+
+                    // Write struct and layout info
+                    writeln!(f, "{}", struct_decl(s))?;
+                    for field in s.fields.iter() {
+                        write!(
+                            f,
+                            "{} {:6} {:5} {:4}",
+                            field_decl(field),
+                            field.rel_byte_offset,
+                            align(&field.ty),
+                            size(&field.ty),
+                        )?;
+                        match &field.ty.kind {
+                            Array(a) => writeln!(f, " {:6}", a.byte_stride)?,
+                            Vector(_) | PackedVector(_) | Matrix(_) | Structure(_) => writeln!(f, "")?,
+                        }
+                    }
+                }
+            };
+        }
+
+
+        Ok(())
+    }
 }
 
 impl TypeLayout {
@@ -378,7 +535,7 @@ impl TypeLayout {
         store_type: ir::StoreType,
     ) -> Result<Self, layoutable::ir_compat::LayoutableConversionError> {
         let t: layoutable::LayoutableType = store_type.try_into()?;
-        Ok(TypeLayout::new_layout_for(&t, Repr::Storage))
+        Ok(t.layout())
     }
 }
 
