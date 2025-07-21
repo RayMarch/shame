@@ -22,7 +22,7 @@ use super::{
     layout_traits::{from_single_any, ArrayElementsUnsizedError, FromAnys, GpuLayout},
     len::LenEven,
     scalar_type::ScalarType,
-    type_layout::{self, layoutable, repr, Repr, TypeLayout, TypeLayoutSemantics, DEFAULT_REPR},
+    type_layout::{self, layoutable, Repr, TypeLayout, DEFAULT_REPR},
     type_traits::{GpuAligned, GpuSized, NoAtomics, NoBools, NoHandles, VertexAttribute},
     vec::IsVec,
     GpuType,

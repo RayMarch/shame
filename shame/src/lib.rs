@@ -468,20 +468,16 @@ pub mod any {
 
         // type layout
         pub use type_layout::TypeLayout;
-        pub use type_layout::GpuTypeLayout;
-        pub use type_layout::TypeRepr;
         pub use type_layout::Repr;
         pub mod repr {
             use crate::frontend::rust_types::type_layout;
-            pub use type_layout::repr::Storage;
-            pub use type_layout::repr::Uniform;
-            pub use type_layout::repr::Packed;
         }
-        pub use type_layout::TypeLayoutSemantics;
+        pub use type_layout::VectorLayout;
+        pub use type_layout::PackedVectorLayout;
+        pub use type_layout::MatrixLayout;
+        pub use type_layout::ArrayLayout;
         pub use type_layout::StructLayout;
-        pub use type_layout::FieldLayoutWithOffset;
         pub use type_layout::FieldLayout;
-        pub use type_layout::ElementLayout;
 
         // layoutable types
         pub use type_layout::layoutable::LayoutableType;

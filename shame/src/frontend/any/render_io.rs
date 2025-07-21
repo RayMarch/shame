@@ -2,7 +2,7 @@ use std::{fmt::Display, rc::Rc};
 
 use thiserror::Error;
 
-use crate::any::layout::{GpuTypeLayout, Repr, TypeRepr};
+use crate::any::layout::{Repr};
 use crate::frontend::any::Any;
 use crate::frontend::rust_types::type_layout::{layoutable, TypeLayout};
 use crate::{
@@ -14,7 +14,6 @@ use crate::{
             io_iter::LocationCounter,
             EncodingErrorKind,
         },
-        rust_types::type_layout::TypeLayoutSemantics,
     },
     ir::{
         expr::{BuiltinShaderIn, BuiltinShaderIo, Expr, Interpolator, ShaderIo},
@@ -254,30 +253,30 @@ impl Attrib {
             let size = layout.byte_size()?;
             layoutable::array_stride(layout.align(), size, Repr::Storage)
         };
-        use TypeLayoutSemantics as TLS;
+        use TypeLayout::*;
 
-        let attribs: Box<[Attrib]> = match &layout.kind {
-            TLS::Matrix(..) | TLS::Array(..) => return None,
-            TLS::Vector(v) => [Attrib {
+        let attribs: Box<[Attrib]> = match &layout {
+            Matrix(..) | Array(..) => return None,
+            Vector(v) => [Attrib {
                 offset: 0,
                 location: location_counter.next(),
-                format: VertexAttribFormat::Fine(v.len, v.scalar),
+                format: VertexAttribFormat::Fine(v.ty.len, v.ty.scalar),
             }]
             .into(),
-            TLS::PackedVector(packed_vector) => [Attrib {
+            PackedVector(v) => [Attrib {
                 offset: 0,
                 location: location_counter.next(),
-                format: VertexAttribFormat::Coarse(*packed_vector),
+                format: VertexAttribFormat::Coarse(v.ty),
             }]
             .into(),
-            TLS::Structure(rc) => try_collect(rc.fields.iter().map(|f| {
+            Struct(rc) => try_collect(rc.fields.iter().map(|f| {
                 Some(Attrib {
                     offset: f.rel_byte_offset,
                     location: location_counter.next(),
-                    format: match f.field.ty.kind {
-                        TLS::Vector(v) => Some(VertexAttribFormat::Fine(v.len, v.scalar)),
-                        TLS::PackedVector(packed_vector) => Some(VertexAttribFormat::Coarse(packed_vector)),
-                        TLS::Matrix(..) | TLS::Array(..) | TLS::Structure(..) => None,
+                    format: match &f.ty {
+                        Vector(v) => Some(VertexAttribFormat::Fine(v.ty.len, v.ty.scalar)),
+                        PackedVector(v) => Some(VertexAttribFormat::Coarse(v.ty)),
+                        Matrix(..) | Array(..) | Struct(..) => None,
                     }?,
                 })
             }))?,

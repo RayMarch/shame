@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub use crate::ir::{Len, Len2, PackedVector, ScalarTypeFp, ScalarTypeInteger, ir_type::CanonName};
-use super::{construction::StructKind, Repr};
+use super::{Repr};
 
 pub(crate) mod align_size;
 pub(crate) mod builder;

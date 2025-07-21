@@ -5,7 +5,7 @@ use crate::{
         any::{Any, InvalidReason},
         rust_types::{
             error::FrontendError,
-            type_layout::{FieldLayout, FieldLayoutWithOffset, StructLayout, TypeLayout, TypeLayoutSemantics},
+            type_layout::{FieldLayout, StructLayout, TypeLayout},
         },
     },
     ir::{
@@ -109,35 +109,32 @@ pub fn repr_c_struct_layout(
         .map(|(field, offset, size)| (field, *offset as u64, *size as u64))
         .map(|(mut field, offset, size)| {
             let mut layout = field.layout.clone();
-            layout.byte_size = new_size(field.layout.byte_size(), Some(size));
-            FieldLayoutWithOffset {
-                field: FieldLayout {
-                    name: field.name.into(),
-                    ty: layout,
-                },
+            layout.set_byte_size(new_size(field.layout.byte_size(), Some(size)));
+            FieldLayout {
                 rel_byte_offset: offset,
+                name: field.name.into(),
+                ty: layout,
             }
         })
         .chain(std::iter::once({
-            last_field.layout.byte_size = new_size(last_field.layout.byte_size(), last_field_size);
-            FieldLayoutWithOffset {
-                field: FieldLayout {
-                    name: last_field.name.into(),
-                    ty: last_field.layout,
-                },
+            last_field
+                .layout
+                .set_byte_size(new_size(last_field.layout.byte_size(), last_field_size));
+            FieldLayout {
                 rel_byte_offset: last_field_offset,
+                name: last_field.name.into(),
+                ty: last_field.layout,
             }
         }))
         .collect::<Vec<_>>();
 
-    Ok(TypeLayout::new(
-        total_struct_size,
-        struct_alignment,
-        TypeLayoutSemantics::Structure(Rc::new(StructLayout {
-            name: struct_name.into(),
-            fields,
-        })),
-    ))
+    Ok(StructLayout {
+        byte_size: total_struct_size,
+        align: struct_alignment.into(),
+        name: struct_name.into(),
+        fields,
+    }
+    .into())
 }
 
 #[track_caller]

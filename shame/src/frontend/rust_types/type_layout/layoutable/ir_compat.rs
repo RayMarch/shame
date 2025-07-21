@@ -359,6 +359,18 @@ impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum StructKind {
+    Sized(SizedStruct),
+    Unsized(UnsizedStruct),
+}
+
+impl From<SizedStruct> for StructKind {
+    fn from(value: SizedStruct) -> Self { StructKind::Sized(value) }
+}
+impl From<UnsizedStruct> for StructKind {
+    fn from(value: UnsizedStruct) -> Self { StructKind::Unsized(value) }
+}
 
 #[test]
 fn test_ir_conversion_error() {

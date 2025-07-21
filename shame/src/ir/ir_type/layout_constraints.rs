@@ -507,7 +507,7 @@ impl Display for ArrayStrideAlignmentError {
         );
         if let Ok(layout) = TypeLayout::from_store_ty(self.ctx.top_level_type.clone()) {
             writeln!(f, "The full layout of `{}` is:", self.ctx.top_level_type);
-            layout.write("", self.ctx.use_color, f)?;
+            layout.write(f, true)?;
             writeln!(f);
         };
         writeln!(
@@ -542,7 +542,7 @@ impl Display for ArrayStrideError {
         );
         if let Ok(layout) = TypeLayout::from_store_ty(self.ctx.top_level_type.clone()) {
             writeln!(f, "The full layout of `{}` is:", self.ctx.top_level_type);
-            layout.write("", self.ctx.use_color, f)?;
+            layout.write(f, true)?;
             writeln!(f);
         };
         writeln!(
@@ -577,7 +577,7 @@ impl Display for ArrayAlignmentError {
         );
         if let Ok(layout) = TypeLayout::from_store_ty(self.ctx.top_level_type.clone()) {
             writeln!(f, "The full layout of `{}` is:", self.ctx.top_level_type);
-            layout.write("", self.ctx.use_color, f)?;
+            layout.write(f, true)?;
             writeln!(f);
         };
         writeln!(

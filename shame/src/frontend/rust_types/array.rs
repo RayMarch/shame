@@ -5,7 +5,7 @@ use super::len::x1;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable, AccessModeWritable, Read};
 use super::scalar_type::ScalarTypeInteger;
-use super::type_layout::{self, layoutable, repr, ElementLayout, TypeLayout, TypeLayoutSemantics};
+use super::type_layout::{self, layoutable, TypeLayout, ArrayLayout};
 use super::type_traits::{
     BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles,
 };
@@ -20,7 +20,6 @@ use crate::frontend::encoding::buffer::{Buffer, BufferAddressSpace, BufferInner,
 use crate::frontend::encoding::flow::{for_range_impl, FlowFn};
 use crate::frontend::error::InternalError;
 use crate::frontend::rust_types::reference::Ref;
-use crate::frontend::rust_types::type_layout::ArrayLayout;
 use crate::frontend::rust_types::vec::vec;
 use crate::ir::ir_type::stride_of_array_from_element_align_size;
 use crate::ir::pipeline::StageMask;
@@ -189,17 +188,16 @@ impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
 
         let result = (
             name.into(),
-            TypeLayout::new(
-                N::LEN.map(|n| n.get() as u64 * t_cpu_size),
-                t_cpu_layout.align(),
-                TypeLayoutSemantics::Array(Rc::new(ArrayLayout {
-                    // array stride is element size according to
-                    // https://doc.rust-lang.org/reference/type-layout.html#r-layout.properties.size
-                    byte_stride: t_cpu_size,
-                    element_ty: t_cpu_layout,
-                    len: N::LEN.map(NonZeroU32::get),
-                })),
-            ),
+            ArrayLayout {
+                byte_size: N::LEN.map(|n| n.get() as u64 * t_cpu_size),
+                align: t_cpu_layout.align().into(),
+                // array stride is element size according to
+                // https://doc.rust-lang.org/reference/type-layout.html#r-layout.properties.size
+                byte_stride: t_cpu_size,
+                element_ty: t_cpu_layout,
+                len: N::LEN.map(NonZeroU32::get),
+            }
+            .into(),
         );
 
         Some(Ok(result))

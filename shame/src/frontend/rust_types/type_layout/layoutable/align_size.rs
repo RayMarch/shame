@@ -91,7 +91,9 @@ impl SizedStruct {
     /// Returns [`FieldOffsetsSized`], which serves as an iterator over the offsets of the
     /// fields of this struct. `FieldOffsetsSized::struct_byte_size_and_align` can be
     /// used to efficiently obtain the byte_size and align.
-    pub fn field_offsets(&self) -> FieldOffsetsSized { FieldOffsetsSized(FieldOffsets::new(self.fields(), self.repr)) }
+    pub fn field_offsets(&self) -> FieldOffsetsSized<'_> {
+        FieldOffsetsSized(FieldOffsets::new(self.fields(), self.repr))
+    }
 
     /// Returns (byte_size, align)
     ///
@@ -107,7 +109,31 @@ impl SizedStruct {
     }
 }
 
+impl UnsizedStruct {
+    /// Returns [`FieldOffsetsUnsized`].
+    ///
+    /// - Use [`FieldOffsetsUnsized::sized_field_offsets`] for an iterator over the sized field offsets.
+    /// - Use [`FieldOffsetsUnsized::last_field_offset_and_struct_align`] for the last field's offset
+    ///   and the struct's align
+    pub fn field_offsets(&self) -> FieldOffsetsUnsized<'_> {
+        FieldOffsetsUnsized::new(&self.sized_fields, &self.last_unsized, self.repr)
+    }
+
+    /// This is expensive as it calculates the byte align by traversing all fields recursively.
+    pub fn align(&self) -> U32PowerOf2 { self.field_offsets().last_field_offset_and_struct_align().1 }
+
+    // Recursively changes all struct reprs to the given `repr`.
+    pub fn change_all_repr(&mut self, repr: Repr) {
+        self.repr = repr;
+        for field in &mut self.sized_fields {
+            field.ty.change_all_repr(repr);
+        }
+        self.last_unsized.array.change_all_repr(repr);
+    }
+}
+
 /// An iterator over the offsets of sized fields.
+#[derive(Debug)]
 pub struct FieldOffsets<'a> {
     fields: &'a [SizedField],
     field_index: usize,
@@ -141,6 +167,7 @@ impl<'a> FieldOffsets<'a> {
 
 /// Iterator over the field offsets of a `SizedStruct`.
 // The difference to `FieldOffsets` is that it also offers a `struct_byte_size_and_align` method.
+#[derive(Debug)]
 pub struct FieldOffsetsSized<'a>(FieldOffsets<'a>);
 impl Iterator for FieldOffsetsSized<'_> {
     type Item = u64;
@@ -195,28 +222,6 @@ impl<'a> FieldOffsetsUnsized<'a> {
     pub fn into_inner(self) -> FieldOffsets<'a> { self.sized }
 }
 
-impl UnsizedStruct {
-    /// Returns [`FieldOffsetsUnsized`].
-    ///
-    /// - Use [`FieldOffsetsUnsized::sized_field_offsets`] for an iterator over the sized field offsets.
-    /// - Use [`FieldOffsetsUnsized::last_field_offset_and_struct_align`] for the last field's offset
-    ///   and the struct's align
-    pub fn field_offsets(&self) -> FieldOffsetsUnsized {
-        FieldOffsetsUnsized::new(&self.sized_fields, &self.last_unsized, self.repr)
-    }
-
-    /// This is expensive as it calculates the byte align by traversing all fields recursively.
-    pub fn align(&self) -> U32PowerOf2 { self.field_offsets().last_field_offset_and_struct_align().1 }
-
-    // Recursively changes all struct reprs to the given `repr`.
-    pub fn change_all_repr(&mut self, repr: Repr) {
-        self.repr = repr;
-        for field in &mut self.sized_fields {
-            field.ty.change_all_repr(repr);
-        }
-        self.last_unsized.array.change_all_repr(repr);
-    }
-}
 
 #[allow(missing_docs)]
 impl Vector {
@@ -518,8 +523,8 @@ impl StructLayoutCalculator {
     const fn next_field_offset(&self, field_align: U32PowerOf2, field_custom_min_align: Option<U32PowerOf2>) -> u64 {
         let field_align = Self::calculate_align(field_align, field_custom_min_align, self.repr);
         match (self.repr, field_custom_min_align) {
-            (Repr::Packed, None) => self.next_offset_min,
-            (Repr::Packed, Some(custom_align)) => round_up(custom_align.as_u64(), self.next_offset_min),
+            // Packed always returns self.next_offset_min regardless of custom_min_align
+            (Repr::Packed, _) => self.next_offset_min,
             (Repr::Storage | Repr::Uniform, _) => round_up(field_align.as_u64(), self.next_offset_min),
         }
     }
@@ -926,9 +931,9 @@ mod tests {
         assert_eq!(calc.byte_size(), 12);
         assert_eq!(calc.align(), U32PowerOf2::_1);
 
-        // Add a vec2<f32> field - but with custom min align, which overwrites packed alignment
+        // Add a vec2<f32> field - but with custom min align, which is ignored because of Repr::Packed
         let offset3 = calc.extend(8, U32PowerOf2::_8, None, Some(U32PowerOf2::_16), false);
-        assert_eq!(offset3, 16);
+        assert_eq!(offset3, 12);
         // TODO(chronicl) not sure whether the alignment should stay 1 for a packesd struct
         // with custom min align field.
         assert_eq!(calc.align(), U32PowerOf2::_1);

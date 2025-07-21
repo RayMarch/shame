@@ -10,7 +10,8 @@ use crate::frontend::encoding::buffer::{BufferAddressSpace, BufferInner, BufferR
 use crate::frontend::encoding::{EncodingError, EncodingErrorKind};
 use crate::frontend::error::InternalError;
 use crate::frontend::rust_types::len::*;
-use crate::frontend::rust_types::type_layout::ArrayLayout;
+use crate::frontend::rust_types::type_layout::layoutable::ScalarType;
+use crate::frontend::rust_types::type_layout::{ArrayLayout, VectorLayout};
 use crate::ir::ir_type::{
     align_of_array, align_of_array_from_element_alignment, byte_size_of_array_from_stride_len, round_up,
     stride_of_array_from_element_align_size, CanonName, LayoutError, ScalarTypeFp, ScalarTypeInteger,
@@ -23,16 +24,12 @@ use super::error::FrontendError;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable};
 use super::struct_::{BufferFields, SizedFields, Struct};
-use super::type_layout::repr::{TypeRepr, DerivableRepr};
 use super::type_layout::layoutable::{self, array_stride, Vector};
-use super::type_layout::{
-    self, repr, ElementLayout, FieldLayout, FieldLayoutWithOffset, GpuTypeLayout, StructLayout, TypeLayout,
-    TypeLayoutSemantics, DEFAULT_REPR,
-};
+use super::type_layout::{self, FieldLayout, StructLayout, TypeLayout, DEFAULT_REPR};
 use super::type_traits::{
     BindingArgs, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles, VertexAttribute,
 };
-use super::{len::Len, scalar_type::ScalarType, vec::vec};
+use super::{len::Len, vec::vec};
 use super::{AsAny, GpuType, ToGpuType};
 use crate::frontend::any::{shared_io::BindPath, shared_io::BindingType};
 use crate::frontend::rust_types::reference::Ref;
@@ -707,43 +704,39 @@ where
     //fn gpu_type_layout() -> Option<Result<TypeLayout, ArrayElementsUnsizedError>> { Some(Ok(GpuT::gpu_layout())) }
 }
 
+fn cpu_layout_of_scalar(scalar: ScalarType) -> TypeLayout {
+    let (size, align) = match scalar {
+        ScalarType::F32 => (size_of::<f32>(), align_of::<f32>()),
+        ScalarType::F64 => (size_of::<f64>(), align_of::<f64>()),
+        ScalarType::U32 => (size_of::<u32>(), align_of::<u32>()),
+        ScalarType::I32 => (size_of::<i32>(), align_of::<i32>()),
+        // Waiting for f16 to become stable
+        // ScalarType::F16 => (size_of::<f16>(), align_of::<f16>()),
+        ScalarType::F16 => (2, 2),
+    };
+    VectorLayout {
+        byte_size: size as u64,
+        // https://doc.rust-lang.org/reference/type-layout.html#r-layout.properties.align
+        align: U32PowerOf2::try_from(align as u32)
+            .expect("aligns are power of 2s in rust")
+            .into(),
+        ty: Vector::new(scalar, layoutable::Len::X1),
+        debug_is_atomic: false,
+    }
+    .into()
+}
+
 impl CpuLayout for f32 {
-    fn cpu_layout() -> TypeLayout {
-        TypeLayout::from_rust_sized::<Self>(TypeLayoutSemantics::Vector(Vector::new(
-            layoutable::ScalarType::F32,
-            layoutable::Len::X1,
-        )))
-    }
-    // fn gpu_type_layout() -> Option<Result<TypeLayout, ArrayElementsUnsizedError>> {
-    //     Some(Ok(vec::<Self, x1>::gpu_layout()))
-    // }
+    fn cpu_layout() -> TypeLayout { cpu_layout_of_scalar(ScalarType::F32) }
 }
-
 impl CpuLayout for f64 {
-    fn cpu_layout() -> TypeLayout {
-        TypeLayout::from_rust_sized::<Self>(TypeLayoutSemantics::Vector(Vector::new(
-            layoutable::ScalarType::F64,
-            layoutable::Len::X1,
-        )))
-    }
+    fn cpu_layout() -> TypeLayout { cpu_layout_of_scalar(ScalarType::F64) }
 }
-
 impl CpuLayout for u32 {
-    fn cpu_layout() -> TypeLayout {
-        TypeLayout::from_rust_sized::<Self>(TypeLayoutSemantics::Vector(Vector::new(
-            layoutable::ScalarType::U32,
-            layoutable::Len::X1,
-        )))
-    }
+    fn cpu_layout() -> TypeLayout { cpu_layout_of_scalar(ScalarType::U32) }
 }
-
 impl CpuLayout for i32 {
-    fn cpu_layout() -> TypeLayout {
-        TypeLayout::from_rust_sized::<Self>(TypeLayoutSemantics::Vector(Vector::new(
-            layoutable::ScalarType::I32,
-            layoutable::Len::X1,
-        )))
-    }
+    fn cpu_layout() -> TypeLayout { cpu_layout_of_scalar(ScalarType::I32) }
 }
 
 /// (no documentation yet)
@@ -775,17 +768,14 @@ impl<T> CpuAligned for [T] {
 
 impl<T: CpuLayout + Sized, const N: usize> CpuLayout for [T; N] {
     fn cpu_layout() -> TypeLayout {
-        let align = <Self as CpuAligned>::alignment();
-
-        TypeLayout::new(
-            Some(std::mem::size_of::<Self>() as u64),
-            align,
-            TypeLayoutSemantics::Array(Rc::new(ArrayLayout {
-                byte_stride: std::mem::size_of::<T>() as u64,
-                element_ty: T::cpu_layout(),
-                len: Some(u32::try_from(N).expect("arrays larger than u32::MAX elements are not supported by WGSL")),
-            })),
-        )
+        ArrayLayout {
+            byte_size: Some(std::mem::size_of::<Self>() as u64),
+            align: <Self as CpuAligned>::alignment().into(),
+            byte_stride: std::mem::size_of::<T>() as u64,
+            element_ty: T::cpu_layout(),
+            len: Some(u32::try_from(N).expect("arrays larger than u32::MAX elements are not supported by WGSL")),
+        }
+        .into()
     }
 
     // fn gpu_type_layout() -> Option<Result<TypeLayout, ArrayElementsUnsizedError>> {
@@ -816,17 +806,14 @@ impl<T: CpuLayout + Sized, const N: usize> CpuLayout for [T; N] {
 
 impl<T: CpuLayout + Sized> CpuLayout for [T] {
     fn cpu_layout() -> TypeLayout {
-        let align = <Self as CpuAligned>::alignment();
-
-        TypeLayout::new(
-            None,
-            align,
-            TypeLayoutSemantics::Array(Rc::new(ArrayLayout {
-                byte_stride: std::mem::size_of::<T>() as u64,
-                element_ty: T::cpu_layout(),
-                len: None,
-            })),
-        )
+        ArrayLayout {
+            byte_size: None,
+            align: <Self as CpuAligned>::alignment().into(),
+            byte_stride: std::mem::size_of::<T>() as u64,
+            element_ty: T::cpu_layout(),
+            len: None,
+        }
+        .into()
     }
 
     // TODO(release) remove if we decide to not support this function on the `CpuLayout` trait

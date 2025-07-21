@@ -10,7 +10,7 @@ use super::{
     type_layout::{
         self,
         layoutable::{self},
-        repr, TypeLayout,
+        TypeLayout,
     },
     type_traits::{
         BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools,

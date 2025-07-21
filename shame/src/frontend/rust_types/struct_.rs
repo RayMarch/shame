@@ -22,14 +22,13 @@ use std::{
 };
 
 use super::layout_traits::{GetAllFields, GpuLayout};
-use super::type_layout::{self, layoutable, repr, TypeLayout};
+use super::type_layout::{self, layoutable, TypeLayout};
 use super::type_traits::{GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoBools};
 use super::{
     error::FrontendError,
     layout_traits::{ArrayElementsUnsizedError, FromAnys},
     mem::AddressSpace,
     reference::{AccessMode, AccessModeReadable},
-    type_layout::TypeLayoutSemantics,
     type_traits::{BindingArgs, NoAtomics, NoHandles},
     typecheck_downcast, AsAny,
 };

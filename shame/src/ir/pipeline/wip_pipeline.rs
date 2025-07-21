@@ -357,20 +357,12 @@ impl WipPushConstantsField {
             .try_into()
             .map_err(|e| InternalError::new(true, format!("{e}")))?;
         let layout = sized_struct.layout(DEFAULT_REPR);
-        let layout = match &layout.kind {
-            type_layout::TypeLayoutSemantics::Structure(layout) => &**layout,
-            _ => unreachable!("expected struct layout for type layout of struct"),
-        };
 
         let mut ranges = ByteRangesPerStage::default();
 
         for (field, node) in layout.fields.iter().zip(fields.iter().map(|f| f.node)) {
             let stages = nodes[node].stages.must_appear_in();
-            let field_size = field
-                .field
-                .ty
-                .byte_size()
-                .expect("SizedStruct type enforces Some(size)");
+            let field_size = field.ty.byte_size().expect("SizedStruct type enforces Some(size)");
             let start = field.rel_byte_offset;
             let end = start + field_size;
 

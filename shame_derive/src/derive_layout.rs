@@ -90,8 +90,8 @@ pub fn impl_for_struct(
     // if no `#[gpu_repr(_)]` attribute was explicitly specified, we default to `Repr::Storage`
     let gpu_repr = gpu_repr.map(|(_, repr)| repr).unwrap_or(util::Repr::Storage);
     let gpu_repr_shame = match gpu_repr {
-        Repr::Packed => quote!( #re::repr::Packed ),
-        Repr::Storage => quote!( #re::repr::Storage ),
+        Repr::Packed => quote!( #re::Repr::Packed ),
+        Repr::Storage => quote!( #re::Repr::Storage ),
     };
 
     // #[repr(...)]
@@ -220,18 +220,6 @@ pub fn impl_for_struct(
 
     match which_derive {
         WhichDerive::GpuLayout => {
-            let impl_layoutable = quote! {
-                impl<#generics_decl> #re::Layoutable for #derive_struct_ident<#(#idents_of_generics),*>
-                where
-                    // These NoBools and NoHandle bounds are only for better diagnostics, Layoutable already implies them
-                    #(#first_fields_type: #re::NoBools + #re::NoHandles + #re::Layoutable + #re::GpuSized,)*
-                    #last_field_type: #re::NoBools + #re::NoHandles + #re::Layoutable,
-                    #where_clause_predicates
-                {
-
-                }
-            };
-
             let impl_gpu_layout = quote! {
                 impl<#generics_decl> #re::GpuLayout for #derive_struct_ident<#(#idents_of_generics),*>
                 where
@@ -249,7 +237,7 @@ pub fn impl_for_struct(
                                         #field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")).into(),
                                         #field_size.into(),
                                     ),
-                                    <#field_type as #re::Layoutable>::layoutable_type()
+                                    <#field_type as #re::GpuLayout>::layout_recipe()
                                 ),)*
                             ],
                             #gpu_repr_shame,
@@ -384,7 +372,6 @@ pub fn impl_for_struct(
                     );
 
                     Ok(quote! {
-                        #impl_layoutable
                         #impl_gpu_layout
                         #impl_vertex_buffer_layout
                         #impl_fake_auto_traits
