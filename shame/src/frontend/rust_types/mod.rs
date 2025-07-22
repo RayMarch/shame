@@ -62,7 +62,9 @@ pub trait GpuType: ToGpuType<Gpu = Self> + From<Any> + AsAny + Clone {
 
     /// (no documentation yet)
     #[track_caller]
-    fn from_any(any: Any) -> Self { typecheck_downcast(any, Self::ty(), Self::from_any_unchecked) }
+    fn from_any(any: Any) -> Self {
+        typecheck_downcast(any, Self::ty(), Self::from_any_unchecked)
+    }
 }
 
 /// (no documentation yet)
@@ -113,11 +115,15 @@ pub trait ToGpuType {
 
     /// (no documentation yet)
     #[track_caller]
-    fn to_any(&self) -> Any { self.to_gpu().as_any() }
+    fn to_any(&self) -> Any {
+        self.to_gpu().as_any()
+    }
 
     /// (no documentation yet)
     #[track_caller]
-    fn as_gpu_type_ref(&self) -> Option<&Self::Gpu> { None }
+    fn as_gpu_type_ref(&self) -> Option<&Self::Gpu> {
+        None
+    }
 
     /// convenience function for [`shame::Cell::new(...)`]
     ///

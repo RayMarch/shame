@@ -6,7 +6,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::frontend::rust_types::type_layout::{eq::LayoutMismatch, TypeLayout};
+use crate::frontend::rust_types::type_layout::{eq::LayoutMismatch, LayoutInfo, TypeLayout};
 use crate::{
     backend::language::Language,
     call_info,
@@ -507,7 +507,7 @@ impl Display for ArrayStrideAlignmentError {
         );
         if let Ok(layout) = TypeLayout::from_store_ty(self.ctx.top_level_type.clone()) {
             writeln!(f, "The full layout of `{}` is:", self.ctx.top_level_type);
-            layout.write(f, true)?;
+            layout.write(f, LayoutInfo::ALL)?;
             writeln!(f);
         };
         writeln!(
@@ -542,7 +542,7 @@ impl Display for ArrayStrideError {
         );
         if let Ok(layout) = TypeLayout::from_store_ty(self.ctx.top_level_type.clone()) {
             writeln!(f, "The full layout of `{}` is:", self.ctx.top_level_type);
-            layout.write(f, true)?;
+            layout.write(f, LayoutInfo::ALL)?;
             writeln!(f);
         };
         writeln!(
@@ -577,7 +577,7 @@ impl Display for ArrayAlignmentError {
         );
         if let Ok(layout) = TypeLayout::from_store_ty(self.ctx.top_level_type.clone()) {
             writeln!(f, "The full layout of `{}` is:", self.ctx.top_level_type);
-            layout.write(f, true)?;
+            layout.write(f, LayoutInfo::ALL)?;
             writeln!(f);
         };
         writeln!(

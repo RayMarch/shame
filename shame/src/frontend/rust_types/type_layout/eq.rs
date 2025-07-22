@@ -1,4 +1,4 @@
-use crate::frontend::rust_types::type_layout::compatible_with::TopLevelMismatch;
+use crate::frontend::rust_types::type_layout::compatible_with::{StructMismatch, TopLevelMismatch};
 
 use super::compatible_with::try_find_mismatch;
 use super::*;
@@ -53,8 +53,19 @@ impl LayoutMismatch {
         colored: bool,
     ) -> Result<Mismatch, std::fmt::Error> {
         let tab = "  ";
-        // TODO(chronicl) include names somehow
         let [(a_name, a), (b_name, b)] = layouts;
+
+        let use_256_color_mode = false;
+        let enable_color = |f_: &mut W, hex| match colored {
+            true => set_color(f_, Some(hex), use_256_color_mode),
+            false => Ok(()),
+        };
+        let reset_color = |f_: &mut W| match colored {
+            true => set_color(f_, None, use_256_color_mode),
+            false => Ok(()),
+        };
+        let hex_left = "#DF5853"; // red
+        let hex_right = "#9A639C"; // purple
 
         // Using try_find_mismatch to find the first mismatching type / struct field.
         let Some(mismatch) = try_find_mismatch(a, b) else {
@@ -107,47 +118,131 @@ impl LayoutMismatch {
                 struct_right,
                 mismatch,
             } => {
-                let use_256_color_mode = false;
-                let enable_color = |f_: &mut W, hex| match colored {
-                    true => set_color(f_, Some(hex), use_256_color_mode),
-                    false => Ok(()),
-                };
-                let reset_color = |f_: &mut W| match colored {
-                    true => set_color(f_, None, use_256_color_mode),
-                    false => Ok(()),
-                };
-                let hex_left = "#DF5853"; // red
-                let hex_right = "#9A639C"; // purple
-
-                let mut writer_left = struct_left.writer(true);
-                let mut writer_right = struct_right.writer(true);
-                // Making sure that both writer have the same layout info offset, the max of both.
-                writer_left.ensure_layout_info_offset(writer_right.layout_info_offset());
-                writer_right.ensure_layout_info_offset(writer_left.layout_info_offset());
-
-                writer_left.writeln_header(f)?;
-                enable_color(f, hex_left)?;
-                writer_left.writeln_struct_declaration(f)?;
-                reset_color(f)?;
-                enable_color(f, hex_right)?;
-                writer_right.writeln_struct_declaration(f)?;
-                reset_color(f)?;
-                for field_index in 0..struct_left.fields.len() {
-                    let field_left = &struct_left.fields[field_index];
-                    let field_right = &struct_right.fields[field_index];
-
-                    // We are checking every field for equality, instead of using the singular found mismatch from try_find_mismatch
-                    if field_left.ty == field_right.ty && field_left.rel_byte_offset == field_right.rel_byte_offset {
-                        writer_left.writeln_field(f, field_index)?;
+                let field_name = |field_index: usize| {
+                    if let Some(name) = struct_left.fields.get(field_index).map(|f| &f.name) {
+                        format!("field `{name}`")
                     } else {
+                        // Should never happen, but just in case we fall back to this
+                        format!("field {field_index}")
+                    }
+                };
+
+                writeln!(
+                    f,
+                    "The layouts of `{}` and `{}` do not match, because the",
+                    struct_left.name, struct_right.name
+                );
+                let (mismatch_field_index, layout_info) = match mismatch {
+                    StructMismatch::FieldName { field_index } => {
+                        writeln!(f, "names of field {field_index} are different.")?;
+                        (Some(field_index), LayoutInfo::NONE)
+                    }
+                    StructMismatch::FieldType { field_index } => {
+                        writeln!(f, "type of {} is different.", field_name(field_index))?;
+                        (Some(field_index), LayoutInfo::NONE)
+                    }
+                    StructMismatch::FieldByteSize { field_index } => {
+                        writeln!(f, "byte size of {} is different.", field_name(field_index))?;
+                        (Some(field_index), LayoutInfo::SIZE)
+                    }
+                    StructMismatch::FieldOffset { field_index } => {
+                        writeln!(f, "offset of {} is different.", field_name(field_index))?;
+                        (
+                            Some(field_index),
+                            LayoutInfo::OFFSET | LayoutInfo::ALIGN | LayoutInfo::SIZE,
+                        )
+                    }
+                    StructMismatch::FieldArrayStride { field_index, .. } => {
+                        writeln!(f, "array stride of {} is different.", field_name(field_index))?;
+                        (Some(field_index), LayoutInfo::STRIDE)
+                    }
+                    StructMismatch::FieldCount => {
+                        writeln!(f, "number of fields is different.")?;
+                        (None, LayoutInfo::NONE)
+                    }
+                };
+                writeln!(f)?;
+
+                let fields_without_mismatch = match mismatch_field_index {
+                    Some(index) => struct_left.fields.len().min(struct_right.fields.len()).min(index),
+                    None => struct_left.fields.len().min(struct_right.fields.len()),
+                };
+
+                // Start writing the structs with the mismatch highlighted
+                let mut writer_left = struct_left.writer(layout_info);
+                let mut writer_right = struct_right.writer(layout_info);
+
+                // Make sure layout info offset only takes account the fields before and including the mismatch,
+                // because those are the only fields that will be written below.
+                if let Some(mismatch_field_index) = mismatch_field_index {
+                    let max_fields = Some(mismatch_field_index + 1);
+                    writer_left.set_layout_info_offset_auto(max_fields);
+                    writer_right.set_layout_info_offset_auto(max_fields);
+                }
+                // Make sure layout info offset is large enough to fit the custom struct declaration
+                let struct_declaration = format!("struct {a_name} / {b_name} {{");
+                let layout_info_offset = writer_left
+                    .layout_info_offset()
+                    .max(writer_right.layout_info_offset())
+                    .max(struct_declaration.len());
+                writer_left.ensure_layout_info_offset(layout_info_offset);
+                writer_right.ensure_layout_info_offset(layout_info_offset);
+
+                // Write header
+                writer_left.writeln_header(f)?;
+
+                // Write custom struct declaration
+                write!(f, "struct ")?;
+                enable_color(f, hex_left)?;
+                write!(f, "{}", struct_left.name)?;
+                reset_color(f)?;
+                write!(f, " / ")?;
+                enable_color(f, hex_right)?;
+                write!(f, "{}", struct_right.name)?;
+                reset_color(f)?;
+                writeln!(f, " {{")?;
+
+                // Write matching fields
+                for field_index in 0..fields_without_mismatch {
+                    writer_left.writeln_field(f, field_index)?;
+                }
+
+                match mismatch {
+                    StructMismatch::FieldName { field_index } |
+                    StructMismatch::FieldType { field_index } |
+                    StructMismatch::FieldByteSize { field_index } |
+                    StructMismatch::FieldOffset { field_index } |
+                    StructMismatch::FieldArrayStride { field_index, .. } => {
+                        // Write mismatching field
                         enable_color(f, hex_left)?;
-                        writer_left.writeln_field(f, field_index)?;
+                        writer_left.write_field(f, field_index)?;
+                        writeln!(f, "  <-- {a_name}")?;
                         reset_color(f)?;
                         enable_color(f, hex_right)?;
-                        writer_right.writeln_field(f, field_index)?;
+                        writer_right.write_field(f, field_index)?;
+                        writeln!(f, "  <-- {b_name}")?;
+                        reset_color(f)?;
+                        if struct_left.fields.len() > field_index + 1 || struct_right.fields.len() > field_index + 1 {
+                            // Write ellipsis if there are more fields after the mismatch
+                            writeln!(f, "{}...", writer_left.tab())?;
+                        }
+                    }
+                    StructMismatch::FieldCount => {
+                        // Write the remaining fields of the larger struct
+                        let (writer, len, hex) = match struct_left.fields.len() > struct_right.fields.len() {
+                            true => (&mut writer_left, struct_left.fields.len(), hex_left),
+                            false => (&mut writer_right, struct_right.fields.len(), hex_right),
+                        };
+
+                        enable_color(f, hex)?;
+                        for field_index in fields_without_mismatch..len {
+                            writer.writeln_field(f, field_index)?;
+                        }
                         reset_color(f)?;
                     }
                 }
+
+                // Write closing bracket
                 writer_left.writeln_struct_end(f)?;
             }
         }
@@ -174,75 +269,74 @@ where
     }
 }
 
-#[test]
-fn test_layout_mismatch() {
+#[cfg(test)]
+mod tests {
     use crate as shame;
     use shame as sm;
-    use shame::CpuLayout;
+    use shame::{CpuLayout, GpuLayout, gpu_layout, cpu_layout};
     use crate::aliases::*;
 
-    #[derive(shame::GpuLayout)]
-    #[cpu(ACpu)]
-    pub struct A {
-        a: u32x1,
-        c: sm::Array<f32x3, sm::Size<2>>,
-        b: f32x1,
-    }
-
-    #[derive(shame::CpuLayout)]
+    #[derive(Clone, Copy)]
     #[repr(C)]
-    pub struct ACpu {
-        d: u32,
-        c: [[f32; 3]; 2],
-        b: u32,
+    struct f32x3_align4(pub [f32; 4]);
+
+    impl CpuLayout for f32x3_align4 {
+        fn cpu_layout() -> shame::TypeLayout {
+            let mut layout = gpu_layout::<f32x3>();
+            layout.set_align(shame::any::U32PowerOf2::_4);
+            layout
+        }
     }
 
-    let mut encoder = sm::start_encoding(sm::Settings::default()).unwrap();
-    let mut drawcall = encoder.new_render_pipeline(sm::Indexing::BufferU16);
-    let mut group0 = drawcall.bind_groups.next();
-    let a: sm::Buffer<A, sm::mem::Storage> = group0.next();
-
-    let primitive = drawcall
-        .vertices
-        .assemble(f32x3::zero(), sm::Draw::triangle_list(sm::Winding::Ccw));
-    let frag = primitive.rasterize(sm::Accuracy::Relaxed);
-    frag.fill(f32x3::zero());
-    encoder.finish().unwrap();
-}
-
-
-#[test]
-fn test_layout_mismatch_nested() {
-    use crate as shame;
-    use shame as sm;
-    use shame::CpuLayout;
-    use crate::aliases::*;
-
-    #[derive(shame::GpuLayout)]
-    #[cpu(ACpu)]
-    pub struct A {
-        a: u32x1,
-        c: sm::Array<f32x3, sm::Size<2>>,
-        b: f32x1,
+    fn print_mismatch<T: GpuLayout, TCpu: CpuLayout>() {
+        println!(
+            "{}",
+            super::check_eq(("gpu", &gpu_layout::<T>()), ("cpu", &cpu_layout::<TCpu>())).unwrap_err()
+        );
     }
 
-    #[derive(shame::CpuLayout)]
-    #[repr(C)]
-    pub struct ACpu {
-        d: u32,
-        c: [[f32; 3]; 2],
-        b: u32,
+    #[test]
+    fn test_layout_mismatch_nested() {
+        // For colored output
+        let mut encoder = sm::start_encoding(sm::Settings::default()).unwrap();
+        let mut drawcall = encoder.new_render_pipeline(sm::Indexing::BufferU16);
+
+        // field name mismatch
+        #[derive(GpuLayout)]
+        pub struct A {
+            a: u32x1,
+        }
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct ACpu {
+            b: u32,
+        }
+        print_mismatch::<A, ACpu>();
+
+        // field type mismatch
+        #[derive(GpuLayout)]
+        pub struct B {
+            a: f32x1,
+        }
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct BCpu {
+            a: u32,
+        }
+        print_mismatch::<B, BCpu>();
+
+        // field offset mismatch
+        #[derive(GpuLayout)]
+        pub struct C {
+            a: f32x1,
+            b: f32x3,
+        }
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct CCpu {
+            a: f32,
+            b: f32x3_align4,
+        }
+        print_mismatch::<C, CCpu>();
     }
-
-    let mut encoder = sm::start_encoding(sm::Settings::default()).unwrap();
-    let mut drawcall = encoder.new_render_pipeline(sm::Indexing::BufferU16);
-    let mut group0 = drawcall.bind_groups.next();
-    let a: sm::Buffer<A, sm::mem::Storage> = group0.next();
-
-    let primitive = drawcall
-        .vertices
-        .assemble(f32x3::zero(), sm::Draw::triangle_list(sm::Winding::Ccw));
-    let frag = primitive.rasterize(sm::Accuracy::Relaxed);
-    frag.fill(f32x3::zero());
-    encoder.finish().unwrap();
 }

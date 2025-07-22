@@ -2,8 +2,8 @@ use std::fmt::Write;
 
 use crate::{
     any::layout::StructLayout,
-    common::prettify::set_color,
-    frontend::rust_types::type_layout::{align_to_string, byte_size_to_string, ArrayLayout},
+    common::prettify::{set_color, UnwrapOrStr},
+    frontend::rust_types::type_layout::{ArrayLayout, LayoutInfo},
     ir::ir_type::max_u64_po2_dividing,
     TypeLayout,
 };
@@ -170,9 +170,9 @@ impl std::fmt::Display for LayoutError {
                             "Field `{}` in `{}` requires a byte size of {} in {}, but has a byte size of {}",
                             field_left.name,
                             struct_left.name,
-                            byte_size_to_string(field_right.ty.byte_size()),
+                            UnwrapOrStr(field_right.ty.byte_size(), ""),
                             self.address_space,
-                            byte_size_to_string(field_left.ty.byte_size())
+                            UnwrapOrStr(field_left.ty.byte_size(), "")
                         )?;
                         writeln!(f, "The full layout of `{}` is:", struct_left.short_name())?;
                         write_struct(f, struct_left, Some(*field_index), colored)?;
@@ -198,7 +198,7 @@ impl std::fmt::Display for LayoutError {
                         writeln!(
                             f,
                             "- add an #[align({})] attribute to the definition of `{}`",
-                            align_to_string(field_right.ty.align()),
+                            field_right.ty.align().as_u32(),
                             field_name
                         )?;
                         writeln!(
@@ -224,15 +224,16 @@ impl std::fmt::Display for LayoutError {
                         match self.address_space {
                             (AddressSpaceEnum::WgslUniform | AddressSpaceEnum::WgslStorage) => writeln!(
                                 f,
-                                "More info about the {} layout can be found at https://www.w3.org/TR/WGSL/#address-space-layout-constraints",
+                                "More info about the {} can be found at https://www.w3.org/TR/WGSL/#address-space-layout-constraints",
                                 self.address_space
                             )?,
                         }
                     }
-                    StructMismatch::FieldCount | StructMismatch::FieldType { .. } => {
+                    StructMismatch::FieldCount |
+                    StructMismatch::FieldName { .. } |
+                    StructMismatch::FieldType { .. } => {
                         unreachable!("{}", types_are_the_same)
                     }
-                    _ => todo!(),
                 };
             }
         }
@@ -246,7 +247,7 @@ where
 {
     let use_256_color_mode = false;
 
-    let mut writer = s.writer(true);
+    let mut writer = s.writer(LayoutInfo::ALL);
     writer.writeln_header(f);
     writer.writeln_struct_declaration(f);
     for field_index in 0..s.fields.len() {
@@ -300,9 +301,14 @@ pub enum TopLevelMismatch {
     },
 }
 
+/// Returns the first mismatch found in the struct fields.
+///
+/// Field count is checked last.
 #[derive(Debug, Clone)]
 pub enum StructMismatch {
-    FieldCount,
+    FieldName {
+        field_index: usize,
+    },
     FieldType {
         field_index: usize,
     },
@@ -317,6 +323,7 @@ pub enum StructMismatch {
         array_left: ArrayLayout,
         array_right: ArrayLayout,
     },
+    FieldCount,
 }
 
 /// Find the first depth first layout mismatch
@@ -326,7 +333,7 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
     // First check if the kinds are the same type
     match (&layout1, &layout2) {
         (Vector(v1), Vector(v2)) => {
-            if v1 != v2 {
+            if v1.ty != v2.ty {
                 return Some(LayoutMismatch::TopLevel {
                     layout_left: layout1.clone(),
                     layout_right: layout2.clone(),
@@ -335,7 +342,7 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
             }
         }
         (PackedVector(p1), PackedVector(p2)) => {
-            if p1 != p2 {
+            if p1.ty != p2.ty {
                 return Some(LayoutMismatch::TopLevel {
                     layout_left: layout1.clone(),
                     layout_right: layout2.clone(),
@@ -344,7 +351,7 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
             }
         }
         (Matrix(m1), Matrix(m2)) => {
-            if m1 != m2 {
+            if m1.ty != m2.ty {
                 return Some(LayoutMismatch::TopLevel {
                     layout_left: layout1.clone(),
                     layout_right: layout2.clone(),
@@ -353,27 +360,6 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
             }
         }
         (Array(a1), Array(a2)) => {
-            // Check array sizes match
-            if a1.len != a2.len {
-                return Some(LayoutMismatch::TopLevel {
-                    layout_left: layout1.clone(),
-                    layout_right: layout2.clone(),
-                    mismatch: TopLevelMismatch::Type,
-                });
-            }
-
-            // Check array stride
-            if a1.byte_stride != a2.byte_stride {
-                return Some(LayoutMismatch::TopLevel {
-                    layout_left: layout1.clone(),
-                    layout_right: layout2.clone(),
-                    mismatch: TopLevelMismatch::ArrayStride {
-                        array_left: (**a1).clone(),
-                        array_right: (**a2).clone(),
-                    },
-                });
-            }
-
             // Recursively check element types
             match try_find_mismatch(&a1.element_ty, &a2.element_ty) {
                 // In case the mismatch isn't related to a struct field mismatch,
@@ -398,6 +384,27 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
                 m @ Some(LayoutMismatch::Struct { .. }) => return m,
                 None => return None,
             }
+
+            // Check array sizes match
+            if a1.len != a2.len {
+                return Some(LayoutMismatch::TopLevel {
+                    layout_left: layout1.clone(),
+                    layout_right: layout2.clone(),
+                    mismatch: TopLevelMismatch::Type,
+                });
+            }
+
+            // Check array stride
+            if a1.byte_stride != a2.byte_stride {
+                return Some(LayoutMismatch::TopLevel {
+                    layout_left: layout1.clone(),
+                    layout_right: layout2.clone(),
+                    mismatch: TopLevelMismatch::ArrayStride {
+                        array_left: (**a1).clone(),
+                        array_right: (**a2).clone(),
+                    },
+                });
+            }
         }
         (Struct(s1), Struct(s2)) => {
             return try_find_struct_mismatch(s1, s2);
@@ -416,31 +423,17 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
 }
 
 fn try_find_struct_mismatch(struct1: &StructLayout, struct2: &StructLayout) -> Option<LayoutMismatch> {
-    // Check field count
-    if struct1.fields.len() != struct2.fields.len() {
-        return Some(LayoutMismatch::Struct {
-            struct_left: struct1.clone(),
-            struct_right: struct2.clone(),
-            mismatch: StructMismatch::FieldCount,
-        });
-    }
-
     for (field_index, (field1, field2)) in struct1.fields.iter().zip(struct2.fields.iter()).enumerate() {
-        // Check field offset
-        if field1.rel_byte_offset != field2.rel_byte_offset {
+        // Order of checks is important here. We check in order
+        // - field name
+        // - field type and if the field is/contains a struct, recursively check its fields
+        // - field offset
+        // - field byte size
+        if field1.name != field2.name {
             return Some(LayoutMismatch::Struct {
                 struct_left: struct1.clone(),
                 struct_right: struct2.clone(),
-                mismatch: StructMismatch::FieldOffset { field_index },
-            });
-        }
-
-        // Check field byte size
-        if field1.ty.byte_size() != field2.ty.byte_size() {
-            return Some(LayoutMismatch::Struct {
-                struct_left: struct1.clone(),
-                struct_right: struct2.clone(),
-                mismatch: StructMismatch::FieldByteSize { field_index },
+                mismatch: StructMismatch::FieldName { field_index },
             });
         }
 
@@ -480,6 +473,33 @@ fn try_find_struct_mismatch(struct1: &StructLayout, struct2: &StructLayout) -> O
                 struct_mismatch @ LayoutMismatch::Struct { .. } => return Some(struct_mismatch),
             }
         }
+
+        // Check field offset
+        if field1.rel_byte_offset != field2.rel_byte_offset {
+            return Some(LayoutMismatch::Struct {
+                struct_left: struct1.clone(),
+                struct_right: struct2.clone(),
+                mismatch: StructMismatch::FieldOffset { field_index },
+            });
+        }
+
+        // Check field byte size
+        if field1.ty.byte_size() != field2.ty.byte_size() {
+            return Some(LayoutMismatch::Struct {
+                struct_left: struct1.clone(),
+                struct_right: struct2.clone(),
+                mismatch: StructMismatch::FieldByteSize { field_index },
+            });
+        }
+    }
+
+    // Check field count
+    if struct1.fields.len() != struct2.fields.len() {
+        return Some(LayoutMismatch::Struct {
+            struct_left: struct1.clone(),
+            struct_right: struct2.clone(),
+            mismatch: StructMismatch::FieldCount,
+        });
     }
 
     None

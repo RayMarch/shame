@@ -9,9 +9,12 @@ use std::{
 };
 
 use crate::{
-    any::{U32PowerOf2},
+    any::U32PowerOf2,
     call_info,
-    common::{ignore_eq::IgnoreInEqOrdHash, prettify::set_color},
+    common::{
+        ignore_eq::IgnoreInEqOrdHash,
+        prettify::{set_color, UnwrapOrStr},
+    },
     ir::{
         self,
         ir_type::{round_up, CanonName},
@@ -148,45 +151,98 @@ impl ArrayLayout {
     }
 }
 
-pub(crate) fn align_to_string(align: U32PowerOf2) -> String { align.as_u32().to_string() }
-pub(crate) fn byte_size_to_string(size: Option<u64>) -> String { size.map(|s| s.to_string()).unwrap_or("None".into()) }
-fn write_indent<W: Write>(mut f: &mut W, n: usize) -> std::fmt::Result {
-    for _ in 0..n {
-        f.write_char(' ')?
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LayoutInfo(u8);
+#[rustfmt::skip]
+impl LayoutInfo {
+    pub const NONE:   Self    = Self(0);
+    pub const OFFSET: Self    = Self(1 << 0);
+    pub const ALIGN:  Self    = Self(1 << 1);
+    pub const SIZE:   Self    = Self(1 << 2);
+    pub const STRIDE: Self    = Self(1 << 3);
+    pub const ALL:    Self    = Self(Self::OFFSET.0 | Self::ALIGN.0 | Self::SIZE.0 | Self::STRIDE.0);
+}
+impl std::ops::BitOr for LayoutInfo {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output { LayoutInfo(self.0 | rhs.0) }
+}
+impl LayoutInfo {
+    pub fn contains(&self, other: Self) -> bool { (self.0 & other.0) == other.0 }
+
+    pub fn header(&self) -> String {
+        let mut parts = Vec::with_capacity(4);
+        for (info, info_str) in [
+            (Self::OFFSET, "offset"),
+            (Self::ALIGN, "align"),
+            (Self::SIZE, "size"),
+            (Self::STRIDE, "stride"),
+        ] {
+            if self.contains(info) {
+                parts.push(info_str);
+            }
+        }
+        parts.join(" ")
     }
-    Ok(())
+
+    pub fn format(&self, offset: Option<u64>, align: U32PowerOf2, size: Option<u64>, stride: Option<u64>) -> String {
+        let infos: [(Self, &'static str, &dyn Display); 4] = [
+            (Self::OFFSET, "offset", &UnwrapOrStr(offset, "")),
+            (Self::ALIGN, "align", &align.as_u32()),
+            (Self::SIZE, "size", &UnwrapOrStr(size, "")),
+            (Self::STRIDE, "stride", &UnwrapOrStr(stride, "")),
+        ];
+        let mut parts = Vec::with_capacity(4);
+        for (info, info_str, value) in infos {
+            if self.contains(info) {
+                parts.push(format!("{:>info_width$}", value, info_width = info_str.len()));
+            }
+        }
+        parts.join(" ")
+    }
 }
 
 pub struct StructWriter<'a> {
     s: &'a StructLayout,
     tab: &'static str,
-    include_layout_info: bool,
+    layout_info: LayoutInfo,
     layout_info_offset: usize,
 }
 
 impl<'a> StructWriter<'a> {
-    pub fn new(s: &'a StructLayout, include_layout_info: bool) -> Self {
+    pub fn new(s: &'a StructLayout, layout_info: LayoutInfo) -> Self {
         let mut this = Self {
             s,
-            tab: "  ",
-            include_layout_info,
+            tab: "    ",
+            layout_info,
             layout_info_offset: 0,
         };
-        let layout_info_offset = this.struct_declaration().len().max(
-            (0..this.s.fields.len())
-                .map(|i| this.field_declaration(i).len())
-                .max()
-                .unwrap_or(0),
-        );
-        this.ensure_layout_info_offset(layout_info_offset);
+        this.set_layout_info_offset_auto(None);
         this
     }
 
     pub(crate) fn layout_info_offset(&self) -> usize { self.layout_info_offset }
 
+    /// By setting `max_fields` to `Some(n)`, the writer will adjust Self::layout_info_offset
+    /// to only take into account the first `n` fields of the struct.
+    pub(crate) fn set_layout_info_offset_auto(&mut self, max_fields: Option<usize>) {
+        let fields = match max_fields {
+            Some(n) => n.min(self.s.fields.len()),
+            None => self.s.fields.len(),
+        };
+        let layout_info_offset = (0..fields)
+            .map(|i| self.field_declaration(i).len())
+            .max()
+            .unwrap_or(0)
+            .max(self.struct_declaration().len());
+        self.layout_info_offset = layout_info_offset;
+    }
+
     pub(crate) fn ensure_layout_info_offset(&mut self, min_layout_info_offset: usize) {
         self.layout_info_offset = self.layout_info_offset.max(min_layout_info_offset)
     }
+
+    pub(crate) fn tab(&self) -> &'static str { self.tab }
 
     fn struct_declaration(&self) -> String { format!("struct {} {{", self.s.name) }
 
@@ -197,9 +253,50 @@ impl<'a> StructWriter<'a> {
         }
     }
 
+    pub(crate) fn write_header<W: Write>(&self, f: &mut W) -> std::fmt::Result {
+        if self.layout_info != LayoutInfo::NONE {
+            let info_offset = self.layout_info_offset();
+            write!(f, "{:info_offset$}{}", "", self.layout_info.header())?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn write_struct_declaration<W: Write>(&self, f: &mut W) -> std::fmt::Result {
+        let info = self.layout_info.format(
+            None, // offset is not applicable for structs
+            *self.s.align,
+            self.s.byte_size,
+            None, // stride is not applicable for structs
+        );
+        let info_offset = self.layout_info_offset();
+        write!(f, "{:info_offset$}{info}", self.struct_declaration())
+    }
+
+    pub(crate) fn write_field<W: Write>(&self, f: &mut W, field_index: usize) -> std::fmt::Result {
+        use TypeLayout::*;
+
+        let field = &self.s.fields[field_index];
+        let info = self.layout_info.format(
+            Some(field.rel_byte_offset),
+            field.ty.align(),
+            field.ty.byte_size(),
+            match &field.ty {
+                Array(array) => Some(array.byte_stride),
+                Vector(_) | PackedVector(_) | Matrix(_) | Struct(_) => None,
+            },
+        );
+        let info_offset = self.layout_info_offset();
+        write!(f, "{:info_offset$}{info}", self.field_declaration(field_index))
+    }
+
+    pub(crate) fn write_struct_end<W: Write>(&self, f: &mut W) -> std::fmt::Result { write!(f, "}}") }
+
     pub(crate) fn writeln_header<W: Write>(&self, f: &mut W) -> std::fmt::Result {
-        self.write_header(f)?;
-        writeln!(f)
+        if self.layout_info != LayoutInfo::NONE {
+            self.write_header(f)?;
+            writeln!(f)?;
+        }
+        Ok(())
     }
 
     pub(crate) fn writeln_struct_declaration<W: Write>(&self, f: &mut W) -> std::fmt::Result {
@@ -216,89 +313,23 @@ impl<'a> StructWriter<'a> {
         self.write_struct_end(f)?;
         writeln!(f)
     }
-
-    pub(crate) fn write_header<W: Write>(&self, f: &mut W) -> std::fmt::Result {
-        use TypeLayout::*;
-        let has_array_field = self.s.fields.iter().any(|f| match f.ty {
-            Array(_) => true,
-            Vector(_) | PackedVector(_) | Matrix(_) | Struct(_) => false,
-        });
-        let layout_info = if has_array_field {
-            "offset align size stride"
-        } else {
-            "offset align size"
-        };
-        if self.include_layout_info {
-            write!(
-                f,
-                "{:info_offset$} {layout_info}",
-                "",
-                info_offset = self.layout_info_offset()
-            )
-        } else {
-            Ok(())
-        }
-    }
-
-    pub(crate) fn write_struct_declaration<W: Write>(&self, f: &mut W) -> std::fmt::Result {
-        if self.include_layout_info {
-            write!(
-                f,
-                "{:info_offset$} {:>6} {:>5} {:>4}",
-                self.struct_declaration(),
-                "",
-                align_to_string(*self.s.align),
-                byte_size_to_string(self.s.byte_size),
-                info_offset = self.layout_info_offset()
-            )
-        } else {
-            write!(f, "{}", self.struct_declaration())
-        }
-    }
-
-    pub(crate) fn write_field<W: Write>(&self, f: &mut W, field_index: usize) -> std::fmt::Result {
-        let field = &self.s.fields[field_index];
-        if self.include_layout_info {
-            write!(
-                f,
-                "{:info_offset$} {:>6} {:>5} {:>4}",
-                self.field_declaration(field_index),
-                field.rel_byte_offset,
-                align_to_string(field.ty.align()),
-                byte_size_to_string(field.ty.byte_size()),
-                info_offset = self.layout_info_offset()
-            )?;
-            match &field.ty {
-                TypeLayout::Array(a) => write!(f, " {:>5}", a.byte_stride),
-                TypeLayout::Vector(_) | TypeLayout::PackedVector(_) | TypeLayout::Matrix(_) | TypeLayout::Struct(_) => {
-                    Ok(())
-                }
-            }
-        } else {
-            write!(f, "{}", self.field_declaration(field_index))
-        }
-    }
-
-    pub(crate) fn write_struct_end<W: Write>(&self, f: &mut W) -> std::fmt::Result { write!(f, "}}") }
 }
 
 impl StructLayout {
     pub fn short_name(&self) -> String { self.name.to_string() }
 
-    pub(crate) fn to_string_with_layout_information(&self) -> Result<String, std::fmt::Error> {
+    pub(crate) fn to_string_with_layout_info(&self, layout_info: LayoutInfo) -> Result<String, std::fmt::Error> {
         let mut s = String::new();
-        self.write(&mut s, true)?;
+        self.write(&mut s, layout_info)?;
         Ok(s)
     }
 
-    pub(crate) fn writer(&self, include_layout_info: bool) -> StructWriter<'_> {
-        StructWriter::new(self, include_layout_info)
-    }
+    pub(crate) fn writer(&self, layout_info: LayoutInfo) -> StructWriter<'_> { StructWriter::new(self, layout_info) }
 
-    pub(crate) fn write<W: Write>(&self, f: &mut W, include_layout_info: bool) -> std::fmt::Result {
+    pub(crate) fn write<W: Write>(&self, f: &mut W, layout_info: LayoutInfo) -> std::fmt::Result {
         use TypeLayout::*;
 
-        let mut writer = self.writer(include_layout_info);
+        let mut writer = self.writer(layout_info);
         writer.writeln_header(f)?;
         writer.writeln_struct_declaration(f)?;
         for i in 0..self.fields.len() {
@@ -403,44 +434,35 @@ impl TypeLayout {
         }
     }
 
-    pub(crate) fn to_string_with_layout_information(&self) -> Result<String, std::fmt::Error> {
+    pub(crate) fn to_string_with_layout_information(&self, layout_info: LayoutInfo) -> Result<String, std::fmt::Error> {
         let mut s = String::new();
-        self.write(&mut s, true)?;
+        self.write(&mut s, layout_info)?;
         Ok(s)
     }
 
-    pub(crate) fn write<W: Write>(&self, f: &mut W, include_layout_info: bool) -> std::fmt::Result {
+    pub(crate) fn write<W: Write>(&self, f: &mut W, layout_info: LayoutInfo) -> std::fmt::Result {
         use TypeLayout::*;
-        let align = |layout: &TypeLayout| align_to_string(layout.align());
-        let size = |layout: &TypeLayout| byte_size_to_string(layout.byte_size());
-
-        let (stride, header) = match self {
-            Array(a) => (Some(a.byte_stride), "align size stride"),
-            Vector(_) | PackedVector(_) | Matrix(_) | Struct(_) => (None, "align size"),
-        };
 
         match self {
             Vector(_) | PackedVector(_) | Matrix(_) | Array(_) => {
                 let plain = self.short_name();
 
-                if include_layout_info {
-                    // Write header
-                    write_indent(f, plain.len() + 1)?;
-                    f.write_str(header)?;
-                    writeln!(f);
+                let stride = match self {
+                    Array(a) => Some(a.byte_stride),
+                    Vector(_) | PackedVector(_) | Matrix(_) | Struct(_) => None,
+                };
+                let info_offset = plain.len() + 1;
 
-                    // Write type and layout info
-                    write!(f, "{plain} {:5} {:4}", align(self), size(self))?;
-                    if let Some(stride) = stride {
-                        writeln!(f, " {stride}")?;
-                    } else {
-                        writeln!(f)?
-                    }
-                } else {
-                    writeln!(f, "{plain}")?
+                // Write header if some layout information is requested
+                if layout_info != LayoutInfo::NONE {
+                    writeln!(f, "{:info_offset$}{}", "", layout_info.header())?;
                 }
+
+                // Write the type name and layout information
+                let info = layout_info.format(None, self.align(), self.byte_size(), stride);
+                writeln!(f, "{plain:info_offset$}{info}")?;
             }
-            Struct(s) => s.write(f, include_layout_info)?,
+            Struct(s) => s.write(f, layout_info)?,
         };
 
         Ok(())
@@ -484,7 +506,7 @@ impl From<StructLayout> for TypeLayout {
 
 
 impl Display for TypeLayout {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.write(f, true) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.write(f, LayoutInfo::ALL) }
 }
 
 
