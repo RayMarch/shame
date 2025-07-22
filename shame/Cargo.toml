@@ -27,3 +27,7 @@ shame_derive = { path = "../shame_derive/" }
 static_assertions = "1.1.0"
 pretty_assertions = "1.4.1"
 glam = "0.29.0"
+shame_wgpu = { path = "../examples/shame_wgpu" }
+bytemuck = { version = "1.19", features = ["derive"] }
+wgpu = "25.0.2"
+pollster = "0.4"
