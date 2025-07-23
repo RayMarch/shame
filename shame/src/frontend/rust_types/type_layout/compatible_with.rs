@@ -22,8 +22,8 @@ use super::{recipe::TypeLayoutRecipe, Repr};
 /// [`WgslStorage`] and [`WgslUniform`].
 ///
 /// To be "useable" or "compatible with" an address space means that the type layout
-/// - satisfies the layout requirements of the address space
 /// - is representable in the target language
+/// - satisfies the layout requirements of the address space
 ///
 /// Wgsl has only one representation of types - there is no choice between std140 and std430
 /// like in glsl - so to be representable in wgsl means that the type layout produced by
@@ -88,7 +88,7 @@ impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
                 if layout != layout_unified {
                     match try_find_mismatch(&layout, &layout_unified) {
                         Some(mismatch) => {
-                            return Err(AddressSpaceError::DoesntSatisfyRequirements(LayoutError {
+                            return Err(AddressSpaceError::RequirementsNotSatisfied(LayoutError {
                                 recipe,
                                 address_space,
                                 mismatch,
@@ -122,7 +122,7 @@ impl AddressSpace for WgslUniform {
     const ADDRESS_SPACE: AddressSpaceEnum = AddressSpaceEnum::WgslUniform;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AddressSpaceEnum {
     WgslStorage,
     WgslUniform,
@@ -149,7 +149,7 @@ pub enum AddressSpaceError {
     #[error("{} is not representable in {}:\n{0}", .0.recipe, .0.address_space.language())]
     NotRepresentable(LayoutError),
     #[error("Address space requirements not satisfied:\n{0}")]
-    DoesntSatisfyRequirements(LayoutError),
+    RequirementsNotSatisfied(LayoutError),
     #[error("Unknown layout error occured for {0} in {1}.")]
     UnknownLayoutError(TypeLayoutRecipe, AddressSpaceEnum),
     #[error(
@@ -278,10 +278,10 @@ impl std::fmt::Display for LayoutError {
                             "Field `{}` in `{}` needs to be {} byte aligned in {}, but has a byte-offset of {}, which is only {} byte aligned",
                             field_name, struct_left.name, expected_align, self.address_space, offset, actual_align
                         )?;
-                        writeln!(f, "The full layout of `{}` is:", struct_left.short_name())?;
+                        writeln!(f, "The full layout of `{}` is:\n", struct_left.short_name())?;
                         write_struct(f, struct_left, Some(*field_index), self.colored)?;
 
-                        writeln!(f, "Potential solutions include:")?;
+                        writeln!(f, "\nPotential solutions include:")?;
 
                         writeln!(
                             f,
@@ -328,7 +328,7 @@ impl std::fmt::Display for LayoutError {
                 };
             }
         }
-        todo!()
+        Ok(())
     }
 }
 
@@ -358,4 +358,82 @@ where
     writer.writeln_struct_end(f)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::pipeline_kind::Render;
+    use crate::{self as shame, EncodingGuard, ThreadIsAlreadyEncoding};
+    use shame as sm;
+    use shame::{aliases::*, GpuLayout};
+
+    const PRINT: bool = true;
+
+    macro_rules! is_struct_mismatch {
+        ($result:expr, $as_error:ident, $mismatch:pat) => {
+            {
+                if let Err(e) = &$result && PRINT {
+                    println!("{e}");
+                }
+                matches!(
+                    $result,
+                    Err(AddressSpaceError::$as_error(LayoutError {
+                        mismatch: LayoutMismatch::Struct {
+                            mismatch: $mismatch,
+                            ..
+                        },
+                        ..
+                    }))
+                )
+            }
+        };
+    }
+
+    fn enable_color() -> Result<EncodingGuard<Render>, ThreadIsAlreadyEncoding> {
+        sm::start_encoding(sm::Settings::default())
+    }
+
+    #[test]
+    fn test_field_offset_error_not_representable() {
+        let _guard = enable_color();
+
+        #[derive(sm::GpuLayout)]
+        #[gpu_repr(packed)]
+        struct A {
+            a: f32x1,
+            // has offset 4, but in wgsl's storage/uniform address space, it needs to be 16 byte aligned
+            b: f32x3,
+        }
+
+        // The error variant is NotRepresentable, because there is no way to represent it in wgsl,
+        // because an offset of 4 is not possible for f32x3, because it is 16 byte aligned.
+        assert!(is_struct_mismatch!(
+            TypeLayoutCompatibleWith::<WgslStorage>::try_from(A::layout_recipe()),
+            NotRepresentable,
+            StructMismatch::FieldOffset { .. }
+        ));
+        assert!(is_struct_mismatch!(
+            TypeLayoutCompatibleWith::<WgslUniform>::try_from(A::layout_recipe()),
+            NotRepresentable,
+            StructMismatch::FieldOffset { .. }
+        ));
+
+        #[derive(sm::GpuLayout)]
+        #[gpu_repr(wgsl)]
+        struct B {
+            a: f32x1,
+            // offset 4, but wgsl's uniform address space requires 16 byte alignment
+            b: sm::Array<f32x1>,
+        }
+
+        // The error variant is RequirementsNotSatisfied, because B is representable in wgsl,
+        // because it's Repr::Wgsl, but it does not satisfy the requirements of wgsl's uniform address space,
+        // because the array has an align of 4 in Repr::Wgsl, but an align of 16 in Repr::WgslUniform.
+        assert!(is_struct_mismatch!(
+            TypeLayoutCompatibleWith::<WgslUniform>::try_from(B::layout_recipe()),
+            RequirementsNotSatisfied,
+            StructMismatch::FieldOffset { .. }
+        ));
+    }
 }
