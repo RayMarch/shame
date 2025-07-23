@@ -59,7 +59,7 @@ impl std::fmt::Display for DuplicateFieldNameError {
             Field names must be unique in the shader type system.\n\
             The following struct contains duplicate field names:"
         )?;
-        let header = writeln!(f, "struct {} {{", struct_name);
+        let header = writeln!(f, "struct {struct_name} {{");
         for (i, field) in sized_fields.iter().enumerate() {
             color(f, i)?;
             writeln!(f, "{indent}{}: {},{}", field.name, field.ty, arrow(i))?;

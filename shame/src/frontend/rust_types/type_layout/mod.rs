@@ -229,13 +229,6 @@ impl TypeLayout {
         }
     }
 
-    pub(crate) fn first_line_of_display_with_ellipsis(&self) -> String {
-        let string = format!("{}", self);
-        string.split_once('\n').map(|(s, _)| format!("{s}…")).unwrap_or(string)
-    }
-}
-
-impl TypeLayout {
     // TODO(chronicl) this should be removed with improved any api for storage/uniform bindings
     pub(crate) fn from_store_ty(store_type: ir::StoreType) -> Result<Self, recipe::ir_compat::RecipeConversionError> {
         let t: recipe::TypeLayoutRecipe = store_type.try_into()?;
@@ -455,7 +448,7 @@ mod tests {
         // Testing uniform representation
         unsized_struct.repr = Repr::WgslUniform;
         let recipe: TypeLayoutRecipe = unsized_struct.into();
-        println!("{:#?}", recipe);
+        println!("{recipe:#?}");
         let layout = recipe.layout();
         assert_eq!(layout.byte_size(), None);
         // Struct alignmment has to be a multiple of 16, but the runtime sized array
