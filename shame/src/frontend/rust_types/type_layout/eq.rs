@@ -1,3 +1,4 @@
+use crate::common::prettify::UnwrapOrStr;
 use crate::frontend::rust_types::type_layout::compatible_with::{StructMismatch, TopLevelMismatch};
 use crate::frontend::rust_types::type_layout::display::LayoutInfo;
 
@@ -78,40 +79,49 @@ impl LayoutMismatch {
                 layout_left,
                 layout_right,
                 mismatch,
-            } => {
-                match mismatch {
-                    TopLevelMismatch::Type => writeln!(
+            } => match mismatch {
+                TopLevelMismatch::Type => writeln!(
+                    f,
+                    "The layouts of `{}` and `{}` do not match, because their types are semantically different.",
+                    layout_left.short_name(),
+                    layout_right.short_name()
+                )?,
+                TopLevelMismatch::ArrayStride {
+                    array_left,
+                    array_right,
+                } => {
+                    writeln!(
                         f,
-                        "The layouts of `{}` and `{}` do not match, because their types are semantically different.",
+                        "The layouts of `{}` and `{}` do not match.",
                         layout_left.short_name(),
                         layout_right.short_name()
-                    )?,
-                    TopLevelMismatch::ArrayStride {
-                        array_left,
-                        array_right,
-                    } => {
-                        writeln!(
-                            f,
-                            "The layouts of `{}` and `{}` do not match.",
-                            layout_left.short_name(),
-                            layout_right.short_name()
-                        )?;
-                        // Using array_left and array_right here, because those are the layouts
-                        // of the deepest array stride mismatch. For example it can be that
-                        // layout_left = Array<Array<f32x1>>
-                        // array_left = Array<f32x1>
-                        // because the deepest array stride mismatch is happening on the inner Array<f32x1>.
-                        writeln!(
-                            f,
-                            "`{}` has a stride of {}, while `{}` has a stride of {}.",
-                            array_left.short_name(),
-                            array_left.byte_stride,
-                            array_right.short_name(),
-                            array_right.byte_stride
-                        )?;
-                    }
+                    )?;
+                    writeln!(
+                        f,
+                        "`{}` has a stride of {}, while `{}` has a stride of {}.",
+                        array_left.short_name(),
+                        array_left.byte_stride,
+                        array_right.short_name(),
+                        array_right.byte_stride
+                    )?;
                 }
-            }
+                TopLevelMismatch::ByteSize { left, right } => {
+                    writeln!(
+                        f,
+                        "The layouts of `{}` and `{}` do not match.",
+                        layout_left.short_name(),
+                        layout_right.short_name()
+                    )?;
+                    writeln!(
+                        f,
+                        "`{}` has a byte size of {}, while `{}` has a byte size of {}.",
+                        left.short_name(),
+                        UnwrapOrStr(left.byte_size(), "runtime-sized"),
+                        right.short_name(),
+                        UnwrapOrStr(right.byte_size(), "runtime-sized")
+                    )?;
+                }
+            },
             Struct {
                 struct_left,
                 struct_right,
@@ -131,29 +141,82 @@ impl LayoutMismatch {
                     "The layouts of `{}` and `{}` do not match, because the",
                     struct_left.name, struct_right.name
                 );
-                let (mismatch_field_index, layout_info) = match mismatch {
+                let (mismatch_field_index, layout_info) = match &mismatch {
                     StructMismatch::FieldName { field_index } => {
                         writeln!(f, "names of field {field_index} are different.")?;
                         (Some(field_index), LayoutInfo::NONE)
                     }
-                    StructMismatch::FieldType { field_index } => {
-                        writeln!(f, "type of {} is different.", field_name(field_index))?;
+                    StructMismatch::FieldLayout {
+                        field_index,
+                        mismatch: TopLevelMismatch::Type,
+                    } => {
+                        writeln!(f, "type of {} is different.", field_name(*field_index))?;
                         (Some(field_index), LayoutInfo::NONE)
                     }
-                    StructMismatch::FieldByteSize { field_index } => {
-                        writeln!(f, "byte size of {} is different.", field_name(field_index))?;
-                        (Some(field_index), LayoutInfo::SIZE)
+                    // TODO(chronicl) fix byte size message for when the byte size mismatch is happening
+                    // in a nested array
+                    StructMismatch::FieldLayout {
+                        field_index,
+                        mismatch: TopLevelMismatch::ByteSize { left, right },
+                    } => {
+                        match struct_left.fields.get(*field_index) {
+                            // Inner type in (nested) array has mismatching byte size
+                            Some(field) if &field.ty != left => {
+                                writeln!(
+                                    f,
+                                    "byte size of `{}` is {} in `{}` and {} in `{}`.",
+                                    left.short_name(),
+                                    UnwrapOrStr(left.byte_size(), "runtime-sized"),
+                                    struct_left.name,
+                                    UnwrapOrStr(right.byte_size(), "runtime-sized"),
+                                    struct_right.name,
+                                )?;
+                                // Not showing byte size info, because it can be misleading since
+                                // the inner type is the one that has mismatching byte size.
+                                (Some(field_index), LayoutInfo::NONE)
+                            }
+                            _ => {
+                                writeln!(f, "byte size of {} is different.", field_name(*field_index))?;
+                                (Some(field_index), LayoutInfo::SIZE)
+                            }
+                        }
+                    }
+                    StructMismatch::FieldLayout {
+                        field_index,
+                        mismatch:
+                            TopLevelMismatch::ArrayStride {
+                                array_left,
+                                array_right,
+                            },
+                    } => {
+                        match struct_left.fields.get(*field_index) {
+                            // Inner type in (nested) array has mismatching stride
+                            Some(field) if field.ty.short_name() != array_left.short_name() => {
+                                writeln!(
+                                    f,
+                                    "stride of `{}` is {} in `{}` and {} in `{}`.",
+                                    array_left.short_name(),
+                                    array_left.byte_stride,
+                                    struct_left.name,
+                                    array_right.byte_stride,
+                                    struct_right.name,
+                                )?;
+                                // Not showing stride info, because it can be misleading since
+                                // the inner type is the one that has mismatching stride.
+                                (Some(field_index), LayoutInfo::NONE)
+                            }
+                            _ => {
+                                writeln!(f, "array stride of {} is different.", field_name(*field_index))?;
+                                (Some(field_index), LayoutInfo::STRIDE)
+                            }
+                        }
                     }
                     StructMismatch::FieldOffset { field_index } => {
-                        writeln!(f, "offset of {} is different.", field_name(field_index))?;
+                        writeln!(f, "offset of {} is different.", field_name(*field_index))?;
                         (
                             Some(field_index),
                             LayoutInfo::OFFSET | LayoutInfo::ALIGN | LayoutInfo::SIZE,
                         )
-                    }
-                    StructMismatch::FieldArrayStride { field_index, .. } => {
-                        writeln!(f, "array stride of {} is different.", field_name(field_index))?;
-                        (Some(field_index), LayoutInfo::STRIDE)
                     }
                     StructMismatch::FieldCount => {
                         writeln!(f, "number of fields is different.")?;
@@ -163,7 +226,7 @@ impl LayoutMismatch {
                 writeln!(f)?;
 
                 let fields_without_mismatch = match mismatch_field_index {
-                    Some(index) => struct_left.fields.len().min(struct_right.fields.len()).min(index),
+                    Some(index) => struct_left.fields.len().min(struct_right.fields.len()).min(*index),
                     None => struct_left.fields.len().min(struct_right.fields.len()),
                 };
 
@@ -208,10 +271,8 @@ impl LayoutMismatch {
 
                 match mismatch {
                     StructMismatch::FieldName { field_index } |
-                    StructMismatch::FieldType { field_index } |
-                    StructMismatch::FieldByteSize { field_index } |
-                    StructMismatch::FieldOffset { field_index } |
-                    StructMismatch::FieldArrayStride { field_index, .. } => {
+                    StructMismatch::FieldLayout { field_index, .. } |
+                    StructMismatch::FieldOffset { field_index } => {
                         // Write mismatching field
                         enable_color(f, hex_left)?;
                         writer_left.write_field(f, field_index)?;

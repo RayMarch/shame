@@ -251,7 +251,7 @@ impl Attrib {
     ) -> Option<(Box<[Attrib]>, u64)> {
         let stride = {
             let size = layout.byte_size()?;
-            layoutable::array_stride(layout.align(), size, Repr::Storage)
+            layoutable::array_stride(layout.align(), size, Repr::Wgsl)
         };
         use TypeLayout::*;
 

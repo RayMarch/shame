@@ -1,5 +1,4 @@
 #![allow(missing_docs)]
-#![warn(unused)]
 //! Everything related to type layouts.
 
 use std::{
@@ -28,7 +27,7 @@ pub(crate) mod display;
 pub(crate) mod eq;
 pub(crate) mod layoutable;
 
-pub const DEFAULT_REPR: Repr = Repr::Storage;
+pub const DEFAULT_REPR: Repr = Repr::Wgsl;
 
 /// The memory layout of a type.
 ///
@@ -116,24 +115,33 @@ pub struct FieldLayout {
     pub ty: TypeLayout,
 }
 
-/// Enum of layout rules.
+/// Enum of layout algorithms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Repr {
-    /// Wgsl storage address space layout
+    /// WGSL's layout algorithm
+    /// https://www.w3.org/TR/WGSL/#alignment-and-size
+    Wgsl,
+    /// Modified layout algorithm based on [`Repr::Wgsl`], but with different type
+    /// alignments and array strides that make the resulting Layout match wgsl's
+    /// uniform address space requirements.
+    ///
     /// https://www.w3.org/TR/WGSL/#address-space-layout-constraints
-    Storage,
-    /// Wgsl uniform address space layout
-    /// https://www.w3.org/TR/WGSL/#address-space-layout-constraints
-    Uniform,
-    /// Packed layout. Vertex buffer only.
+    ///
+    /// (matrix strides remain unchanged however, which makes this different from the std140 layout for mat2x2)
+    ///
+    /// Internally used for checking whether a type can be used in the wgsl's
+    /// uniform address space
+    WgslUniform,
+    /// byte-alignment of everything is 1. Custom alignment attributes
+    /// in [`TypeLayoutRecipe`] are unsupported.
     Packed,
 }
 
 impl std::fmt::Display for Repr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Repr::Storage => write!(f, "storage"),
-            Repr::Uniform => write!(f, "uniform"),
+            Repr::Wgsl => write!(f, "wgsl"),
+            Repr::WgslUniform => write!(f, "wgsl uniform"),
             Repr::Packed => write!(f, "packed"),
         }
     }
@@ -279,8 +287,8 @@ mod tests {
 
         // To change the top level arrays repr, we need to set the default repr,
         // because non-structs inherit repr.
-        let storage = array.layout_with_default_repr(Repr::Storage);
-        let uniform = array.layout_with_default_repr(Repr::Uniform);
+        let storage = array.layout_with_default_repr(Repr::Wgsl);
+        let uniform = array.layout_with_default_repr(Repr::WgslUniform);
         let packed = array.layout_with_default_repr(Repr::Packed);
 
         assert_eq!(storage.align(), U32PowerOf2::_4);
@@ -309,8 +317,8 @@ mod tests {
         let s =
             |repr| -> LayoutableType { SizedStruct::new("A", "a", Vector::new(ScalarType::F32, Len::X1), repr).into() };
 
-        let storage = s(Repr::Storage).layout();
-        let uniform = s(Repr::Uniform).layout();
+        let storage = s(Repr::Wgsl).layout();
+        let uniform = s(Repr::WgslUniform).layout();
         let packed = s(Repr::Packed).layout();
 
         assert_eq!(storage.align(), U32PowerOf2::_4);
@@ -331,8 +339,8 @@ mod tests {
                 .into()
         };
 
-        let storage = s(Repr::Storage).layout();
-        let uniform = s(Repr::Uniform).layout();
+        let storage = s(Repr::Wgsl).layout();
+        let uniform = s(Repr::WgslUniform).layout();
         let packed = s(Repr::Packed).layout();
 
         assert_eq!(storage.align(), U32PowerOf2::_4);
@@ -368,8 +376,8 @@ mod tests {
                 .into()
         };
 
-        let storage = s(Repr::Storage).layout();
-        let uniform = s(Repr::Uniform).layout();
+        let storage = s(Repr::Wgsl).layout();
+        let uniform = s(Repr::WgslUniform).layout();
         let packed = s(Repr::Packed).layout();
 
         assert_eq!(storage.align(), U32PowerOf2::_4);
@@ -395,7 +403,7 @@ mod tests {
     fn test_unsized_struct_layout() {
         let mut unsized_struct = UnsizedStruct {
             name: CanonName::from("TestStruct"),
-            repr: Repr::Storage,
+            repr: Repr::Wgsl,
             sized_fields: vec![
                 SizedField {
                     name: CanonName::from("field1"),
@@ -446,7 +454,7 @@ mod tests {
         }
 
         // Testing uniform representation
-        unsized_struct.repr = Repr::Uniform;
+        unsized_struct.repr = Repr::WgslUniform;
         let recipe: LayoutableType = unsized_struct.into();
         println!("{:#?}", recipe);
         let layout = recipe.layout();

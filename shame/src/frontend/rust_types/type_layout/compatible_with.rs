@@ -41,10 +41,41 @@ impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
             (AddressSpaceEnum::WgslUniform, Some(_)) | (AddressSpaceEnum::WgslStorage, _) => {}
         }
 
-        // Check for layout errors
+        // Check that the type layout is representable in the target language
         match address_space {
             AddressSpaceEnum::WgslStorage | AddressSpaceEnum::WgslUniform => {
-                let recipe_unified = recipe.to_unified_repr(address_space.matching_repr());
+                // Wgsl has only one type representation: Repr::Storage, so the layout produced by the recipe
+                // is representable in wgsl iff the layout produced by the same recipe but with
+                // all structs in the recipe using Repr::Storage is the same.
+                let recipe_unified = recipe.to_unified_repr(Repr::Wgsl);
+                let layout_unified = recipe_unified.layout();
+                if layout != layout_unified {
+                    match try_find_mismatch(&layout, &layout_unified) {
+                        Some(mismatch) => {
+                            return Err(AddressSpaceError::NotRepresentable(LayoutError {
+                                recipe,
+                                address_space,
+                                mismatch,
+                                colored: Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages)
+                                    .unwrap_or(false),
+                            }));
+                        }
+                        None => return Err(AddressSpaceError::UnknownLayoutError(recipe, address_space)),
+                    }
+                }
+            }
+        }
+
+        // Check that the type layout satisfies the requirements of the address space
+        match address_space {
+            AddressSpaceEnum::WgslStorage => {
+                // As long as the recipe is representable in wgsl, it satifies the storage address space requirements.
+                // We already checked that the recipe is representable in wgsl above.
+            }
+            AddressSpaceEnum::WgslUniform => {
+                // Repr::Uniform is made for exactly this purpose: to check that the type layout
+                // satisfies the requirements of wgsl's uniform address space.
+                let recipe_unified = recipe.to_unified_repr(Repr::WgslUniform);
                 let layout_unified = recipe_unified.layout();
                 if layout != layout_unified {
                     match try_find_mismatch(&layout, &layout_unified) {
@@ -71,25 +102,9 @@ impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum AddressSpaceEnum {
-    WgslStorage,
-    WgslUniform,
-}
-
-impl std::fmt::Display for AddressSpaceEnum {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AddressSpaceEnum::WgslStorage => f.write_str("wgsl's storage address space"),
-            AddressSpaceEnum::WgslUniform => f.write_str("wgsl's uniform address space"),
-        }
-    }
-}
-
 pub trait AddressSpace {
     const ADDRESS_SPACE: AddressSpaceEnum;
 }
-
 pub struct WgslStorage;
 pub struct WgslUniform;
 impl AddressSpace for WgslStorage {
@@ -99,11 +114,24 @@ impl AddressSpace for WgslUniform {
     const ADDRESS_SPACE: AddressSpaceEnum = AddressSpaceEnum::WgslUniform;
 }
 
-impl AddressSpaceEnum {
-    fn matching_repr(&self) -> Repr {
+#[derive(Debug, Clone, Copy)]
+pub enum AddressSpaceEnum {
+    WgslStorage,
+    WgslUniform,
+}
+impl std::fmt::Display for AddressSpaceEnum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AddressSpaceEnum::WgslStorage => Repr::Storage,
-            AddressSpaceEnum::WgslUniform => Repr::Uniform,
+            AddressSpaceEnum::WgslStorage => f.write_str("wgsl's storage address space"),
+            AddressSpaceEnum::WgslUniform => f.write_str("wgsl's uniform address space"),
+        }
+    }
+}
+impl AddressSpaceEnum {
+    pub fn language(&self) -> &'static str {
+        match self {
+            AddressSpaceEnum::WgslStorage => "wgsl",
+            AddressSpaceEnum::WgslUniform => "wgsl",
         }
     }
 }
@@ -112,7 +140,7 @@ impl AddressSpaceEnum {
 pub enum AddressSpaceError {
     #[error("Address space requirements not satisfied:\n{0}")]
     DoesntSatisfyRequirements(LayoutError),
-    #[error("Not representable in target language:\n{0}")]
+    #[error("{} is not representable in {}:\n{0}", .0.recipe, .0.address_space.language())]
     NotRepresentable(LayoutError),
     #[error("Unknown layout error occured for {0} in {1}.")]
     UnknownLayoutError(LayoutableType, AddressSpaceEnum),
@@ -139,8 +167,8 @@ impl std::fmt::Display for LayoutError {
         let types_are_the_same = "The LayoutError is produced by comparing two semantically equivalent TypeLayouts, so all (nested) types are the same";
         match &self.mismatch {
             LayoutMismatch::TopLevel {
-                layout_left: layout1,
-                layout_right: layout2,
+                layout_left,
+                layout_right,
                 mismatch,
             } => match mismatch {
                 TopLevelMismatch::Type => unreachable!("{}", types_are_the_same),
@@ -148,13 +176,37 @@ impl std::fmt::Display for LayoutError {
                     array_left,
                     array_right,
                 } => {
+                    if array_left.short_name() == array_right.short_name() {
+                        writeln!(
+                            f,
+                            "`{}` requires a stride of {} in {}, but has a stride of {}.",
+                            array_left.short_name(),
+                            array_right.byte_stride,
+                            self.address_space,
+                            array_left.byte_stride
+                        )?;
+                    } else {
+                        writeln!(
+                            f,
+                            "`{}` in `{}` requires a stride of {} in {}, but has a stride of {}.",
+                            array_left.short_name(),
+                            layout_left.short_name(),
+                            array_right.byte_stride,
+                            self.address_space,
+                            array_left.byte_stride
+                        )?;
+                    }
+                }
+                // TODO(chronicl) fix byte size message for when the byte size mismatch is happening
+                // in a nested array
+                TopLevelMismatch::ByteSize { .. } => {
                     writeln!(
                         f,
-                        "`{}` requires a stride of {} in {}, but has a stride of {}.",
-                        array_left.short_name(),
-                        array_right.byte_stride,
+                        "`{}` has a byte size of {} in {}, but has a byte size of {}.",
+                        layout_left.short_name(),
+                        UnwrapOrStr(layout_left.byte_size(), ""),
                         self.address_space,
-                        array_left.byte_stride
+                        UnwrapOrStr(layout_right.byte_size(), "")
                     )?;
                 }
             },
@@ -164,10 +216,13 @@ impl std::fmt::Display for LayoutError {
                 mismatch,
             } => {
                 match mismatch {
-                    StructMismatch::FieldArrayStride {
+                    StructMismatch::FieldLayout {
                         field_index,
-                        array_left,
-                        array_right,
+                        mismatch:
+                            TopLevelMismatch::ArrayStride {
+                                array_left,
+                                array_right,
+                            },
                     } => {
                         writeln!(
                             f,
@@ -181,10 +236,15 @@ impl std::fmt::Display for LayoutError {
                         writeln!(f, "The full layout of `{}` is:", struct_left.short_name())?;
                         write_struct(f, struct_left, Some(*field_index), self.colored)?;
                     }
-                    StructMismatch::FieldByteSize { field_index } => {
+                    StructMismatch::FieldLayout {
+                        field_index,
+                        mismatch: TopLevelMismatch::ByteSize { left, right },
+                    } => {
                         let field_left = &struct_left.fields[*field_index];
                         let field_right = &struct_right.fields[*field_index];
 
+                        // TODO(chronicl) fix byte size message for when the byte size mismatch is happening
+                        // in a nested array
                         writeln!(
                             f,
                             "Field `{}` in `{}` requires a byte size of {} in {}, but has a byte size of {}",
@@ -207,7 +267,7 @@ impl std::fmt::Display for LayoutError {
 
                         writeln!(
                             f,
-                            "Field `{}` in `{}` needs to be {} byte aligned in {}, but has a byte-offset of {} which is only {} byte aligned",
+                            "Field `{}` in `{}` needs to be {} byte aligned in {}, but has a byte-offset of {}, which is only {} byte aligned",
                             field_name, struct_left.name, expected_align, self.address_space, offset, actual_align
                         )?;
                         writeln!(f, "The full layout of `{}` is:", struct_left.short_name())?;
@@ -242,7 +302,7 @@ impl std::fmt::Display for LayoutError {
                         }
 
                         match self.address_space {
-                            (AddressSpaceEnum::WgslUniform | AddressSpaceEnum::WgslStorage) => writeln!(
+                            AddressSpaceEnum::WgslUniform | AddressSpaceEnum::WgslStorage => writeln!(
                                 f,
                                 "More info about the {} can be found at https://www.w3.org/TR/WGSL/#address-space-layout-constraints",
                                 self.address_space
@@ -251,7 +311,10 @@ impl std::fmt::Display for LayoutError {
                     }
                     StructMismatch::FieldCount |
                     StructMismatch::FieldName { .. } |
-                    StructMismatch::FieldType { .. } => {
+                    StructMismatch::FieldLayout {
+                        mismatch: TopLevelMismatch::Type,
+                        ..
+                    } => {
                         unreachable!("{}", types_are_the_same)
                     }
                 };
@@ -289,13 +352,36 @@ where
     Ok(())
 }
 
+/// Contains information about the layout mismatch between two `TypeLayout`s.
+///
+/// The type layouts are traversed depth-first and the first mismatch encountered
+/// is reported at its deepest level.
+///
+/// In case of nested structs this means that if the field `a` in
+/// ```
+/// struct A {
+///     a: struct B { ... }
+/// }
+/// struct AOther {
+///     a: struct BOther { ... }
+/// }
+/// ```
+/// mismatches, because `B` and `BOther` don't match, then the exact mismatch
+/// between `B` and `BOther` is reported and not the field mismatch of `a` in `A` and `AOther`.
+///
+/// Nested arrays are reported in two levels: `LayoutMismatch::TopLevel` contains the
+/// top level / outer most array layout and a  `TopLevelMismatch`, which contains the
+/// inner type layout where the mismatch is happening.
+/// For example if there is an array stride mismatch of the inner array of `Array<Array<f32x3>>`,
+/// then `LayoutMismatch::TopLevel` contains the layout of `Array<Array<f32x3>>` and
+/// a `TopLevelMismatch::ArrayStride` with the layout of `Array<f32x3>`.
+///
+/// A field of nested arrays in a struct is handled in the same way by
+/// `LayoutMismatch::Struct` containing the field index, which let's us access the outer
+/// most array, and a `TopLevelMismatch`, which let's us access the inner type layout
+/// where the mismatch is happening.
 #[derive(Debug, Clone)]
 pub enum LayoutMismatch {
-    /// `layout1` and `layout2` are always the top level layouts.
-    ///
-    /// For example, in case of `Array<Array<f32x3>>`, it's always the layout
-    /// of `Array<Array<f32x3>>` even if the array stride mismatch
-    /// is happening for the inner `Array<f32x3>`.
     TopLevel {
         layout_left: TypeLayout,
         layout_right: TypeLayout,
@@ -311,37 +397,28 @@ pub enum LayoutMismatch {
 #[derive(Debug, Clone)]
 pub enum TopLevelMismatch {
     Type,
-    /// This contains the array layout where the mismatch is happening,
-    /// which is not necessarily the top level array.
-    /// For example, in case of an array stride mismatch of the inner
-    /// array in Array<Array<f32x3>>, this is Array<f32x3>'s layout.
+    ByteSize {
+        left: TypeLayout,
+        right: TypeLayout,
+    },
     ArrayStride {
         array_left: ArrayLayout,
         array_right: ArrayLayout,
     },
 }
 
-/// Returns the first mismatch found in the struct fields.
-///
 /// Field count is checked last.
 #[derive(Debug, Clone)]
 pub enum StructMismatch {
     FieldName {
         field_index: usize,
     },
-    FieldType {
+    FieldLayout {
         field_index: usize,
+        mismatch: TopLevelMismatch,
     },
     FieldOffset {
         field_index: usize,
-    },
-    FieldByteSize {
-        field_index: usize,
-    },
-    FieldArrayStride {
-        field_index: usize,
-        array_left: ArrayLayout,
-        array_right: ArrayLayout,
     },
     FieldCount,
 }
@@ -382,25 +459,19 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
         (Array(a1), Array(a2)) => {
             // Recursively check element types
             match try_find_mismatch(&a1.element_ty, &a2.element_ty) {
-                // In case the mismatch isn't related to a struct field mismatch,
-                // we propagate the error upwards to this array. For example
-                // Array<Array<f32x1>> vs Array<Array<u32x1>> comparison returns a
-                // Array<Array<f32x1>> vs Array<Array<u32x1>> type mismatch and not a
-                // Array<f32x1>        vs Array<u32x1>        mismatch
-                // Note that we don't change the TopLevelMismatch::ArrayStride fields though.
+                // Update the top level layouts and propagate the LayoutMismatch
                 Some(LayoutMismatch::TopLevel {
                     layout_left: layout1,
                     layout_right: layout2,
                     mismatch,
-                }) => match mismatch {
-                    TopLevelMismatch::Type | TopLevelMismatch::ArrayStride { .. } => {
-                        return Some(LayoutMismatch::TopLevel {
-                            layout_left: layout1.clone(),
-                            layout_right: layout2.clone(),
-                            mismatch,
-                        });
-                    }
-                },
+                }) => {
+                    return Some(LayoutMismatch::TopLevel {
+                        layout_left: layout1.clone(),
+                        layout_right: layout2.clone(),
+                        mismatch,
+                    });
+                }
+                // Struct mismatch, so it's not a top-level mismatch anymore
                 m @ Some(LayoutMismatch::Struct { .. }) => return m,
                 None => return None,
             }
@@ -439,6 +510,18 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
         }
     }
 
+    // Check byte size
+    if layout1.byte_size() != layout2.byte_size() {
+        return Some(LayoutMismatch::TopLevel {
+            layout_left: layout1.clone(),
+            layout_right: layout2.clone(),
+            mismatch: TopLevelMismatch::ByteSize {
+                left: layout1.clone(),
+                right: layout2.clone(),
+            },
+        });
+    }
+
     None
 }
 
@@ -446,9 +529,8 @@ fn try_find_struct_mismatch(struct1: &StructLayout, struct2: &StructLayout) -> O
     for (field_index, (field1, field2)) in struct1.fields.iter().zip(struct2.fields.iter()).enumerate() {
         // Order of checks is important here. We check in order
         // - field name
-        // - field type and if the field is/contains a struct, recursively check its fields
+        // - field type, byte size and if the field is/contains a struct, recursively check its fields
         // - field offset
-        // - field byte size
         if field1.name != field2.name {
             return Some(LayoutMismatch::Struct {
                 struct_left: struct1.clone(),
@@ -461,32 +543,11 @@ fn try_find_struct_mismatch(struct1: &StructLayout, struct2: &StructLayout) -> O
         if let Some(inner_mismatch) = try_find_mismatch(&field1.ty, &field2.ty) {
             match inner_mismatch {
                 // If it's a top-level mismatch, convert it to a field mismatch
-                LayoutMismatch::TopLevel {
-                    mismatch: TopLevelMismatch::Type,
-                    ..
-                } => {
+                LayoutMismatch::TopLevel { mismatch, .. } => {
                     return Some(LayoutMismatch::Struct {
                         struct_left: struct1.clone(),
                         struct_right: struct2.clone(),
-                        mismatch: StructMismatch::FieldType { field_index },
-                    });
-                }
-                LayoutMismatch::TopLevel {
-                    mismatch:
-                        TopLevelMismatch::ArrayStride {
-                            array_left,
-                            array_right,
-                        },
-                    ..
-                } => {
-                    return Some(LayoutMismatch::Struct {
-                        struct_left: struct1.clone(),
-                        struct_right: struct2.clone(),
-                        mismatch: StructMismatch::FieldArrayStride {
-                            field_index,
-                            array_left,
-                            array_right,
-                        },
+                        mismatch: StructMismatch::FieldLayout { field_index, mismatch },
                     });
                 }
                 // Pass through nested struct mismatches
@@ -500,15 +561,6 @@ fn try_find_struct_mismatch(struct1: &StructLayout, struct2: &StructLayout) -> O
                 struct_left: struct1.clone(),
                 struct_right: struct2.clone(),
                 mismatch: StructMismatch::FieldOffset { field_index },
-            });
-        }
-
-        // Check field byte size
-        if field1.ty.byte_size() != field2.ty.byte_size() {
-            return Some(LayoutMismatch::Struct {
-                struct_left: struct1.clone(),
-                struct_right: struct2.clone(),
-                mismatch: StructMismatch::FieldByteSize { field_index },
             });
         }
     }

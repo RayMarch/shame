@@ -29,23 +29,23 @@ pub fn find_literal_list_attr<T: syn::parse::Parse>(
 
 pub enum Repr {
     Packed,
-    Storage,
+    Wgsl,
 }
 
 pub fn try_find_gpu_repr(attribs: &[syn::Attribute]) -> Result<Option<(Span, Repr)>> {
-    let mut repr = Repr::Storage;
+    let mut repr = Repr::Wgsl;
     for a in attribs {
         if a.path().is_ident("gpu_repr") {
             a.parse_nested_meta(|meta| {
                 if meta.path.is_ident("packed") {
                     repr = Repr::Packed;
                     return Ok(());
-                } else if meta.path.is_ident("storage") {
-                    repr = Repr::Storage;
+                } else if meta.path.is_ident("wgsl") {
+                    repr = Repr::Wgsl;
                     return Ok(());
                 }
 
-                Err(meta.error("unrecognized `gpu_repr`. Did you mean `gpu_repr(packed)`?"))
+                Err(meta.error("unrecognized `gpu_repr`. Did you mean `gpu_repr(packed)` or `gpu_repr(wgsl)`?"))
             })?;
 
             return Ok(Some((a.span(), repr)));

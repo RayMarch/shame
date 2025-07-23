@@ -533,7 +533,7 @@ impl PackedVector {
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         match repr {
             Repr::Packed => return PACKED_ALIGN,
-            Repr::Storage | Repr::Uniform => {}
+            Repr::Wgsl | Repr::WgslUniform => {}
         }
 
         let align = match self.byte_size() {
