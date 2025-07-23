@@ -146,10 +146,10 @@ impl AddressSpaceEnum {
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum AddressSpaceError {
-    #[error("Address space requirements not satisfied:\n{0}")]
-    DoesntSatisfyRequirements(LayoutError),
     #[error("{} is not representable in {}:\n{0}", .0.recipe, .0.address_space.language())]
     NotRepresentable(LayoutError),
+    #[error("Address space requirements not satisfied:\n{0}")]
+    DoesntSatisfyRequirements(LayoutError),
     #[error("Unknown layout error occured for {0} in {1}.")]
     UnknownLayoutError(TypeLayoutRecipe, AddressSpaceEnum),
     #[error(

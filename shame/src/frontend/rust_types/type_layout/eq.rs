@@ -110,7 +110,7 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
                 }
                 // Struct mismatch, so it's not a top-level mismatch anymore
                 m @ Some(LayoutMismatch::Struct { .. }) => return m,
-                None => return None,
+                None => {}
             }
 
             // Check array sizes match
@@ -266,7 +266,7 @@ impl CheckEqLayoutMismatch {
             } => match mismatch {
                 TopLevelMismatch::Type => writeln!(
                     f,
-                    "The layouts of `{}` and `{}` do not match, because their types are semantically different.",
+                    "The layouts of `{}` ({a_name}) and `{}` ({b_name}) do not match, because their types are semantically different.",
                     layout_left.short_name(),
                     layout_right.short_name()
                 )?,
@@ -276,13 +276,13 @@ impl CheckEqLayoutMismatch {
                 } => {
                     writeln!(
                         f,
-                        "The layouts of `{}` and `{}` do not match.",
+                        "The layouts of `{}` ({a_name}) and `{}` ({b_name}) do not match.",
                         layout_left.short_name(),
                         layout_right.short_name()
                     )?;
                     writeln!(
                         f,
-                        "`{}` has a stride of {}, while `{}` has a stride of {}.",
+                        "`{}` ({a_name}) has a stride of {}, while `{}` ({b_name}) has a stride of {}.",
                         array_left.short_name(),
                         array_left.byte_stride,
                         array_right.short_name(),
@@ -292,13 +292,13 @@ impl CheckEqLayoutMismatch {
                 TopLevelMismatch::ByteSize { left, right } => {
                     writeln!(
                         f,
-                        "The layouts of `{}` and `{}` do not match.",
+                        "The layouts of `{}` ({a_name}) and `{}` ({b_name}) do not match.",
                         layout_left.short_name(),
                         layout_right.short_name()
                     )?;
                     writeln!(
                         f,
-                        "`{}` has a byte size of {}, while `{}` has a byte size of {}.",
+                        "`{}` ({a_name}) has a byte size of {}, while `{}` ({b_name}) has a byte size of {}.",
                         left.short_name(),
                         UnwrapOrStr(left.byte_size(), "runtime-sized"),
                         right.short_name(),
@@ -522,12 +522,24 @@ mod tests {
 
     #[derive(Clone, Copy)]
     #[repr(C)]
-    struct f32x3_align4(pub [f32; 4]);
+    struct f32x3_align4(pub [f32; 3]);
 
     impl CpuLayout for f32x3_align4 {
         fn cpu_layout() -> shame::TypeLayout {
             let mut layout = gpu_layout::<f32x3>();
             layout.set_align(shame::any::U32PowerOf2::_4);
+            layout
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    #[repr(C)]
+    struct f32x3_size16(pub [f32; 4]);
+
+    impl CpuLayout for f32x3_size16 {
+        fn cpu_layout() -> shame::TypeLayout {
+            let mut layout = gpu_layout::<f32x3>();
+            layout.set_byte_size(Some(16));
             layout
         }
     }
@@ -558,14 +570,17 @@ mod tests {
         print_mismatch::<A, ACpu>();
 
         // field type mismatch
+        println!("The next one also shows how \"...\" is used if there are more fields after the mismatching field\n");
         #[derive(GpuLayout)]
         pub struct B {
             a: f32x1,
+            b: f32x1,
         }
         #[derive(CpuLayout)]
         #[repr(C)]
         pub struct BCpu {
             a: u32,
+            b: f32,
         }
         print_mismatch::<B, BCpu>();
 
@@ -582,5 +597,69 @@ mod tests {
             b: f32x3_align4,
         }
         print_mismatch::<C, CCpu>();
+
+        // field byte size mismatch
+        #[derive(GpuLayout)]
+        pub struct D {
+            a: f32x3,
+        }
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct DCpu {
+            a: f32x3_size16,
+        }
+        print_mismatch::<D, DCpu>();
+
+        // field nested byte size mismatch
+        println!(
+            "The next one does not show the `size` column, because it could be confusing, since the type in the array is where the mismatch happens:\n"
+        );
+        #[derive(GpuLayout)]
+        pub struct E {
+            a: sm::Array<f32x3, sm::Size<4>>,
+        }
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct ECpu {
+            a: [f32x3_size16; 4],
+        }
+        print_mismatch::<E, ECpu>();
+
+        // field stride mismatch
+        #[derive(GpuLayout)]
+        pub struct F {
+            a: sm::Array<f32x3, sm::Size<4>>,
+        }
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct FCpu {
+            a: [f32x3_align4; 4],
+        }
+        print_mismatch::<F, FCpu>();
+
+        println!(
+            "The next two error messages are what is produced when non-structs, in this case arrays, are the top level types\n"
+        );
+
+        // stride mismatch
+        print_mismatch::<sm::Array<f32x3, sm::Size<4>>, [f32x3_align4; 4]>();
+
+        // nested stride mismatch
+        print_mismatch::<sm::Array<sm::Array<f32x3, sm::Size<4>>, sm::Size<2>>, [[f32x3_align4; 4]; 2]>();
+
+        // nested stride in struct mismatch
+        println!(
+            "The next one does not show the `stride` column, because it could be confusing, since the type in the array is where the mismatch happens:\n"
+        );
+        #[derive(GpuLayout)]
+        pub struct G {
+            a: sm::Array<sm::Array<f32x3, sm::Size<4>>, sm::Size<2>>,
+        }
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct GCpu {
+            a: [[f32x3_align4; 4]; 2],
+        }
+        print_mismatch::<G, GCpu>();
     }
 }
