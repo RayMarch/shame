@@ -9,7 +9,7 @@ use crate::{
     TypeLayout,
 };
 
-use super::{layoutable::LayoutableType, Repr};
+use super::{recipe::TypeLayoutRecipe, Repr};
 
 /// `TypeLayoutCompatibleWith<AddressSpace>` is a `TypeLayoutRecipe` with the additional
 /// guarantee that the resulting `TypeLayout` is useable in the specified `AddressSpace`.
@@ -24,14 +24,14 @@ use super::{layoutable::LayoutableType, Repr};
 /// Wgsl has only one representation of types - there is no choice between std140 and std430
 /// like in glsl - so to be representable in wgsl means that the type layout produced by
 /// the recipe is the same as the one produced by the same recipe but with all structs
-/// in the recipe using Repr::Storage, which is what shame calls wgsl's representation/layout algorithm.
+/// in the recipe using Repr::Wgsl, which is what shame calls wgsl's representation/layout algorithm.
 pub struct TypeLayoutCompatibleWith<AddressSpace> {
-    recipe: LayoutableType,
+    recipe: TypeLayoutRecipe,
     _phantom: std::marker::PhantomData<AddressSpace>,
 }
 
 impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
-    pub fn try_from(recipe: LayoutableType) -> Result<Self, AddressSpaceError> {
+    pub fn try_from(recipe: TypeLayoutRecipe) -> Result<Self, AddressSpaceError> {
         let address_space = AS::ADDRESS_SPACE;
         let layout = recipe.layout();
 
@@ -44,9 +44,9 @@ impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
         // Check that the type layout is representable in the target language
         match address_space {
             AddressSpaceEnum::WgslStorage | AddressSpaceEnum::WgslUniform => {
-                // Wgsl has only one type representation: Repr::Storage, so the layout produced by the recipe
+                // Wgsl has only one type representation: Repr::Wgsl, so the layout produced by the recipe
                 // is representable in wgsl iff the layout produced by the same recipe but with
-                // all structs in the recipe using Repr::Storage is the same.
+                // all structs in the recipe using Repr::Wgsl is the same.
                 let recipe_unified = recipe.to_unified_repr(Repr::Wgsl);
                 let layout_unified = recipe_unified.layout();
                 if layout != layout_unified {
@@ -73,7 +73,7 @@ impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
                 // We already checked that the recipe is representable in wgsl above.
             }
             AddressSpaceEnum::WgslUniform => {
-                // Repr::Uniform is made for exactly this purpose: to check that the type layout
+                // Repr::WgslUniform is made for exactly this purpose: to check that the type layout
                 // satisfies the requirements of wgsl's uniform address space.
                 let recipe_unified = recipe.to_unified_repr(Repr::WgslUniform);
                 let layout_unified = recipe_unified.layout();
@@ -143,19 +143,19 @@ pub enum AddressSpaceError {
     #[error("{} is not representable in {}:\n{0}", .0.recipe, .0.address_space.language())]
     NotRepresentable(LayoutError),
     #[error("Unknown layout error occured for {0} in {1}.")]
-    UnknownLayoutError(LayoutableType, AddressSpaceEnum),
+    UnknownLayoutError(TypeLayoutRecipe, AddressSpaceEnum),
     #[error(
         "The size of `{0}` on the gpu is not known at compile time. {1} \
      requires that the size of {0} on the gpu is known at compile time."
     )]
-    MustBeSized(LayoutableType, AddressSpaceEnum),
+    MustBeSized(TypeLayoutRecipe, AddressSpaceEnum),
     #[error("{0} contains a `PackedVector`, which are not allowed in {1}.")]
-    MayNotContainPackedVec(LayoutableType, AddressSpaceEnum),
+    MayNotContainPackedVec(TypeLayoutRecipe, AddressSpaceEnum),
 }
 
 #[derive(Debug, Clone)]
 pub struct LayoutError {
-    recipe: LayoutableType,
+    recipe: TypeLayoutRecipe,
     address_space: AddressSpaceEnum,
     mismatch: LayoutMismatch,
     colored: bool,

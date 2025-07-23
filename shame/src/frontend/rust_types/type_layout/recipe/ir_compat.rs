@@ -4,7 +4,7 @@ use super::*;
 
 //     Conversions to ir types     //
 
-/// Errors that can occur when converting IR types to layoutable types.
+/// Errors that can occur when converting IR types to recipe types.
 #[derive(thiserror::Error, Debug)]
 pub enum IRConversionError {
     /// Packed vectors do not exist in the shader type system.
@@ -82,14 +82,14 @@ fn should_use_color() -> bool {
     Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages).unwrap_or(false)
 }
 
-impl TryFrom<LayoutableType> for ir::StoreType {
+impl TryFrom<TypeLayoutRecipe> for ir::StoreType {
     type Error = IRConversionError;
 
-    fn try_from(ty: LayoutableType) -> Result<Self, Self::Error> {
+    fn try_from(ty: TypeLayoutRecipe) -> Result<Self, Self::Error> {
         match ty {
-            LayoutableType::Sized(s) => Ok(ir::StoreType::Sized(s.try_into()?)),
-            LayoutableType::RuntimeSizedArray(s) => Ok(ir::StoreType::RuntimeSizedArray(s.element.try_into()?)),
-            LayoutableType::UnsizedStruct(s) => Ok(ir::StoreType::BufferBlock(s.try_into()?)),
+            TypeLayoutRecipe::Sized(s) => Ok(ir::StoreType::Sized(s.try_into()?)),
+            TypeLayoutRecipe::RuntimeSizedArray(s) => Ok(ir::StoreType::RuntimeSizedArray(s.element.try_into()?)),
+            TypeLayoutRecipe::UnsizedStruct(s) => Ok(ir::StoreType::BufferBlock(s.try_into()?)),
         }
     }
 }
@@ -224,10 +224,10 @@ impl TryFrom<RuntimeSizedArrayField> for ir::ir_type::RuntimeSizedArrayField {
 #[error("Type contains bools, which doesn't have a known layout.")]
 pub struct ContainsBoolsError;
 
-/// Errors that can occur when converting IR types to layoutable types.
+/// Errors that can occur when converting IR types to recipe types.
 #[allow(missing_docs)]
 #[derive(thiserror::Error, Debug)]
-pub enum LayoutableConversionError {
+pub enum RecipeConversionError {
     #[error("Type contains bools, which don't have a standardized memory layout on the gpu.")]
     ContainsBool,
     #[error("Type is a handle, which don't have a standardized memory layout.")]
@@ -289,31 +289,31 @@ impl TryFrom<ir::ir_type::SizedStruct> for SizedStruct {
             fields,
             // TODO(chronicl) hardcoding this is a temporary solution. This whole
             // TryFrom should be removed in future PRs.
-            repr: Repr::Storage,
+            repr: Repr::Wgsl,
         })
     }
 }
 
-impl From<ContainsBoolsError> for LayoutableConversionError {
+impl From<ContainsBoolsError> for RecipeConversionError {
     fn from(_: ContainsBoolsError) -> Self { Self::ContainsBool }
 }
 
-impl TryFrom<ir::StoreType> for LayoutableType {
-    type Error = LayoutableConversionError;
+impl TryFrom<ir::StoreType> for TypeLayoutRecipe {
+    type Error = RecipeConversionError;
 
     fn try_from(value: ir::StoreType) -> Result<Self, Self::Error> {
         Ok(match value {
-            ir::StoreType::Sized(sized_type) => LayoutableType::Sized(sized_type.try_into()?),
-            ir::StoreType::RuntimeSizedArray(element) => LayoutableType::RuntimeSizedArray(RuntimeSizedArray {
+            ir::StoreType::Sized(sized_type) => TypeLayoutRecipe::Sized(sized_type.try_into()?),
+            ir::StoreType::RuntimeSizedArray(element) => TypeLayoutRecipe::RuntimeSizedArray(RuntimeSizedArray {
                 element: element.try_into()?,
             }),
             ir::StoreType::BufferBlock(buffer_block) => buffer_block.try_into()?,
-            ir::StoreType::Handle(_) => return Err(LayoutableConversionError::IsHandle),
+            ir::StoreType::Handle(_) => return Err(RecipeConversionError::IsHandle),
         })
     }
 }
 
-impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
+impl TryFrom<ir::ir_type::BufferBlock> for TypeLayoutRecipe {
     type Error = ContainsBoolsError;
 
     fn try_from(buffer_block: ir::ir_type::BufferBlock) -> Result<Self, Self::Error> {
@@ -342,7 +342,7 @@ impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
                 fields: sized_fields,
                 // TODO(chronicl) hardcoding this is a temporary solution. This whole
                 // TryFrom should be removed in future PRs.
-                repr: Repr::Storage,
+                repr: Repr::Wgsl,
             }
             .into());
         };
@@ -353,7 +353,7 @@ impl TryFrom<ir::ir_type::BufferBlock> for LayoutableType {
             last_unsized,
             // TODO(chronicl) hardcoding this is a temporary solution. This whole
             // TryFrom should be removed in future PRs.
-            repr: Repr::Storage,
+            repr: Repr::Wgsl,
         }
         .into())
     }
@@ -376,7 +376,7 @@ impl From<UnsizedStruct> for StructKind {
 fn test_ir_conversion_error() {
     use crate::{f32x1, packed::unorm8x2};
 
-    let ty: LayoutableType = SizedStruct::new("A", "a", f32x1::layout_recipe_sized(), Repr::Storage)
+    let ty: TypeLayoutRecipe = SizedStruct::new("A", "a", f32x1::layout_recipe_sized(), Repr::Wgsl)
         .extend("b", f32x1::layout_recipe_sized())
         .extend("a", f32x1::layout_recipe_sized())
         .into();
@@ -391,7 +391,7 @@ fn test_ir_conversion_error() {
         }))
     ));
 
-    let ty: LayoutableType = SizedStruct::new("A", "a", unorm8x2::layout_recipe_sized(), Repr::Storage).into();
+    let ty: TypeLayoutRecipe = SizedStruct::new("A", "a", unorm8x2::layout_recipe_sized(), Repr::Wgsl).into();
     let result: Result<ir::StoreType, _> = ty.try_into();
     assert!(matches!(result, Err(IRConversionError::ContainsPackedVector)));
 }

@@ -7,11 +7,7 @@ use super::{
     mem::AddressSpace,
     reference::{AccessMode, AccessModeReadable},
     scalar_type::{ScalarType, ScalarTypeFp},
-    type_layout::{
-        self,
-        layoutable::{self},
-        TypeLayout,
-    },
+    type_layout::{self, recipe, TypeLayout},
     type_traits::{
         BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools,
         NoHandles,
@@ -55,8 +51,8 @@ impl<T: ScalarTypeFp, C: Len2, R: Len2> Default for mat<T, C, R> {
 }
 
 impl<T: ScalarTypeFp, C: Len2, R: Len2> GpuLayout for mat<T, C, R> {
-    fn layout_recipe() -> layoutable::LayoutableType {
-        layoutable::Matrix {
+    fn layout_recipe() -> recipe::TypeLayoutRecipe {
+        recipe::Matrix {
             columns: C::LEN2,
             rows: R::LEN2,
             scalar: T::SCALAR_TYPE_FP,

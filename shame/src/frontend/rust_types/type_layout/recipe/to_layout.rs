@@ -6,18 +6,18 @@ use crate::{
     ir, TypeLayout,
 };
 use super::{
-    Atomic, LayoutableType, Matrix, PackedVector, RuntimeSizedArray, SizedArray, SizedField, SizedStruct, SizedType,
+    Atomic, TypeLayoutRecipe, Matrix, PackedVector, RuntimeSizedArray, SizedArray, SizedField, SizedStruct, SizedType,
     UnsizedStruct, Vector,
 };
 
-impl LayoutableType {
+impl TypeLayoutRecipe {
     pub fn layout(&self) -> TypeLayout { self.layout_with_default_repr(DEFAULT_REPR) }
 
     pub fn layout_with_default_repr(&self, default_repr: Repr) -> TypeLayout {
         match self {
-            LayoutableType::Sized(ty) => ty.layout(default_repr),
-            LayoutableType::UnsizedStruct(ty) => ty.layout().into(),
-            LayoutableType::RuntimeSizedArray(ty) => ty.layout(default_repr).into(),
+            TypeLayoutRecipe::Sized(ty) => ty.layout(default_repr),
+            TypeLayoutRecipe::UnsizedStruct(ty) => ty.layout().into(),
+            TypeLayoutRecipe::RuntimeSizedArray(ty) => ty.layout(default_repr).into(),
         }
     }
 }

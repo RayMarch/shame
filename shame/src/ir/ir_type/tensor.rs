@@ -3,7 +3,7 @@ use std::{fmt::Display, num::NonZeroU32};
 use crate::{
     any::{U32PowerOf2},
     common::floating_point::{f16, f32_eq_where_nans_are_equal, f64_eq_where_nans_are_equal},
-    frontend::rust_types::type_layout::{self, layoutable::align_size::PACKED_ALIGN, Repr},
+    frontend::rust_types::type_layout::{self, recipe::align_size::PACKED_ALIGN, Repr},
     ir::Comp4,
 };
 

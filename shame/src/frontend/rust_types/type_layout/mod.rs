@@ -20,12 +20,12 @@ use crate::{
         recording::Context,
     },
 };
-use layoutable::{Matrix, Vector, PackedVector};
+use recipe::{Matrix, Vector, PackedVector};
 
 pub(crate) mod compatible_with;
 pub(crate) mod display;
 pub(crate) mod eq;
-pub(crate) mod layoutable;
+pub(crate) mod recipe;
 
 pub const DEFAULT_REPR: Repr = Repr::Wgsl;
 
@@ -237,10 +237,8 @@ impl TypeLayout {
 
 impl TypeLayout {
     // TODO(chronicl) this should be removed with improved any api for storage/uniform bindings
-    pub(crate) fn from_store_ty(
-        store_type: ir::StoreType,
-    ) -> Result<Self, layoutable::ir_compat::LayoutableConversionError> {
-        let t: layoutable::LayoutableType = store_type.try_into()?;
+    pub(crate) fn from_store_ty(store_type: ir::StoreType) -> Result<Self, recipe::ir_compat::RecipeConversionError> {
+        let t: recipe::TypeLayoutRecipe = store_type.try_into()?;
         Ok(t.layout())
     }
 }
@@ -271,7 +269,7 @@ mod tests {
     use crate::{
         any::U32PowerOf2,
         frontend::rust_types::type_layout::{
-            layoutable::{*},
+            recipe::{*},
             Repr, *,
         },
     };
@@ -279,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_array_alignment() {
-        let array: LayoutableType = SizedArray::new(
+        let array: TypeLayoutRecipe = SizedArray::new(
             Rc::new(Vector::new(ScalarType::F32, Len::X1).into()),
             NonZeroU32::new(1).unwrap(),
         )
@@ -314,8 +312,9 @@ mod tests {
 
     #[test]
     fn test_struct_alignment() {
-        let s =
-            |repr| -> LayoutableType { SizedStruct::new("A", "a", Vector::new(ScalarType::F32, Len::X1), repr).into() };
+        let s = |repr| -> TypeLayoutRecipe {
+            SizedStruct::new("A", "a", Vector::new(ScalarType::F32, Len::X1), repr).into()
+        };
 
         let storage = s(Repr::Wgsl).layout();
         let uniform = s(Repr::WgslUniform).layout();
@@ -332,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_nested_struct_field_offset() {
-        let s = |repr| -> LayoutableType {
+        let s = |repr| -> TypeLayoutRecipe {
             let a = SizedStruct::new("A", "a", Vector::new(ScalarType::F32, Len::X1), repr);
             SizedStruct::new("B", "a", Vector::new(ScalarType::F32, Len::X1), repr)
                 .extend("b", a) // offset 4 for storage and packed, offset 16 for uniform
@@ -364,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_array_in_struct_field_offset() {
-        let s = |repr| -> LayoutableType {
+        let s = |repr| -> TypeLayoutRecipe {
             SizedStruct::new("B", "a", Vector::new(ScalarType::F32, Len::X1), repr)
                 .extend(
                     "b",
@@ -426,7 +425,7 @@ mod tests {
                 },
             },
         };
-        let recipe: LayoutableType = unsized_struct.clone().into();
+        let recipe: TypeLayoutRecipe = unsized_struct.clone().into();
 
         let layout = recipe.layout();
         assert_eq!(layout.byte_size(), None);
@@ -455,7 +454,7 @@ mod tests {
 
         // Testing uniform representation
         unsized_struct.repr = Repr::WgslUniform;
-        let recipe: LayoutableType = unsized_struct.into();
+        let recipe: TypeLayoutRecipe = unsized_struct.into();
         println!("{:#?}", recipe);
         let layout = recipe.layout();
         assert_eq!(layout.byte_size(), None);

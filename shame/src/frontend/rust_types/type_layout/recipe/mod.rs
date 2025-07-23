@@ -21,14 +21,12 @@ pub(crate) mod to_layout;
 pub use align_size::{FieldOffsets, MatrixMajor, StructLayoutCalculator, array_size, array_stride, array_align};
 pub use builder::{SizedOrArray, FieldOptions};
 
-/// Types that can be layed out in memory.
+/// `TypeLayoutRecipe` describes how a type should be laid out in memory.
 ///
-/// `LayoutableType` does not contain any layout information itself, but a layout
-/// can be assigned to it using [`GpuTypeLayout`] according to one of the available layout rules:
-/// `repr::Storage`, `repr::Uniform`` or `repr::Packed`, see [`GpuTypeLayout`] documentation
-/// for more details.
+/// It does not contain any layout information itself, but can be converted to a `TypeLayout`
+/// using the `TypeLayoutRecipe::layout` method.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum LayoutableType {
+pub enum TypeLayoutRecipe {
     /// A type with a known size.
     Sized(SizedType),
     /// A struct with a runtime sized array as it's last field.
@@ -140,22 +138,13 @@ pub struct RuntimeSizedArrayField {
     pub array: RuntimeSizedArray,
 }
 
-//   Conversions to ScalarType, SizedType and LayoutableType   //
+//   Conversions to ScalarType, SizedType and TypeLayoutRecipe   //
 
 macro_rules! impl_into_sized_type {
     ($($ty:ident -> $variant:path),*) => {
        $(
-           impl $ty {
-               /// Const conversion to [`SizedType`]
-               pub const fn into_sized_type(self) -> SizedType { $variant(self) }
-               /// Const conversion to [`LayoutableType`]
-               pub const fn into_layoutable_type(self) -> LayoutableType {
-                   LayoutableType::Sized(self.into_sized_type())
-               }
-           }
-
            impl From<$ty> for SizedType {
-               fn from(v: $ty) -> Self { v.into_sized_type() }
+               fn from(v: $ty) -> Self { $variant(v) }
            }
        )*
     };
@@ -169,18 +158,18 @@ impl_into_sized_type!(
     PackedVector -> SizedType::PackedVec
 );
 
-impl<T> From<T> for LayoutableType
+impl<T> From<T> for TypeLayoutRecipe
 where
     SizedType: From<T>,
 {
-    fn from(value: T) -> Self { LayoutableType::Sized(SizedType::from(value)) }
+    fn from(value: T) -> Self { TypeLayoutRecipe::Sized(SizedType::from(value)) }
 }
 
-impl From<UnsizedStruct> for LayoutableType {
-    fn from(s: UnsizedStruct) -> Self { LayoutableType::UnsizedStruct(s) }
+impl From<UnsizedStruct> for TypeLayoutRecipe {
+    fn from(s: UnsizedStruct) -> Self { TypeLayoutRecipe::UnsizedStruct(s) }
 }
-impl From<RuntimeSizedArray> for LayoutableType {
-    fn from(a: RuntimeSizedArray) -> Self { LayoutableType::RuntimeSizedArray(a) }
+impl From<RuntimeSizedArray> for TypeLayoutRecipe {
+    fn from(a: RuntimeSizedArray) -> Self { TypeLayoutRecipe::RuntimeSizedArray(a) }
 }
 
 impl ScalarTypeInteger {
@@ -209,12 +198,12 @@ impl From<ScalarTypeFp> for ScalarType {
 
 // Display impls
 
-impl std::fmt::Display for LayoutableType {
+impl std::fmt::Display for TypeLayoutRecipe {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            LayoutableType::Sized(s) => s.fmt(f),
-            LayoutableType::RuntimeSizedArray(a) => a.fmt(f),
-            LayoutableType::UnsizedStruct(s) => s.fmt(f),
+            TypeLayoutRecipe::Sized(s) => s.fmt(f),
+            TypeLayoutRecipe::RuntimeSizedArray(a) => a.fmt(f),
+            TypeLayoutRecipe::UnsizedStruct(s) => s.fmt(f),
         }
     }
 }

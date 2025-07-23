@@ -576,7 +576,7 @@ impl<T: ScalarType, L: Len> GpuLayout for vec<T, L>
 where
     vec<T, L>: NoBools,
 {
-    fn layout_recipe() -> layout::LayoutableType {
+    fn layout_recipe() -> layout::TypeLayoutRecipe {
         layout::Vector::new(
             T::SCALAR_TYPE
                 .try_into()

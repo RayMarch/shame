@@ -22,7 +22,7 @@ use super::{
     layout_traits::{from_single_any, ArrayElementsUnsizedError, FromAnys, GpuLayout},
     len::LenEven,
     scalar_type::ScalarType,
-    type_layout::{self, layoutable, Repr, TypeLayout, DEFAULT_REPR},
+    type_layout::{self, recipe, Repr, TypeLayout, DEFAULT_REPR},
     type_traits::{GpuAligned, GpuSized, NoAtomics, NoBools, NoHandles, VertexAttribute},
     vec::IsVec,
     GpuType,
@@ -132,8 +132,8 @@ impl<T: PackedScalarType, L: LenEven> NoHandles for PackedVec<T, L> {}
 impl<T: PackedScalarType, L: LenEven> NoAtomics for PackedVec<T, L> {}
 
 impl<T: PackedScalarType, L: LenEven> GpuLayout for PackedVec<T, L> {
-    fn layout_recipe() -> layoutable::LayoutableType {
-        layoutable::PackedVector {
+    fn layout_recipe() -> recipe::TypeLayoutRecipe {
+        recipe::PackedVector {
             scalar_type: T::SCALAR_TYPE,
             bits_per_component: T::BITS_PER_COMPONENT,
             len: L::LEN_EVEN,
@@ -142,7 +142,7 @@ impl<T: PackedScalarType, L: LenEven> GpuLayout for PackedVec<T, L> {
     }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
-        let sized_ty: layoutable::SizedType = Self::layout_recipe_sized();
+        let sized_ty: recipe::SizedType = Self::layout_recipe_sized();
         let name = sized_ty.to_string().into();
         let layout = sized_ty.layout(DEFAULT_REPR);
         Some(Ok((name, layout)))

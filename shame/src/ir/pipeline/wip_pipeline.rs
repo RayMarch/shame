@@ -33,7 +33,7 @@ use crate::{
         error::InternalError,
         rust_types::{
             len::x3,
-            type_layout::{self, layoutable, StructLayout, DEFAULT_REPR},
+            type_layout::{self, recipe, StructLayout, DEFAULT_REPR},
         },
     },
     ir::{
@@ -353,7 +353,7 @@ impl WipPushConstantsField {
         let byte_size = sized_struct.byte_size();
 
         // TODO(release) the `.expect()` calls here can be removed by building a `std::alloc::Layout`-like builder for struct layouts.
-        let sized_struct: layoutable::SizedStruct = sized_struct
+        let sized_struct: recipe::SizedStruct = sized_struct
             .try_into()
             .map_err(|e| InternalError::new(true, format!("{e}")))?;
         let layout = sized_struct.layout(DEFAULT_REPR);

@@ -479,38 +479,38 @@ pub mod any {
         pub use type_layout::StructLayout;
         pub use type_layout::FieldLayout;
 
-        // layoutable types
-        pub use type_layout::layoutable::LayoutableType;
-        pub use type_layout::layoutable::UnsizedStruct;
-        pub use type_layout::layoutable::RuntimeSizedArray;
-        pub use type_layout::layoutable::SizedType;
-        pub use type_layout::layoutable::Vector;
-        pub use type_layout::layoutable::Matrix;
-        pub use type_layout::layoutable::MatrixMajor;
-        pub use type_layout::layoutable::SizedArray;
-        pub use type_layout::layoutable::Atomic;
-        pub use type_layout::layoutable::PackedVector;
-        pub use type_layout::layoutable::SizedStruct;
+        // recipe types
+        pub use type_layout::recipe::TypeLayoutRecipe;
+        pub use type_layout::recipe::UnsizedStruct;
+        pub use type_layout::recipe::RuntimeSizedArray;
+        pub use type_layout::recipe::SizedType;
+        pub use type_layout::recipe::Vector;
+        pub use type_layout::recipe::Matrix;
+        pub use type_layout::recipe::MatrixMajor;
+        pub use type_layout::recipe::SizedArray;
+        pub use type_layout::recipe::Atomic;
+        pub use type_layout::recipe::PackedVector;
+        pub use type_layout::recipe::SizedStruct;
 
-        // layoutable type parts
-        pub use type_layout::layoutable::ScalarType;
-        pub use type_layout::layoutable::ScalarTypeFp;
-        pub use type_layout::layoutable::ScalarTypeInteger;
-        pub use type_layout::layoutable::Len;
-        pub use type_layout::layoutable::Len2;
-        pub use type_layout::layoutable::SizedField;
-        pub use type_layout::layoutable::RuntimeSizedArrayField;
-        pub use type_layout::layoutable::CanonName;
-        pub use type_layout::layoutable::SizedOrArray;
-        pub use type_layout::layoutable::FieldOptions;
+        // recipe type parts
+        pub use type_layout::recipe::ScalarType;
+        pub use type_layout::recipe::ScalarTypeFp;
+        pub use type_layout::recipe::ScalarTypeInteger;
+        pub use type_layout::recipe::Len;
+        pub use type_layout::recipe::Len2;
+        pub use type_layout::recipe::SizedField;
+        pub use type_layout::recipe::RuntimeSizedArrayField;
+        pub use type_layout::recipe::CanonName;
+        pub use type_layout::recipe::SizedOrArray;
+        pub use type_layout::recipe::FieldOptions;
 
         // layout calculation utility
-        pub use type_layout::layoutable::StructLayoutCalculator;
-        pub use type_layout::layoutable::FieldOffsets;
+        pub use type_layout::recipe::StructLayoutCalculator;
+        pub use type_layout::recipe::FieldOffsets;
 
         // conversion and builder errors
-        pub use type_layout::layoutable::builder::IsUnsizedStructError;
-        pub use type_layout::layoutable::builder::StructFromPartsError;
+        pub use type_layout::recipe::builder::IsUnsizedStructError;
+        pub use type_layout::recipe::builder::StructFromPartsError;
     }
 
     // runtime binding api

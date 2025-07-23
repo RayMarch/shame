@@ -1,4 +1,4 @@
-use crate::any::layout::{LayoutableType, Repr, SizedType};
+use crate::any::layout::{TypeLayoutRecipe, Repr, SizedType};
 use crate::call_info;
 use crate::common::po2::U32PowerOf2;
 use crate::common::proc_macro_utils::{self, repr_c_struct_layout, ReprCError, ReprCField};
@@ -10,7 +10,6 @@ use crate::frontend::encoding::buffer::{BufferAddressSpace, BufferInner, BufferR
 use crate::frontend::encoding::{EncodingError, EncodingErrorKind};
 use crate::frontend::error::InternalError;
 use crate::frontend::rust_types::len::*;
-use crate::frontend::rust_types::type_layout::layoutable::ScalarType;
 use crate::frontend::rust_types::type_layout::{ArrayLayout, VectorLayout};
 use crate::ir::ir_type::{
     align_of_array, align_of_array_from_element_alignment, byte_size_of_array_from_stride_len, round_up,
@@ -24,7 +23,7 @@ use super::error::FrontendError;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable};
 use super::struct_::{BufferFields, SizedFields, Struct};
-use super::type_layout::layoutable::{self, array_stride, Vector};
+use super::type_layout::recipe::{self, array_stride, Vector, ScalarType};
 use super::type_layout::{self, FieldLayout, StructLayout, TypeLayout, DEFAULT_REPR};
 use super::type_traits::{
     BindingArgs, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles, VertexAttribute,
@@ -138,16 +137,16 @@ use std::rc::Rc;
 ///
 pub trait GpuLayout {
     /// TODO(chronicl)
-    fn layout_recipe() -> LayoutableType;
+    fn layout_recipe() -> TypeLayoutRecipe;
     /// TODO(chronicl)
     fn layout_recipe_sized() -> SizedType
     where
         Self: GpuSized,
     {
         match Self::layout_recipe() {
-            LayoutableType::Sized(s) => s,
-            LayoutableType::RuntimeSizedArray(_) | LayoutableType::UnsizedStruct(_) => {
-                unreachable!("Self is GpuSized, which these LayoutableType variants aren't.")
+            TypeLayoutRecipe::Sized(s) => s,
+            TypeLayoutRecipe::RuntimeSizedArray(_) | TypeLayoutRecipe::UnsizedStruct(_) => {
+                unreachable!("Self is GpuSized, which these TypeLayoutRecipe variants aren't.")
             }
         }
     }
@@ -559,7 +558,7 @@ where
 }
 
 impl GpuLayout for GpuT {
-    fn layout_recipe() -> layoutable::LayoutableType { todo!() }
+    fn layout_recipe() -> recipe::TypeLayoutRecipe { todo!() }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         Some(Ok((
@@ -720,7 +719,7 @@ fn cpu_layout_of_scalar(scalar: ScalarType) -> TypeLayout {
         align: U32PowerOf2::try_from(align as u32)
             .expect("aligns are power of 2s in rust")
             .into(),
-        ty: Vector::new(scalar, layoutable::Len::X1),
+        ty: Vector::new(scalar, recipe::Len::X1),
         debug_is_atomic: false,
     }
     .into()

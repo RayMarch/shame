@@ -22,7 +22,7 @@ use std::{
 };
 
 use super::layout_traits::{GetAllFields, GpuLayout};
-use super::type_layout::{self, layoutable, TypeLayout};
+use super::type_layout::{self, recipe, TypeLayout};
 use super::type_traits::{GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoBools};
 use super::{
     error::FrontendError,
@@ -134,7 +134,7 @@ impl<T: SizedFields + GpuStore> Deref for Struct<T> {
 }
 
 impl<T: SizedFields + GpuStore + NoBools + GpuLayout> GpuLayout for Struct<T> {
-    fn layout_recipe() -> layoutable::LayoutableType { T::layout_recipe() }
+    fn layout_recipe() -> recipe::TypeLayoutRecipe { T::layout_recipe() }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         T::cpu_type_name_and_layout().map(|x| x.map(|(name, l)| (format!("Struct<{name}>").into(), l)))

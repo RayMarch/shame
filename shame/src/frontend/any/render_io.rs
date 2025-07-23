@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::any::layout::{Repr};
 use crate::frontend::any::Any;
-use crate::frontend::rust_types::type_layout::{layoutable, TypeLayout};
+use crate::frontend::rust_types::type_layout::{recipe, TypeLayout};
 use crate::{
     call_info,
     common::iterator_ext::try_collect,
@@ -108,7 +108,7 @@ impl Any {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VertexAttribFormat {
     /// regular [`crate::vec`] types
-    Fine(Len, layoutable::ScalarType),
+    Fine(Len, recipe::ScalarType),
     /// packed [`crate::packed::PackedVec`] types
     Coarse(PackedVector),
 }
@@ -251,7 +251,7 @@ impl Attrib {
     ) -> Option<(Box<[Attrib]>, u64)> {
         let stride = {
             let size = layout.byte_size()?;
-            layoutable::array_stride(layout.align(), size, Repr::Wgsl)
+            recipe::array_stride(layout.align(), size, Repr::Wgsl)
         };
         use TypeLayout::*;
 

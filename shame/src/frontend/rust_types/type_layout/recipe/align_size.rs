@@ -1,38 +1,38 @@
 use super::super::{Repr};
 use super::*;
 
-//              Size and align of layoutable types              //
+//            Size and align of layout recipe types             //
 // https://www.w3.org/TR/WGSL/#address-space-layout-constraints //
 
 pub(crate) const PACKED_ALIGN: U32PowerOf2 = U32PowerOf2::_1;
 
-impl LayoutableType {
+impl TypeLayoutRecipe {
     /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the align.
     pub fn byte_size(&self, default_repr: Repr) -> Option<u64> {
         match self {
-            LayoutableType::Sized(s) => Some(s.byte_size(default_repr)),
-            LayoutableType::UnsizedStruct(_) | LayoutableType::RuntimeSizedArray(_) => None,
+            TypeLayoutRecipe::Sized(s) => Some(s.byte_size(default_repr)),
+            TypeLayoutRecipe::UnsizedStruct(_) | TypeLayoutRecipe::RuntimeSizedArray(_) => None,
         }
     }
 
     /// This is expensive for structs. Prefer `byte_size_and_align` if you also need the size.
     pub fn align(&self, default_repr: Repr) -> U32PowerOf2 {
         match self {
-            LayoutableType::Sized(s) => s.align(default_repr),
-            LayoutableType::UnsizedStruct(s) => s.align(),
-            LayoutableType::RuntimeSizedArray(a) => a.align(default_repr),
+            TypeLayoutRecipe::Sized(s) => s.align(default_repr),
+            TypeLayoutRecipe::UnsizedStruct(s) => s.align(),
+            TypeLayoutRecipe::RuntimeSizedArray(a) => a.align(default_repr),
         }
     }
 
     /// This is expensive for structs as it calculates the byte size and align by traversing all fields recursively.
     pub fn byte_size_and_align(&self, default_repr: Repr) -> (Option<u64>, U32PowerOf2) {
         match self {
-            LayoutableType::Sized(s) => {
+            TypeLayoutRecipe::Sized(s) => {
                 let (size, align) = s.byte_size_and_align(default_repr);
                 (Some(size), align)
             }
-            LayoutableType::UnsizedStruct(s) => (None, s.align()),
-            LayoutableType::RuntimeSizedArray(a) => (None, a.align(default_repr)),
+            TypeLayoutRecipe::UnsizedStruct(s) => (None, s.align()),
+            TypeLayoutRecipe::RuntimeSizedArray(a) => (None, a.align(default_repr)),
         }
     }
 
@@ -46,9 +46,9 @@ impl LayoutableType {
     // Recursively changes all struct reprs to the given `repr`.
     pub fn change_all_repr(&mut self, repr: Repr) {
         match self {
-            LayoutableType::Sized(s) => s.change_all_repr(repr),
-            LayoutableType::UnsizedStruct(s) => s.change_all_repr(repr),
-            LayoutableType::RuntimeSizedArray(a) => a.change_all_repr(repr),
+            TypeLayoutRecipe::Sized(s) => s.change_all_repr(repr),
+            TypeLayoutRecipe::UnsizedStruct(s) => s.change_all_repr(repr),
+            TypeLayoutRecipe::RuntimeSizedArray(a) => a.change_all_repr(repr),
         }
     }
 }
@@ -783,7 +783,7 @@ mod tests {
         assert_eq!(mat4x4_f16.align(Repr::Wgsl), U32PowerOf2::_8);
         assert_eq!(mat4x4_f16.byte_size(Repr::Wgsl), 32);
 
-        //   Testing Repr::Uniform and Repr::Packed    //
+        //   Testing Repr::WgslUniform and Repr::Packed    //
 
         let scalars = [
             ScalarType::F16,

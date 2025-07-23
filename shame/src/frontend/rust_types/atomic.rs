@@ -6,11 +6,7 @@ use super::{
     mem::{AddressSpace, AddressSpaceAtomic},
     reference::{AccessMode, AccessModeReadable, ReadWrite},
     scalar_type::{ScalarType, ScalarTypeInteger},
-    type_layout::{
-        self,
-        layoutable::{self},
-        TypeLayout,
-    },
+    type_layout::{self, TypeLayout},
     type_traits::{
         BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools,
         NoHandles,
@@ -18,7 +14,7 @@ use super::{
     vec::vec,
     AsAny, GpuType, To, ToGpuType,
 };
-use crate::{frontend::rust_types::reference::Ref};
+use crate::frontend::rust_types::{reference::Ref, type_layout::recipe};
 use crate::{
     boolx1,
     frontend::{
@@ -134,8 +130,8 @@ impl<T: ScalarTypeInteger> GetAllFields for Atomic<T> {
 }
 
 impl<T: ScalarTypeInteger> GpuLayout for Atomic<T> {
-    fn layout_recipe() -> layoutable::LayoutableType {
-        layoutable::Atomic {
+    fn layout_recipe() -> recipe::TypeLayoutRecipe {
+        recipe::Atomic {
             scalar: T::SCALAR_TYPE_INTEGER,
         }
         .into()

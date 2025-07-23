@@ -87,7 +87,7 @@ pub fn impl_for_struct(
     if let (Some((span, _)), WhichDerive::CpuLayout) = (&gpu_repr, &which_derive) {
         bail!(*span, "`gpu_repr` attribute is only supported by `derive(GpuLayout)`")
     }
-    // if no `#[gpu_repr(_)]` attribute was explicitly specified, we default to `Repr::Storage`
+    // if no `#[gpu_repr(_)]` attribute was explicitly specified, we default to `Repr::Wgsl`
     let gpu_repr = gpu_repr.map(|(_, repr)| repr).unwrap_or(util::Repr::Wgsl);
     let gpu_repr_shame = match gpu_repr {
         Repr::Packed => quote!( #re::Repr::Packed ),
@@ -227,8 +227,8 @@ pub fn impl_for_struct(
                     #last_field_type: #re::NoBools + #re::NoHandles + #re::GpuLayout,
                     #where_clause_predicates
                 {
-                    fn layout_recipe() -> #re::LayoutableType {
-                        let result = #re::LayoutableType::struct_from_parts(
+                    fn layout_recipe() -> #re::TypeLayoutRecipe {
+                        let result = #re::TypeLayoutRecipe::struct_from_parts(
                             std::stringify!(#derive_struct_ident),
                             [
                                 #((
@@ -244,7 +244,7 @@ pub fn impl_for_struct(
                         );
 
                         match result {
-                            Ok(layoutable_type) => layoutable_type,
+                            Ok(recipe_type) => recipe_type,
                             Err(#re::StructFromPartsError::MustHaveAtLeastOneField) => unreachable!("checked above"),
                             Err(#re::StructFromPartsError::OnlyLastFieldMayBeUnsized) => unreachable!("ensured by field trait bounds"),
                             // GpuType is not implemented for derived structs directly, so they can't be used
