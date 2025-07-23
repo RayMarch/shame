@@ -6,7 +6,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::frontend::rust_types::type_layout::{eq::LayoutMismatch, LayoutInfo, TypeLayout};
+use crate::frontend::rust_types::type_layout::{display::LayoutInfo, eq::LayoutMismatch, TypeLayout};
 use crate::{
     backend::language::Language,
     call_info,

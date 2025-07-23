@@ -36,6 +36,7 @@ impl LayoutableType {
         }
     }
 
+    // Returns a copy of self, but with all struct reprs changed to `repr`.
     pub fn to_unified_repr(&self, repr: Repr) -> Self {
         let mut this = self.clone();
         this.change_all_repr(repr);

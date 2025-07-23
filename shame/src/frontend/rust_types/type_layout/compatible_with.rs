@@ -2,14 +2,29 @@ use std::fmt::Write;
 
 use crate::{
     any::layout::StructLayout,
+    call_info,
     common::prettify::{set_color, UnwrapOrStr},
-    frontend::rust_types::type_layout::{ArrayLayout, LayoutInfo},
-    ir::ir_type::max_u64_po2_dividing,
+    frontend::rust_types::type_layout::{display::LayoutInfo, ArrayLayout},
+    ir::{ir_type::max_u64_po2_dividing, recording::Context},
     TypeLayout,
 };
 
-use super::{layoutable::LayoutableType, Repr, DEFAULT_REPR};
+use super::{layoutable::LayoutableType, Repr};
 
+/// `TypeLayoutCompatibleWith<AddressSpace>` is a `TypeLayoutRecipe` with the additional
+/// guarantee that the resulting `TypeLayout` is useable in the specified `AddressSpace`.
+///
+/// The address spaces are language specific. For example, in WGSL there are two address spaces:
+/// [`WgslStorage`] and [`WgslUniform`].
+///
+/// To be "useable" or "compatible with" an address space means that the type layout
+/// - satisfies the layout requirements of the address space
+/// - is representable in the target language
+///
+/// Wgsl has only one representation of types - there is no choice between std140 and std430
+/// like in glsl - so to be representable in wgsl means that the type layout produced by
+/// the recipe is the same as the one produced by the same recipe but with all structs
+/// in the recipe using Repr::Storage, which is what shame calls wgsl's representation/layout algorithm.
 pub struct TypeLayoutCompatibleWith<AddressSpace> {
     recipe: LayoutableType,
     _phantom: std::marker::PhantomData<AddressSpace>,
@@ -27,21 +42,27 @@ impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
         }
 
         // Check for layout errors
-        let recipe_unified = recipe.to_unified_repr(address_space.matching_repr());
-        let layout_unified = recipe_unified.layout();
-        if layout != layout_unified {
-            match try_find_mismatch(&layout, &layout_unified) {
-                Some(mismatch) => {
-                    return Err(LayoutError {
-                        recipe,
-                        address_space,
-                        mismatch,
+        match address_space {
+            AddressSpaceEnum::WgslStorage | AddressSpaceEnum::WgslUniform => {
+                let recipe_unified = recipe.to_unified_repr(address_space.matching_repr());
+                let layout_unified = recipe_unified.layout();
+                if layout != layout_unified {
+                    match try_find_mismatch(&layout, &layout_unified) {
+                        Some(mismatch) => {
+                            return Err(AddressSpaceError::DoesntSatisfyRequirements(LayoutError {
+                                recipe,
+                                address_space,
+                                mismatch,
+                                colored: Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages)
+                                    .unwrap_or(false),
+                            }));
+                        }
+                        None => return Err(AddressSpaceError::UnknownLayoutError(recipe, address_space)),
                     }
-                    .into());
                 }
-                None => return Err(AddressSpaceError::UnknownLayoutError(recipe, address_space)),
             }
         }
+
 
         Ok(Self {
             recipe,
@@ -89,8 +110,10 @@ impl AddressSpaceEnum {
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum AddressSpaceError {
-    #[error("{0}")]
-    LayoutError(#[from] LayoutError),
+    #[error("Address space requirements not satisfied:\n{0}")]
+    DoesntSatisfyRequirements(LayoutError),
+    #[error("Not representable in target language:\n{0}")]
+    NotRepresentable(LayoutError),
     #[error("Unknown layout error occured for {0} in {1}.")]
     UnknownLayoutError(LayoutableType, AddressSpaceEnum),
     #[error(
@@ -107,15 +130,12 @@ pub struct LayoutError {
     recipe: LayoutableType,
     address_space: AddressSpaceEnum,
     mismatch: LayoutMismatch,
+    colored: bool,
 }
 
 impl std::error::Error for LayoutError {}
 impl std::fmt::Display for LayoutError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use TypeLayout::*;
-
-        let colored = todo!();
-
         let types_are_the_same = "The LayoutError is produced by comparing two semantically equivalent TypeLayouts, so all (nested) types are the same";
         match &self.mismatch {
             LayoutMismatch::TopLevel {
@@ -159,11 +179,11 @@ impl std::fmt::Display for LayoutError {
                             array_left.byte_stride
                         )?;
                         writeln!(f, "The full layout of `{}` is:", struct_left.short_name())?;
-                        write_struct(f, struct_left, Some(*field_index), colored)?;
+                        write_struct(f, struct_left, Some(*field_index), self.colored)?;
                     }
                     StructMismatch::FieldByteSize { field_index } => {
-                        let field_left = struct_left.fields[*field_index];
-                        let field_right = struct_right.fields[*field_index];
+                        let field_left = &struct_left.fields[*field_index];
+                        let field_right = &struct_right.fields[*field_index];
 
                         writeln!(
                             f,
@@ -175,11 +195,11 @@ impl std::fmt::Display for LayoutError {
                             UnwrapOrStr(field_left.ty.byte_size(), "")
                         )?;
                         writeln!(f, "The full layout of `{}` is:", struct_left.short_name())?;
-                        write_struct(f, struct_left, Some(*field_index), colored)?;
+                        write_struct(f, struct_left, Some(*field_index), self.colored)?;
                     }
                     StructMismatch::FieldOffset { field_index } => {
-                        let field_left = struct_left.fields[*field_index];
-                        let field_right = struct_right.fields[*field_index];
+                        let field_left = &struct_left.fields[*field_index];
+                        let field_right = &struct_right.fields[*field_index];
                         let field_name = &field_left.name;
                         let offset = field_left.rel_byte_offset;
                         let expected_align = field_right.ty.align().as_u64();
@@ -191,7 +211,7 @@ impl std::fmt::Display for LayoutError {
                             field_name, struct_left.name, expected_align, self.address_space, offset, actual_align
                         )?;
                         writeln!(f, "The full layout of `{}` is:", struct_left.short_name())?;
-                        write_struct(f, struct_left, Some(*field_index), colored)?;
+                        write_struct(f, struct_left, Some(*field_index), self.colored)?;
 
                         writeln!(f, "Potential solutions include:")?;
 
@@ -271,11 +291,11 @@ where
 
 #[derive(Debug, Clone)]
 pub enum LayoutMismatch {
-    /// `layout1` and `layout2` are always top level layouts.
+    /// `layout1` and `layout2` are always the top level layouts.
     ///
     /// For example, in case of `Array<Array<f32x3>>`, it's always the layout
     /// of `Array<Array<f32x3>>` even if the array stride mismatch
-    /// may be happening for the inner `Array<f32x3>`.
+    /// is happening for the inner `Array<f32x3>`.
     TopLevel {
         layout_left: TypeLayout,
         layout_right: TypeLayout,

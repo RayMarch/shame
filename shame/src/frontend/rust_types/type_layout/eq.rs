@@ -1,4 +1,5 @@
 use crate::frontend::rust_types::type_layout::compatible_with::{StructMismatch, TopLevelMismatch};
+use crate::frontend::rust_types::type_layout::display::LayoutInfo;
 
 use super::compatible_with::try_find_mismatch;
 use super::*;
@@ -52,7 +53,6 @@ impl LayoutMismatch {
         layouts: [(&str, &TypeLayout); 2],
         colored: bool,
     ) -> Result<Mismatch, std::fmt::Error> {
-        let tab = "  ";
         let [(a_name, a), (b_name, b)] = layouts;
 
         let use_256_color_mode = false;
@@ -90,7 +90,6 @@ impl LayoutMismatch {
                         array_left,
                         array_right,
                     } => {
-                        let array_type_layout: TypeLayout = array_left.clone().into();
                         writeln!(
                             f,
                             "The layouts of `{}` and `{}` do not match.",
@@ -299,7 +298,7 @@ mod tests {
     fn test_layout_mismatch_nested() {
         // For colored output
         let mut encoder = sm::start_encoding(sm::Settings::default()).unwrap();
-        let mut drawcall = encoder.new_render_pipeline(sm::Indexing::BufferU16);
+        let _ = encoder.new_render_pipeline(sm::Indexing::BufferU16);
 
         // field name mismatch
         #[derive(GpuLayout)]
