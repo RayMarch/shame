@@ -1,30 +1,213 @@
 use crate::common::prettify::UnwrapOrStr;
-use crate::frontend::rust_types::type_layout::compatible_with::{StructMismatch, TopLevelMismatch};
 use crate::frontend::rust_types::type_layout::display::LayoutInfo;
 
-use super::compatible_with::try_find_mismatch;
 use super::*;
+
+/// Contains information about the layout mismatch between two `TypeLayout`s.
+///
+/// The type layouts are traversed depth-first and the first mismatch encountered
+/// is reported at its deepest level.
+///
+/// In case of nested structs this means that if the field `a` in
+/// ```
+/// struct A {
+///     a: struct B { ... }
+/// }
+/// struct AOther {
+///     a: struct BOther { ... }
+/// }
+/// ```
+/// mismatches, because `B` and `BOther` don't match, then the exact mismatch
+/// between `B` and `BOther` is reported and not the field mismatch of `a` in `A` and `AOther`.
+///
+/// Nested arrays are reported in two levels: `LayoutMismatch::TopLevel` contains the
+/// top level / outer most array layout and a  `TopLevelMismatch`, which contains the
+/// inner type layout where the mismatch is happening.
+/// For example if there is an array stride mismatch of the inner array of `Array<Array<f32x3>>`,
+/// then `LayoutMismatch::TopLevel` contains the layout of `Array<Array<f32x3>>` and
+/// a `TopLevelMismatch::ArrayStride` with the layout of `Array<f32x3>`.
+///
+/// A field of nested arrays in a struct is handled in the same way by
+/// `LayoutMismatch::Struct` containing the field index, which let's us access the outer
+/// most array, and a `TopLevelMismatch`, which let's us access the inner type layout
+/// where the mismatch is happening.
+#[derive(Debug, Clone)]
+pub enum LayoutMismatch {
+    TopLevel {
+        layout_left: TypeLayout,
+        layout_right: TypeLayout,
+        mismatch: TopLevelMismatch,
+    },
+    Struct {
+        struct_left: StructLayout,
+        struct_right: StructLayout,
+        mismatch: StructMismatch,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub enum TopLevelMismatch {
+    Type,
+    ByteSize {
+        left: TypeLayout,
+        right: TypeLayout,
+    },
+    ArrayStride {
+        array_left: ArrayLayout,
+        array_right: ArrayLayout,
+    },
+}
+
+/// Field count is checked last.
+#[derive(Debug, Clone)]
+pub enum StructMismatch {
+    FieldName {
+        field_index: usize,
+    },
+    FieldLayout {
+        field_index: usize,
+        mismatch: TopLevelMismatch,
+    },
+    FieldOffset {
+        field_index: usize,
+    },
+    FieldCount,
+}
+
+/// Find the first depth first layout mismatch
+pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> Option<LayoutMismatch> {
+    use TypeLayout::*;
+
+    let make_mismatch = |mismatch: TopLevelMismatch| LayoutMismatch::TopLevel {
+        layout_left: layout1.clone(),
+        layout_right: layout2.clone(),
+        mismatch,
+    };
+
+    // First check if the kinds are the same type
+    match (&layout1, &layout2) {
+        (Vector(v1), Vector(v2)) => {
+            if v1.ty != v2.ty {
+                return Some(make_mismatch(TopLevelMismatch::Type));
+            }
+        }
+        (PackedVector(p1), PackedVector(p2)) => {
+            if p1.ty != p2.ty {
+                return Some(make_mismatch(TopLevelMismatch::Type));
+            }
+        }
+        (Matrix(m1), Matrix(m2)) => {
+            if m1.ty != m2.ty {
+                return Some(make_mismatch(TopLevelMismatch::Type));
+            }
+        }
+        (Array(a1), Array(a2)) => {
+            // Recursively check element types
+            match try_find_mismatch(&a1.element_ty, &a2.element_ty) {
+                // Update the top level layouts and propagate the LayoutMismatch
+                Some(LayoutMismatch::TopLevel { mismatch, .. }) => {
+                    return Some(make_mismatch(mismatch));
+                }
+                // Struct mismatch, so it's not a top-level mismatch anymore
+                m @ Some(LayoutMismatch::Struct { .. }) => return m,
+                None => return None,
+            }
+
+            // Check array sizes match
+            if a1.len != a2.len {
+                return Some(make_mismatch(TopLevelMismatch::Type));
+            }
+
+            // Check array stride
+            if a1.byte_stride != a2.byte_stride {
+                return Some(make_mismatch(TopLevelMismatch::ArrayStride {
+                    array_left: (**a1).clone(),
+                    array_right: (**a2).clone(),
+                }));
+            }
+        }
+        (Struct(s1), Struct(s2)) => {
+            return try_find_struct_mismatch(s1, s2);
+        }
+        // Different kinds entirely. Matching exhaustively, so that changes to TypeLayout lead us here.
+        (Vector(_) | PackedVector(_) | Matrix(_) | Array(_) | Struct(_), _) => {
+            return Some(make_mismatch(TopLevelMismatch::Type));
+        }
+    }
+
+    // Check byte size
+    if layout1.byte_size() != layout2.byte_size() {
+        return Some(make_mismatch(TopLevelMismatch::ByteSize {
+            left: layout1.clone(),
+            right: layout2.clone(),
+        }));
+    }
+
+    None
+}
+
+fn try_find_struct_mismatch(struct1: &StructLayout, struct2: &StructLayout) -> Option<LayoutMismatch> {
+    let make_mismatch = |mismatch: StructMismatch| LayoutMismatch::Struct {
+        struct_left: struct1.clone(),
+        struct_right: struct2.clone(),
+        mismatch,
+    };
+
+    for (field_index, (field1, field2)) in struct1.fields.iter().zip(struct2.fields.iter()).enumerate() {
+        // Order of checks is important here. We check in order
+        // - field name
+        // - field type, byte size and if the field is/contains a struct, recursively check its fields
+        // - field offset
+        if field1.name != field2.name {
+            return Some(make_mismatch(StructMismatch::FieldName { field_index }));
+        }
+
+        // Recursively check field types
+        if let Some(inner_mismatch) = try_find_mismatch(&field1.ty, &field2.ty) {
+            match inner_mismatch {
+                // If it's a top-level mismatch, convert it to a field mismatch
+                LayoutMismatch::TopLevel { mismatch, .. } => {
+                    return Some(make_mismatch(StructMismatch::FieldLayout { field_index, mismatch }));
+                }
+                // Pass through nested struct mismatches
+                struct_mismatch @ LayoutMismatch::Struct { .. } => return Some(struct_mismatch),
+            }
+        }
+
+        // Check field offset
+        if field1.rel_byte_offset != field2.rel_byte_offset {
+            return Some(make_mismatch(StructMismatch::FieldOffset { field_index }));
+        }
+    }
+
+    // Check field count
+    if struct1.fields.len() != struct2.fields.len() {
+        return Some(make_mismatch(StructMismatch::FieldCount));
+    }
+
+    None
+}
 
 /// Error of two layouts mismatching. Implements Display for a visualization of the mismatch.
 #[derive(Clone)]
-pub struct LayoutMismatch {
+pub struct CheckEqLayoutMismatch {
     /// 2 (name, layout) pairs
     layouts: [(String, TypeLayout); 2],
     colored_error: bool,
 }
 
-
-impl std::fmt::Debug for LayoutMismatch {
+impl std::fmt::Debug for CheckEqLayoutMismatch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "{self}") }
 }
 
-impl Display for LayoutMismatch {
+impl Display for CheckEqLayoutMismatch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let [(a_name, a), (b_name, b)] = &self.layouts;
         let layouts = [(a_name.as_str(), a), (b_name.as_str(), b)];
-        match LayoutMismatch::write(f, layouts, self.colored_error)? {
-            Mismatch::Found => {}
-            Mismatch::NotFound => {
+        match CheckEqLayoutMismatch::write(f, layouts, self.colored_error) {
+            Ok(()) => {}
+            Err(DisplayMismatchError::FmtError(e)) => return Err(e),
+            Err(DisplayMismatchError::NotFound) => {
                 writeln!(
                     f,
                     "<internal error while writing layout mismatch: no difference found, please report this error>"
@@ -41,19 +224,21 @@ impl Display for LayoutMismatch {
     }
 }
 
-/// Whether the mismatch was found or not.
-pub(crate) enum Mismatch {
-    Found,
+pub(crate) enum DisplayMismatchError {
     NotFound,
+    FmtError(std::fmt::Error),
+}
+impl From<std::fmt::Error> for DisplayMismatchError {
+    fn from(err: std::fmt::Error) -> Self { DisplayMismatchError::FmtError(err) }
 }
 
-impl LayoutMismatch {
+impl CheckEqLayoutMismatch {
     #[allow(clippy::needless_return)]
     pub(crate) fn write<W: Write>(
         f: &mut W,
         layouts: [(&str, &TypeLayout); 2],
         colored: bool,
-    ) -> Result<Mismatch, std::fmt::Error> {
+    ) -> Result<(), DisplayMismatchError> {
         let [(a_name, a), (b_name, b)] = layouts;
 
         let use_256_color_mode = false;
@@ -70,12 +255,11 @@ impl LayoutMismatch {
 
         // Using try_find_mismatch to find the first mismatching type / struct field.
         let Some(mismatch) = try_find_mismatch(a, b) else {
-            return Ok(Mismatch::NotFound);
+            return Err(DisplayMismatchError::NotFound);
         };
 
-        use compatible_with::LayoutMismatch::{TopLevel, Struct};
         match mismatch {
-            TopLevel {
+            LayoutMismatch::TopLevel {
                 layout_left,
                 layout_right,
                 mismatch,
@@ -122,7 +306,7 @@ impl LayoutMismatch {
                     )?;
                 }
             },
-            Struct {
+            LayoutMismatch::Struct {
                 struct_left,
                 struct_right,
                 mismatch,
@@ -307,7 +491,7 @@ impl LayoutMismatch {
             }
         }
 
-        Ok(Mismatch::Found)
+        Ok(())
     }
 }
 
@@ -315,13 +499,13 @@ impl LayoutMismatch {
 ///
 /// if the two layouts are not equal it uses the debug names in the returned
 /// error to tell the two layouts apart.
-pub(crate) fn check_eq(a: (&str, &TypeLayout), b: (&str, &TypeLayout)) -> Result<(), LayoutMismatch>
+pub(crate) fn check_eq(a: (&str, &TypeLayout), b: (&str, &TypeLayout)) -> Result<(), CheckEqLayoutMismatch>
 where
     TypeLayout: PartialEq<TypeLayout>,
 {
     match a.1 == b.1 {
         true => Ok(()),
-        false => Err(LayoutMismatch {
+        false => Err(CheckEqLayoutMismatch {
             layouts: [(a.0.into(), a.1.to_owned()), (b.0.into(), b.1.to_owned())],
             colored_error: Context::try_with(call_info!(), |ctx| ctx.settings().colored_error_messages)
                 .unwrap_or(false),

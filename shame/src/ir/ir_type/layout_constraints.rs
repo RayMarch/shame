@@ -6,7 +6,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::frontend::rust_types::type_layout::{display::LayoutInfo, eq::LayoutMismatch, TypeLayout};
+use crate::frontend::rust_types::type_layout::{display::LayoutInfo, eq::CheckEqLayoutMismatch, TypeLayout};
 use crate::{
     backend::language::Language,
     call_info,
@@ -468,7 +468,7 @@ Type `{}` contains type `{struct_or_block_name}` which has a custom byte-alignme
     #[error("custom size of {custom} is too small. `{ty}` must have a size of at least {required}")]
     CustomSizeTooSmall { custom: u64, required: u64, ty: Type },
     #[error("memory layout mismatch:\n{0}\n{}", if let Some(comment) = .1 {comment.as_str()} else {""})]
-    LayoutMismatch(LayoutMismatch, Option<String>),
+    LayoutMismatch(CheckEqLayoutMismatch, Option<String>),
     #[error("runtime-sized type {name} cannot be element in an array buffer")]
     UnsizedStride { name: String },
     #[error(
