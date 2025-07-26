@@ -167,8 +167,6 @@ impl<'a> StructWriter<'a> {
         this
     }
 
-    pub(crate) fn layout_info_offset(&self) -> usize { self.layout_info_offset }
-
     /// By setting `max_fields` to `Some(n)`, the writer will adjust Self::layout_info_offset
     /// to only take into account the first `n` fields of the struct.
     pub(crate) fn set_layout_info_offset_auto(&mut self, max_fields: Option<usize>) {
@@ -188,6 +186,8 @@ impl<'a> StructWriter<'a> {
     pub(crate) fn ensure_layout_info_offset(&mut self, min_layout_info_offset: usize) {
         self.layout_info_offset = self.layout_info_offset.max(min_layout_info_offset)
     }
+
+    pub(crate) fn layout_info_offset(&self) -> usize { self.layout_info_offset }
 
     pub(crate) fn tab(&self) -> &'static str { self.tab }
 
