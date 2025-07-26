@@ -57,12 +57,12 @@ pub struct PushConstant(());
 /// the only source of uniform values, and reading in it does not necessarily
 /// produce uniform values (i.e. during array lookup, if the array index is
 /// not uniform).
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Uniform(());
 /// ### the address space of storage buffer bindings
 ///
 /// readable and writeable, visible across all threads of a dispatch/drawcall
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Storage(());
 /// ### the address space of texture-/sampler bindings
 ///

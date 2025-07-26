@@ -17,7 +17,7 @@ use super::*;
 ///     a: struct BOther { ... }
 /// }
 /// ```
-/// mismatches, because `B` and `BOther` don't match, then the exact mismatch
+/// mismatches, because `B` and `BOther` don't match, then the exact mismatch (some field mismatch)
 /// between `B` and `BOther` is reported and not the field mismatch of `a` in `A` and `AOther`.
 ///
 /// Nested arrays are reported in two levels: `LayoutMismatch::TopLevel` contains the
@@ -28,7 +28,7 @@ use super::*;
 /// a `TopLevelMismatch::ArrayStride` with the layout of `Array<f32x3>`.
 ///
 /// A field of nested arrays in a struct is handled in the same way by
-/// `LayoutMismatch::Struct` containing the field index, which let's us access the outer
+/// `LayoutMismatch::Struct` containing the field index and `FieldLayout`, which let's us access the outer
 /// most array, and a `TopLevelMismatch`, which let's us access the inner type layout
 /// where the mismatch is happening.
 #[derive(Debug, Clone)]
@@ -63,13 +63,19 @@ pub enum TopLevelMismatch {
 pub enum StructMismatch {
     FieldName {
         field_index: usize,
+        field_left: FieldLayout,
+        field_right: FieldLayout,
     },
     FieldLayout {
         field_index: usize,
+        field_left: FieldLayout,
+        field_right: FieldLayout,
         mismatch: TopLevelMismatch,
     },
     FieldOffset {
         field_index: usize,
+        field_left: FieldLayout,
+        field_right: FieldLayout,
     },
     FieldCount,
 }
@@ -108,12 +114,12 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
                 Some(LayoutMismatch::TopLevel { mismatch, .. }) => {
                     return Some(make_mismatch(mismatch));
                 }
-                // Struct mismatch, so it's not a top-level mismatch anymore
+                // Struct mismatch, so it's not a top-level mismatch
                 m @ Some(LayoutMismatch::Struct { .. }) => return m,
                 None => {}
             }
 
-            // Check array sizes match
+            // Check array lengths, which are a type mismatch if they differ
             if a1.len != a2.len {
                 return Some(make_mismatch(TopLevelMismatch::Type));
             }
@@ -135,7 +141,8 @@ pub(crate) fn try_find_mismatch(layout1: &TypeLayout, layout2: &TypeLayout) -> O
         }
     }
 
-    // Check byte size
+    // Check byte size.
+    // We do this at the end, because type mismatches should have priority over byte size mismatches.
     if layout1.byte_size() != layout2.byte_size() {
         return Some(make_mismatch(TopLevelMismatch::ByteSize {
             left: layout1.clone(),
@@ -156,10 +163,14 @@ fn try_find_struct_mismatch(struct1: &StructLayout, struct2: &StructLayout) -> O
     for (field_index, (field1, field2)) in struct1.fields.iter().zip(struct2.fields.iter()).enumerate() {
         // Order of checks is important here. We check in order
         // - field name
-        // - field type, byte size and if the field is/contains a struct, recursively check its fields
+        // - field inner mismatch
         // - field offset
         if field1.name != field2.name {
-            return Some(make_mismatch(StructMismatch::FieldName { field_index }));
+            return Some(make_mismatch(StructMismatch::FieldName {
+                field_index,
+                field_left: field1.clone(),
+                field_right: field2.clone(),
+            }));
         }
 
         // Recursively check field types
@@ -167,20 +178,31 @@ fn try_find_struct_mismatch(struct1: &StructLayout, struct2: &StructLayout) -> O
             match inner_mismatch {
                 // If it's a top-level mismatch, convert it to a field mismatch
                 LayoutMismatch::TopLevel { mismatch, .. } => {
-                    return Some(make_mismatch(StructMismatch::FieldLayout { field_index, mismatch }));
+                    return Some(make_mismatch(StructMismatch::FieldLayout {
+                        field_index,
+                        field_left: field1.clone(),
+                        field_right: field2.clone(),
+                        mismatch,
+                    }));
                 }
-                // Pass through nested struct mismatches
+                // Pass through struct mismatches
                 struct_mismatch @ LayoutMismatch::Struct { .. } => return Some(struct_mismatch),
             }
         }
 
         // Check field offset
         if field1.rel_byte_offset != field2.rel_byte_offset {
-            return Some(make_mismatch(StructMismatch::FieldOffset { field_index }));
+            return Some(make_mismatch(StructMismatch::FieldOffset {
+                field_index,
+                field_left: field1.clone(),
+                field_right: field2.clone(),
+            }));
         }
     }
 
-    // Check field count
+    // Check field count.
+    // We do this at the end, because fields are checked in order and a field count mismatch
+    // can be viewed as a field mismatch of one field beyond the last field of the smaller struct.
     if struct1.fields.len() != struct2.fields.len() {
         return Some(make_mismatch(StructMismatch::FieldCount));
     }
@@ -311,92 +333,98 @@ impl CheckEqLayoutMismatch {
                 struct_right,
                 mismatch,
             } => {
-                let field_name = |field_index: usize| {
-                    if let Some(name) = struct_left.fields.get(field_index).map(|f| &f.name) {
-                        format!("field `{name}`")
-                    } else {
-                        // Should never happen, but just in case we fall back to this
-                        format!("field {field_index}")
-                    }
-                };
-
-                writeln!(
-                    f,
-                    "The layouts of `{}` and `{}` do not match, because the",
-                    struct_left.name, struct_right.name
-                );
+                let is_top_level = &TypeLayout::Struct(Rc::new(struct_left.clone())) == a;
+                if is_top_level {
+                    writeln!(
+                        f,
+                        "The layouts of `{}` and `{}` do not match, because the",
+                        struct_left.name, struct_right.name
+                    )?;
+                } else {
+                    writeln!(
+                        f,
+                        "The layouts of `{}` and `{}`, contained in `{}` and `{}` respectively, do not match, because the",
+                        struct_left.name,
+                        struct_right.name,
+                        a.short_name(),
+                        b.short_name()
+                    )?;
+                }
                 let (mismatch_field_index, layout_info) = match &mismatch {
-                    StructMismatch::FieldName { field_index } => {
+                    StructMismatch::FieldName { field_index, .. } => {
                         writeln!(f, "names of field {field_index} are different.")?;
                         (Some(field_index), LayoutInfo::NONE)
                     }
                     StructMismatch::FieldLayout {
                         field_index,
+                        field_left,
                         mismatch: TopLevelMismatch::Type,
+                        ..
                     } => {
-                        writeln!(f, "type of {} is different.", field_name(*field_index))?;
+                        writeln!(f, "type of {} is different.", field_left.name)?;
                         (Some(field_index), LayoutInfo::NONE)
                     }
-                    // TODO(chronicl) fix byte size message for when the byte size mismatch is happening
-                    // in a nested array
                     StructMismatch::FieldLayout {
                         field_index,
+                        field_left,
                         mismatch: TopLevelMismatch::ByteSize { left, right },
+                        ..
                     } => {
-                        match struct_left.fields.get(*field_index) {
-                            // Inner type in (nested) array has mismatching byte size
-                            Some(field) if &field.ty != left => {
-                                writeln!(
-                                    f,
-                                    "byte size of `{}` is {} in `{}` and {} in `{}`.",
-                                    left.short_name(),
-                                    UnwrapOrStr(left.byte_size(), "runtime-sized"),
-                                    struct_left.name,
-                                    UnwrapOrStr(right.byte_size(), "runtime-sized"),
-                                    struct_right.name,
-                                )?;
-                                // Not showing byte size info, because it can be misleading since
-                                // the inner type is the one that has mismatching byte size.
-                                (Some(field_index), LayoutInfo::NONE)
-                            }
-                            _ => {
-                                writeln!(f, "byte size of {} is different.", field_name(*field_index))?;
-                                (Some(field_index), LayoutInfo::SIZE)
-                            }
+                        // Inner type in (nested) array has mismatching byte size
+                        if &field_left.ty != left {
+                            writeln!(
+                                f,
+                                "byte size of `{}` is {} in `{}` and the byte size of `{}` is {} in `{}`.",
+                                left.short_name(),
+                                UnwrapOrStr(left.byte_size(), "runtime-sized"),
+                                struct_left.name,
+                                right.short_name(),
+                                UnwrapOrStr(right.byte_size(), "runtime-sized"),
+                                struct_right.name,
+                            )?;
+                            // Not showing byte size info, because it can be misleading since
+                            // the inner type is the one that has mismatching byte size.
+                            (Some(field_index), LayoutInfo::NONE)
+                        } else {
+                            writeln!(f, "byte size of {} is different.", field_left.name)?;
+                            (Some(field_index), LayoutInfo::SIZE)
                         }
                     }
                     StructMismatch::FieldLayout {
                         field_index,
+                        field_left,
                         mismatch:
                             TopLevelMismatch::ArrayStride {
                                 array_left,
                                 array_right,
                             },
+                        ..
                     } => {
-                        match struct_left.fields.get(*field_index) {
-                            // Inner type in (nested) array has mismatching stride
-                            Some(field) if field.ty.short_name() != array_left.short_name() => {
-                                writeln!(
-                                    f,
-                                    "stride of `{}` is {} in `{}` and {} in `{}`.",
-                                    array_left.short_name(),
-                                    array_left.byte_stride,
-                                    struct_left.name,
-                                    array_right.byte_stride,
-                                    struct_right.name,
-                                )?;
-                                // Not showing stride info, because it can be misleading since
-                                // the inner type is the one that has mismatching stride.
-                                (Some(field_index), LayoutInfo::NONE)
-                            }
-                            _ => {
-                                writeln!(f, "array stride of {} is different.", field_name(*field_index))?;
-                                (Some(field_index), LayoutInfo::STRIDE)
-                            }
+                        // Inner type in (nested) array has mismatching stride
+                        if field_left.ty.short_name() != array_left.short_name() {
+                            writeln!(
+                                f,
+                                "stride of `{}` is {} in `{}` and {} in `{}`.",
+                                array_left.short_name(),
+                                array_left.byte_stride,
+                                struct_left.name,
+                                array_right.byte_stride,
+                                struct_right.name,
+                            )?;
+                            // Not showing stride info, because it can be misleading since
+                            // the inner type is the one that has mismatching stride.
+                            (Some(field_index), LayoutInfo::NONE)
+                        } else {
+                            writeln!(f, "array stride of {} is different.", field_left.name)?;
+                            (Some(field_index), LayoutInfo::STRIDE)
                         }
                     }
-                    StructMismatch::FieldOffset { field_index } => {
-                        writeln!(f, "offset of {} is different.", field_name(*field_index))?;
+                    StructMismatch::FieldOffset {
+                        field_index,
+                        field_left,
+                        ..
+                    } => {
+                        writeln!(f, "offset of {} is different.", field_left.name)?;
                         (
                             Some(field_index),
                             LayoutInfo::OFFSET | LayoutInfo::ALIGN | LayoutInfo::SIZE,
@@ -454,9 +482,9 @@ impl CheckEqLayoutMismatch {
                 }
 
                 match mismatch {
-                    StructMismatch::FieldName { field_index } |
+                    StructMismatch::FieldName { field_index, .. } |
                     StructMismatch::FieldLayout { field_index, .. } |
-                    StructMismatch::FieldOffset { field_index } => {
+                    StructMismatch::FieldOffset { field_index, .. } => {
                         // Write mismatching field
                         enable_color(f, hex_left)?;
                         writer_left.write_field(f, field_index)?;
@@ -515,13 +543,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate as shame;
+    use crate::pipeline_kind::Render;
+    use crate::{self as shame, EncodingGuard, ThreadIsAlreadyEncoding};
     use shame as sm;
     use shame::{CpuLayout, GpuLayout, gpu_layout, cpu_layout};
     use crate::aliases::*;
 
+    const PRINT: bool = true;
+
     #[derive(Clone, Copy)]
     #[repr(C)]
+    #[allow(non_camel_case_types)]
     struct f32x3_align4(pub [f32; 3]);
 
     impl CpuLayout for f32x3_align4 {
@@ -534,6 +566,7 @@ mod tests {
 
     #[derive(Clone, Copy)]
     #[repr(C)]
+    #[allow(non_camel_case_types)]
     struct f32x3_size16(pub [f32; 4]);
 
     impl CpuLayout for f32x3_size16 {
@@ -544,20 +577,21 @@ mod tests {
         }
     }
 
-    fn print_mismatch<T: GpuLayout, TCpu: CpuLayout>() {
-        println!(
-            "{}",
-            super::check_eq(("gpu", &gpu_layout::<T>()), ("cpu", &cpu_layout::<TCpu>())).unwrap_err()
-        );
+    fn check_mismatch<T: GpuLayout, TCpu: CpuLayout>() {
+        let mismatch = super::check_eq(("gpu", &gpu_layout::<T>()), ("cpu", &cpu_layout::<TCpu>())).unwrap_err();
+        if PRINT {
+            println!("{mismatch}");
+        }
+    }
+
+    fn enable_color() -> Option<Result<EncodingGuard<Render>, ThreadIsAlreadyEncoding>> {
+        PRINT.then(|| sm::start_encoding(sm::Settings::default()))
     }
 
     #[test]
-    fn test_layout_mismatch_nested() {
-        // For colored output
-        let mut encoder = sm::start_encoding(sm::Settings::default()).unwrap();
-        let _ = encoder.new_render_pipeline(sm::Indexing::BufferU16);
+    fn test_field_name_mismatch() {
+        let _guard = enable_color();
 
-        // field name mismatch
         #[derive(GpuLayout)]
         pub struct A {
             a: u32x1,
@@ -567,10 +601,16 @@ mod tests {
         pub struct ACpu {
             b: u32,
         }
-        print_mismatch::<A, ACpu>();
+        check_mismatch::<A, ACpu>();
+    }
 
-        // field type mismatch
-        println!("The next one also shows how \"...\" is used if there are more fields after the mismatching field\n");
+    #[test]
+    fn test_field_type_mismatch() {
+        let _guard = enable_color();
+
+        if PRINT {
+            println!("The error also shows how \"...\" is used if there are more fields after the mismatching field\n");
+        }
         #[derive(GpuLayout)]
         pub struct B {
             a: f32x1,
@@ -582,9 +622,13 @@ mod tests {
             a: u32,
             b: f32,
         }
-        print_mismatch::<B, BCpu>();
+        check_mismatch::<B, BCpu>();
+    }
 
-        // field offset mismatch
+    #[test]
+    fn test_field_offset_mismatch() {
+        let _guard = enable_color();
+
         #[derive(GpuLayout)]
         pub struct C {
             a: f32x1,
@@ -596,9 +640,13 @@ mod tests {
             a: f32,
             b: f32x3_align4,
         }
-        print_mismatch::<C, CCpu>();
+        check_mismatch::<C, CCpu>();
+    }
 
-        // field byte size mismatch
+    #[test]
+    fn test_field_byte_size_mismatch() {
+        let _guard = enable_color();
+
         #[derive(GpuLayout)]
         pub struct D {
             a: f32x3,
@@ -608,12 +656,18 @@ mod tests {
         pub struct DCpu {
             a: f32x3_size16,
         }
-        print_mismatch::<D, DCpu>();
+        check_mismatch::<D, DCpu>();
+    }
 
-        // field nested byte size mismatch
-        println!(
-            "The next one does not show the `size` column, because it could be confusing, since the type in the array is where the mismatch happens:\n"
-        );
+    #[test]
+    fn test_field_nested_byte_size_mismatch() {
+        let _guard = enable_color();
+
+        if PRINT {
+            println!(
+                "The error does not show the `size` column, because it could be confusing, since the type in the array is where the mismatch happens:\n"
+            );
+        }
         #[derive(GpuLayout)]
         pub struct E {
             a: sm::Array<f32x3, sm::Size<4>>,
@@ -623,9 +677,13 @@ mod tests {
         pub struct ECpu {
             a: [f32x3_size16; 4],
         }
-        print_mismatch::<E, ECpu>();
+        check_mismatch::<E, ECpu>();
+    }
 
-        // field stride mismatch
+    #[test]
+    fn test_field_stride_mismatch() {
+        let _guard = enable_color();
+
         #[derive(GpuLayout)]
         pub struct F {
             a: sm::Array<f32x3, sm::Size<4>>,
@@ -635,22 +693,37 @@ mod tests {
         pub struct FCpu {
             a: [f32x3_align4; 4],
         }
-        print_mismatch::<F, FCpu>();
+        check_mismatch::<F, FCpu>();
+    }
 
-        println!(
-            "The next two error messages are what is produced when non-structs, in this case arrays, are the top level types\n"
-        );
+    #[test]
+    fn test_stride_mismatch() {
+        let _guard = enable_color();
 
-        // stride mismatch
-        print_mismatch::<sm::Array<f32x3, sm::Size<4>>, [f32x3_align4; 4]>();
+        if PRINT {
+            println!(
+                "The two error messages are what is produced when non-structs, in this case arrays, are the top level types\n"
+            );
+        }
+        check_mismatch::<sm::Array<f32x3, sm::Size<4>>, [f32x3_align4; 4]>();
+    }
 
-        // nested stride mismatch
-        print_mismatch::<sm::Array<sm::Array<f32x3, sm::Size<4>>, sm::Size<2>>, [[f32x3_align4; 4]; 2]>();
+    #[test]
+    fn test_nested_stride_mismatch() {
+        let _guard = enable_color();
 
-        // nested stride in struct mismatch
-        println!(
-            "The next one does not show the `stride` column, because it could be confusing, since the type in the array is where the mismatch happens:\n"
-        );
+        check_mismatch::<sm::Array<sm::Array<f32x3, sm::Size<4>>, sm::Size<2>>, [[f32x3_align4; 4]; 2]>();
+    }
+
+    #[test]
+    fn test_nested_stride_in_struct_mismatch() {
+        let _guard = enable_color();
+
+        if PRINT {
+            println!(
+                "The error does not show the `stride` column, because it could be confusing, since the type in the array is where the mismatch happens:\n"
+            );
+        }
         #[derive(GpuLayout)]
         pub struct G {
             a: sm::Array<sm::Array<f32x3, sm::Size<4>>, sm::Size<2>>,
@@ -660,6 +733,6 @@ mod tests {
         pub struct GCpu {
             a: [[f32x3_align4; 4]; 2],
         }
-        print_mismatch::<G, GCpu>();
+        check_mismatch::<G, GCpu>();
     }
 }

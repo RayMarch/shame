@@ -24,7 +24,7 @@ use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable};
 use super::struct_::{BufferFields, SizedFields, Struct};
 use super::type_layout::recipe::{self, array_stride, Vector, ScalarType};
-use super::type_layout::{self, FieldLayout, StructLayout, TypeLayout, DEFAULT_REPR};
+use super::type_layout::{self, FieldLayout, StructLayout, TypeLayout};
 use super::type_traits::{
     BindingArgs, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles, VertexAttribute,
 };
@@ -246,7 +246,7 @@ pub(crate) fn check_layout_push_error(
                     (Some(cpu_size), Some(gpu_size)) => {
                         let cpu_stride = cpu_size;
                         //
-                        let gpu_stride = array_stride(gpu_layout.align(), gpu_size, DEFAULT_REPR);
+                        let gpu_stride = array_stride(gpu_layout.align(), gpu_size, Repr::default());
 
                         if cpu_stride != gpu_stride {
                             Err(LayoutError::StrideMismatch {

@@ -1,4 +1,3 @@
-#![allow(missing_docs)]
 //! Everything related to type layouts.
 
 use std::{
@@ -26,8 +25,6 @@ pub(crate) mod compatible_with;
 pub(crate) mod display;
 pub(crate) mod eq;
 pub(crate) mod recipe;
-
-pub const DEFAULT_REPR: Repr = Repr::Wgsl;
 
 /// The memory layout of a type.
 ///
@@ -61,6 +58,7 @@ pub enum TypeLayout {
     Struct(Rc<StructLayout>),
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VectorLayout {
     pub byte_size: u64,
@@ -71,6 +69,7 @@ pub struct VectorLayout {
     pub debug_is_atomic: bool,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PackedVectorLayout {
     pub byte_size: u64,
@@ -78,6 +77,7 @@ pub struct PackedVectorLayout {
     pub ty: PackedVector,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatrixLayout {
     pub byte_size: u64,
@@ -85,6 +85,7 @@ pub struct MatrixLayout {
     pub ty: Matrix,
 }
 
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayLayout {
     pub byte_size: Option<u64>,
@@ -96,6 +97,7 @@ pub struct ArrayLayout {
 }
 
 /// a sized or unsized struct type with 0 or more fields
+#[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructLayout {
     pub byte_size: Option<u64>,
@@ -116,10 +118,11 @@ pub struct FieldLayout {
 }
 
 /// Enum of layout algorithms.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Repr {
     /// WGSL's layout algorithm
     /// https://www.w3.org/TR/WGSL/#alignment-and-size
+    #[default]
     Wgsl,
     /// Modified layout algorithm based on [`Repr::Wgsl`], but with different type
     /// alignments and array strides that make the resulting Layout match wgsl's
@@ -204,6 +207,7 @@ impl TypeLayout {
         }
     }
 
+    /// Sets the alignment
     pub fn set_align(&mut self, align: U32PowerOf2) {
         let align = align.into();
         match self {

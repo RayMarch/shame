@@ -36,14 +36,14 @@ impl TypeLayoutRecipe {
         }
     }
 
-    // Returns a copy of self, but with all struct reprs changed to `repr`.
+    /// Returns a copy of self, but with all struct reprs changed to `repr`.
     pub fn to_unified_repr(&self, repr: Repr) -> Self {
         let mut this = self.clone();
         this.change_all_repr(repr);
         this
     }
 
-    // Recursively changes all struct reprs to the given `repr`.
+    /// Recursively changes all struct reprs to the given `repr`.
     pub fn change_all_repr(&mut self, repr: Repr) {
         match self {
             TypeLayoutRecipe::Sized(s) => s.change_all_repr(repr),
@@ -73,15 +73,12 @@ impl SizedType {
         }
     }
 
-    // Recursively changes all struct reprs to the given `repr`.
+    /// Recursively changes all struct reprs to the given `repr`.
     pub fn change_all_repr(&mut self, repr: Repr) {
         match self {
             SizedType::Struct(s) => s.change_all_repr(repr),
-            SizedType::Atomic(_) |
-            SizedType::PackedVec(_) |
-            SizedType::Vector(_) |
-            SizedType::Matrix(_) |
-            SizedType::Array(_) => {
+            SizedType::Array(s) => s.change_all_repr(repr),
+            SizedType::Atomic(_) | SizedType::PackedVec(_) | SizedType::Vector(_) | SizedType::Matrix(_) => {
                 // No repr to change for these types.
             }
         }
@@ -101,7 +98,7 @@ impl SizedStruct {
     /// This is expensive for structs as it calculates the byte size and align by traversing all fields recursively.
     pub fn byte_size_and_align(&self) -> (u64, U32PowerOf2) { self.field_offsets().struct_byte_size_and_align() }
 
-    // Recursively changes all struct reprs to the given `repr`.
+    /// Recursively changes all struct reprs to the given `repr`.
     pub fn change_all_repr(&mut self, repr: Repr) {
         self.repr = repr;
         for field in &mut self.fields {
@@ -123,7 +120,7 @@ impl UnsizedStruct {
     /// This is expensive as it calculates the byte align by traversing all fields recursively.
     pub fn align(&self) -> U32PowerOf2 { self.field_offsets().last_field_offset_and_struct_align().1 }
 
-    // Recursively changes all struct reprs to the given `repr`.
+    /// Recursively changes all struct reprs to the given `repr`.
     pub fn change_all_repr(&mut self, repr: Repr) {
         self.repr = repr;
         for field in &mut self.sized_fields {
@@ -935,8 +932,6 @@ mod tests {
         // Add a vec2<f32> field - but with custom min align, which is ignored because of Repr::Packed
         let offset3 = calc.extend(8, U32PowerOf2::_8, None, Some(U32PowerOf2::_16), false);
         assert_eq!(offset3, 12);
-        // TODO(chronicl) not sure whether the alignment should stay 1 for a packesd struct
-        // with custom min align field.
         assert_eq!(calc.align(), U32PowerOf2::_1);
     }
 

@@ -164,14 +164,6 @@ pub fn impl_for_struct(
                         "`#[gpu_repr(packed)]` structs do not support `#[align(N)]` attributes"
                     );
                 }
-                // TODO(chronicl) decide on whether size attribute is allowed. Will have to be adjusted in
-                // LayoutCalculator too!
-                // if fwa.size.is_some() {
-                //     bail!(
-                //         field.span(),
-                //         "`#[gpu_repr(packed)]` structs do not support `#[size(N)]` attributes"
-                //     );
-                // }
             }
             Repr::Wgsl => {}
         }

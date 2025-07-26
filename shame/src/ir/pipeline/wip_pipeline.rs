@@ -33,7 +33,7 @@ use crate::{
         error::InternalError,
         rust_types::{
             len::x3,
-            type_layout::{self, recipe, StructLayout, DEFAULT_REPR},
+            type_layout::{self, recipe, StructLayout},
         },
     },
     ir::{
@@ -356,7 +356,7 @@ impl WipPushConstantsField {
         let sized_struct: recipe::SizedStruct = sized_struct
             .try_into()
             .map_err(|e| InternalError::new(true, format!("{e}")))?;
-        let layout = sized_struct.layout(DEFAULT_REPR);
+        let layout = sized_struct.layout();
 
         let mut ranges = ByteRangesPerStage::default();
 

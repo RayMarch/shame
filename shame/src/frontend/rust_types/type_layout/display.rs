@@ -67,6 +67,7 @@ impl TypeLayout {
 }
 
 impl StructLayout {
+    /// a short name for this `StructLayout`, useful for printing inline
     pub fn short_name(&self) -> String { self.name.to_string() }
 
     pub(crate) fn to_string_with_layout_info(&self, layout_info: LayoutInfo) -> Result<String, std::fmt::Error> {
@@ -91,6 +92,7 @@ impl StructLayout {
 }
 
 impl ArrayLayout {
+    /// a short name for this `ArrayLayout`, useful for printing inline
     pub fn short_name(&self) -> String {
         match self.len {
             Some(n) => format!("array<{}, {n}>", self.element_ty.short_name()),
@@ -180,11 +182,12 @@ impl<'a> StructWriter<'a> {
             Some(n) => n.min(self.s.fields.len()),
             None => self.s.fields.len(),
         };
-        let layout_info_offset = (0..fields)
-            .map(|i| self.field_declaration(i).len())
-            .max()
-            .unwrap_or(0)
-            .max(self.struct_declaration().len());
+        let layout_info_offset = 1 +
+            (0..fields)
+                .map(|i| self.field_declaration(i).len())
+                .max()
+                .unwrap_or(0)
+                .max(self.struct_declaration().len());
         self.layout_info_offset = layout_info_offset;
     }
 
@@ -199,7 +202,7 @@ impl<'a> StructWriter<'a> {
     fn field_declaration(&self, field_index: usize) -> String {
         match self.s.fields.get(field_index) {
             Some(field) => format!("{}{}: {},", self.tab, field.name, field.ty.short_name()),
-            None => String::new(),
+            None => format!("{}field {field_index} not found,", self.tab),
         }
     }
 
@@ -220,18 +223,24 @@ impl<'a> StructWriter<'a> {
     pub(crate) fn write_field<W: Write>(&self, f: &mut W, field_index: usize) -> std::fmt::Result {
         use TypeLayout::*;
 
-        let field = &self.s.fields[field_index];
-        let info = self.layout_info.format(
-            Some(field.rel_byte_offset),
-            field.ty.align(),
-            field.ty.byte_size(),
-            match &field.ty {
-                Array(array) => Some(array.byte_stride),
-                Vector(_) | PackedVector(_) | Matrix(_) | Struct(_) => None,
-            },
-        );
-        let info_offset = self.layout_info_offset();
-        write!(f, "{:info_offset$}{info}", self.field_declaration(field_index))
+        match self.s.fields.get(field_index) {
+            Some(field) => {
+                let info = self.layout_info.format(
+                    Some(field.rel_byte_offset),
+                    field.ty.align(),
+                    field.ty.byte_size(),
+                    match &field.ty {
+                        Array(array) => Some(array.byte_stride),
+                        Vector(_) | PackedVector(_) | Matrix(_) | Struct(_) => None,
+                    },
+                );
+                let info_offset = self.layout_info_offset();
+                write!(f, "{:info_offset$}{info}", self.field_declaration(field_index))
+            }
+            None => {
+                write!(f, "{}field {field_index} not found", self.tab)
+            }
+        }
     }
 
     pub(crate) fn write_struct_end<W: Write>(&self, f: &mut W) -> std::fmt::Result { write!(f, "}}") }
