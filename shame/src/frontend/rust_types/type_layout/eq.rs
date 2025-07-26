@@ -28,9 +28,9 @@ use super::*;
 /// a `TopLevelMismatch::ArrayStride` with the layout of `Array<f32x3>`.
 ///
 /// A field of nested arrays in a struct is handled in the same way by
-/// `LayoutMismatch::Struct` containing the field index and `FieldLayout`, which let's us access the outer
-/// most array, and a `TopLevelMismatch`, which let's us access the inner type layout
-/// where the mismatch is happening.
+/// `LayoutMismatch::Struct` containing the mismatching field index and `FieldLayout`,
+/// which let's us access the outer most array, and a `TopLevelMismatch`,
+/// which let's us access the inner type layout where the mismatch is happening.
 #[derive(Debug, Clone)]
 pub enum LayoutMismatch {
     TopLevel {
@@ -760,5 +760,24 @@ mod tests {
         }
 
         check_mismatch::<Outer, OuterCpu>();
+    }
+
+    #[test]
+    fn test_field_count_mismatch() {
+        let _guard = enable_color();
+
+        #[derive(GpuLayout)]
+        pub struct H {
+            a: f32x1,
+            b: u32x1,
+        }
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct HCpu {
+            a: f32,
+            b: u32,
+            c: f32, // Extra field
+        }
+        check_mismatch::<H, HCpu>();
     }
 }
