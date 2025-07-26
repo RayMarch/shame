@@ -37,12 +37,6 @@ impl TypeLayout {
         }
     }
 
-    pub(crate) fn to_string_with_layout_information(&self, layout_info: LayoutInfo) -> Result<String, std::fmt::Error> {
-        let mut s = String::new();
-        self.write(&mut s, layout_info)?;
-        Ok(s)
-    }
-
     pub(crate) fn write<W: Write>(&self, f: &mut W, layout_info: LayoutInfo) -> std::fmt::Result {
         use TypeLayout::*;
 
@@ -75,12 +69,6 @@ impl TypeLayout {
 impl StructLayout {
     /// a short name for this `StructLayout`, useful for printing inline
     pub fn short_name(&self) -> String { self.name.to_string() }
-
-    pub(crate) fn to_string_with_layout_info(&self, layout_info: LayoutInfo) -> Result<String, std::fmt::Error> {
-        let mut s = String::new();
-        self.write(&mut s, layout_info)?;
-        Ok(s)
-    }
 
     pub(crate) fn writer(&self, layout_info: LayoutInfo) -> StructWriter<'_> { StructWriter::new(self, layout_info) }
 
