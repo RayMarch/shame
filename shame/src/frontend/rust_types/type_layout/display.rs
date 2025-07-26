@@ -23,7 +23,13 @@ impl TypeLayout {
         use TypeLayout::*;
 
         match &self {
-            Vector(v) => v.ty.to_string(),
+            Vector(v) => {
+                if v.debug_is_atomic {
+                    format!("atomic<{}>", v.ty.scalar)
+                } else {
+                    v.ty.to_string()
+                }
+            }
             PackedVector(v) => v.ty.to_string(),
             Matrix(m) => m.ty.to_string(),
             Array(a) => a.short_name(),

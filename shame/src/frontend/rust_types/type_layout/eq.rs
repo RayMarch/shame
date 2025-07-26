@@ -361,7 +361,7 @@ impl CheckEqLayoutMismatch {
                         mismatch: TopLevelMismatch::Type,
                         ..
                     } => {
-                        writeln!(f, "type of {} is different.", field_left.name)?;
+                        writeln!(f, "type of `{}` is different.", field_left.name)?;
                         (Some(field_index), LayoutInfo::NONE)
                     }
                     StructMismatch::FieldLayout {
@@ -386,7 +386,7 @@ impl CheckEqLayoutMismatch {
                             // the inner type is the one that has mismatching byte size.
                             (Some(field_index), LayoutInfo::NONE)
                         } else {
-                            writeln!(f, "byte size of {} is different.", field_left.name)?;
+                            writeln!(f, "byte size of `{}` is different.", field_left.name)?;
                             (Some(field_index), LayoutInfo::SIZE)
                         }
                     }
@@ -549,7 +549,7 @@ mod tests {
     use shame::{CpuLayout, GpuLayout, gpu_layout, cpu_layout};
     use crate::aliases::*;
 
-    const PRINT: bool = false;
+    const PRINT: bool = true;
 
     #[derive(Clone, Copy)]
     #[repr(C)]
@@ -727,5 +727,38 @@ mod tests {
             a: [[f32x3_align4; 4]; 2],
         }
         check_mismatch::<G, GCpu>();
+    }
+
+    #[test]
+    fn test_struct_in_struct_mismatch() {
+        let _guard = enable_color();
+
+        #[derive(GpuLayout)]
+        pub struct Inner {
+            x: f32x1,
+            y: f32x1,
+        }
+
+        #[derive(GpuLayout)]
+        pub struct Outer {
+            inner: sm::Struct<Inner>,
+            z: u32x1,
+        }
+
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct InnerCpu {
+            x: f32,
+            y: u32, // Type mismatch here
+        }
+
+        #[derive(CpuLayout)]
+        #[repr(C)]
+        pub struct OuterCpu {
+            inner: InnerCpu,
+            z: u32,
+        }
+
+        check_mismatch::<Outer, OuterCpu>();
     }
 }
