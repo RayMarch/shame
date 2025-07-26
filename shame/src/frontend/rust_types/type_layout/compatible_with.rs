@@ -539,7 +539,7 @@ mod tests {
     use shame as sm;
     use shame::{aliases::*, GpuLayout};
 
-    const PRINT: bool = true;
+    const PRINT: bool = false;
 
     macro_rules! is_struct_mismatch {
         ($result:expr, $as_error:ident, $mismatch:pat) => {

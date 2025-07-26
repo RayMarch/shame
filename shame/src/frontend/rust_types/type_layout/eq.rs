@@ -549,7 +549,7 @@ mod tests {
     use shame::{CpuLayout, GpuLayout, gpu_layout, cpu_layout};
     use crate::aliases::*;
 
-    const PRINT: bool = true;
+    const PRINT: bool = false;
 
     #[derive(Clone, Copy)]
     #[repr(C)]
@@ -699,19 +699,12 @@ mod tests {
     #[test]
     fn test_stride_mismatch() {
         let _guard = enable_color();
-
-        if PRINT {
-            println!(
-                "The two error messages are what is produced when non-structs, in this case arrays, are the top level types\n"
-            );
-        }
         check_mismatch::<sm::Array<f32x3, sm::Size<4>>, [f32x3_align4; 4]>();
     }
 
     #[test]
     fn test_nested_stride_mismatch() {
         let _guard = enable_color();
-
         check_mismatch::<sm::Array<sm::Array<f32x3, sm::Size<4>>, sm::Size<2>>, [[f32x3_align4; 4]; 2]>();
     }
 
