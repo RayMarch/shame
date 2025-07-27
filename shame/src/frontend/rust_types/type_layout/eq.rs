@@ -446,8 +446,8 @@ impl CheckEqLayoutMismatch {
                 let mut writer_left = struct_left.writer(layout_info);
                 let mut writer_right = struct_right.writer(layout_info);
 
-                // Make sure layout info offset only takes account the fields before and including the mismatch,
-                // because those are the only fields that will be written below.
+                // Make it so layout info offset only takes into account the fields before and
+                // including the mismatch, because those are the only fields that will be written below.
                 if let Some(mismatch_field_index) = mismatch_field_index {
                     let max_fields = Some(mismatch_field_index + 1);
                     writer_left.set_layout_info_offset_auto(max_fields);
