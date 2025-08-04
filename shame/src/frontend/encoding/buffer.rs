@@ -30,9 +30,32 @@ use super::binding::Binding;
 /// Implemented by the marker types
 /// - [`mem::Uniform`]
 /// - [`mem::Storage`]
-pub trait BufferAddressSpace: AddressSpace + SupportsAccess<Read> {}
-impl BufferAddressSpace for mem::Uniform {}
-impl BufferAddressSpace for mem::Storage {}
+pub trait BufferAddressSpace: AddressSpace + SupportsAccess<Read> {
+    /// Either Storage or Uniform address space.
+    const BUFFER_ADDRESS_SPACE: BufferAddressSpaceEnum;
+}
+/// Either Storage or Uniform address space.
+#[derive(Debug, Clone, Copy)]
+pub enum BufferAddressSpaceEnum {
+    /// Storage address space
+    Storage,
+    /// Uniform address space
+    Uniform,
+}
+impl BufferAddressSpace for mem::Uniform {
+    const BUFFER_ADDRESS_SPACE: BufferAddressSpaceEnum = BufferAddressSpaceEnum::Uniform;
+}
+impl BufferAddressSpace for mem::Storage {
+    const BUFFER_ADDRESS_SPACE: BufferAddressSpaceEnum = BufferAddressSpaceEnum::Storage;
+}
+impl std::fmt::Display for BufferAddressSpaceEnum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BufferAddressSpaceEnum::Storage => write!(f, "storage address space"),
+            BufferAddressSpaceEnum::Uniform => write!(f, "uniform address space"),
+        }
+    }
+}
 
 /// A read-only buffer binding, for writeable buffers and atomics use [`BufferRef`] instead.
 ///

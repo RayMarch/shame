@@ -4,14 +4,17 @@ use crate::{
     any::layout::StructLayout,
     call_info,
     common::prettify::{set_color, UnwrapOrStr},
-    frontend::rust_types::type_layout::{
-        display::LayoutInfo,
-        eq::{try_find_mismatch, LayoutMismatch, StructMismatch, TopLevelMismatch},
-        recipe::to_layout::RecipeContains,
-        ArrayLayout,
+    frontend::{
+        encoding::buffer::BufferAddressSpaceEnum,
+        rust_types::type_layout::{
+            display::LayoutInfo,
+            eq::{try_find_mismatch, LayoutMismatch, StructMismatch, TopLevelMismatch},
+            recipe::to_layout::RecipeContains,
+            ArrayLayout,
+        },
     },
     ir::{ir_type::max_u64_po2_dividing, recording::Context},
-    mem, Language, TypeLayout,
+    mem, BufferAddressSpace, Language, TypeLayout,
 };
 
 use super::{recipe::TypeLayoutRecipe, Repr};
@@ -51,23 +54,24 @@ pub struct TypeLayoutCompatibleWith<AddressSpace> {
     _phantom: std::marker::PhantomData<AddressSpace>,
 }
 
-impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
+impl<AS: BufferAddressSpace> TypeLayoutCompatibleWith<AS> {
     pub fn try_from(language: Language, recipe: TypeLayoutRecipe) -> Result<Self, AddressSpaceError> {
-        let address_space = AS::ADDRESS_SPACE;
+        let address_space = AS::BUFFER_ADDRESS_SPACE;
         let layout = recipe.layout();
 
         match (language, address_space, layout.byte_size()) {
             // Must be sized in wgsl's uniform address space
-            (Language::Wgsl, AddressSpaceEnum::Uniform, None) => {
+            (Language::Wgsl, BufferAddressSpaceEnum::Uniform, None) => {
                 return Err(RequirementsNotSatisfied::MustBeSized(recipe, language, address_space).into());
             }
-            (Language::Wgsl, AddressSpaceEnum::Uniform, Some(_)) | (Language::Wgsl, AddressSpaceEnum::Storage, _) => {}
+            (Language::Wgsl, BufferAddressSpaceEnum::Uniform, Some(_))
+            | (Language::Wgsl, BufferAddressSpaceEnum::Storage, _) => {}
         }
 
         // Check that the recipe is representable in the target language.
         // See `TypeLayoutCompatibleWith` docs for more details on what it means to be representable.
         match (language, address_space) {
-            (Language::Wgsl, AddressSpaceEnum::Storage | AddressSpaceEnum::Uniform) => {
+            (Language::Wgsl, BufferAddressSpaceEnum::Storage | BufferAddressSpaceEnum::Uniform) => {
                 // We match like this, so that future additions to `RecipeContains` lead us here.
                 match RecipeContains::CustomFieldAlign {
                     // supported in wgsl
@@ -111,11 +115,11 @@ impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
 
         // Check that the type layout satisfies the requirements of the address space
         match (language, address_space) {
-            (Language::Wgsl, AddressSpaceEnum::Storage) => {
+            (Language::Wgsl, BufferAddressSpaceEnum::Storage) => {
                 // As long as the recipe is representable in wgsl, it satifies the storage address space requirements.
                 // We already checked that the recipe is representable in wgsl above.
             }
-            (Language::Wgsl, AddressSpaceEnum::Uniform) => {
+            (Language::Wgsl, BufferAddressSpaceEnum::Uniform) => {
                 // Repr::WgslUniform is made for exactly this purpose: to check that the type layout
                 // satisfies the requirements of wgsl's uniform address space.
                 let recipe_unified = recipe.to_unified_repr(Repr::WgslUniform);
@@ -147,29 +151,6 @@ impl<AS: AddressSpace> TypeLayoutCompatibleWith<AS> {
     }
 }
 
-pub trait AddressSpace {
-    const ADDRESS_SPACE: AddressSpaceEnum;
-}
-impl AddressSpace for Storage {
-    const ADDRESS_SPACE: AddressSpaceEnum = AddressSpaceEnum::Storage;
-}
-impl AddressSpace for Uniform {
-    const ADDRESS_SPACE: AddressSpaceEnum = AddressSpaceEnum::Uniform;
-}
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum AddressSpaceEnum {
-    Storage,
-    Uniform,
-}
-impl std::fmt::Display for AddressSpaceEnum {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AddressSpaceEnum::Storage => write!(f, "storage address space"),
-            AddressSpaceEnum::Uniform => write!(f, "uniform address space"),
-        }
-    }
-}
-
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum AddressSpaceError {
     #[error("{0}")]
@@ -183,9 +164,9 @@ pub enum NotRepresentable {
     #[error("{0}")]
     LayoutError(LayoutError),
     #[error("{0} contains a {3}, which is not allowed in {1}'s {2}.")]
-    MayNotContain(TypeLayoutRecipe, Language, AddressSpaceEnum, RecipeContains),
+    MayNotContain(TypeLayoutRecipe, Language, BufferAddressSpaceEnum, RecipeContains),
     #[error("Unknown layout error occured for {0} in {1}.")]
-    UnknownLayoutError(TypeLayoutRecipe, AddressSpaceEnum),
+    UnknownLayoutError(TypeLayoutRecipe, BufferAddressSpaceEnum),
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -196,9 +177,9 @@ pub enum RequirementsNotSatisfied {
         "The size of `{0}` on the gpu is not known at compile time. {1}'s {2} \
      requires that the size of {0} on the gpu is known at compile time."
     )]
-    MustBeSized(TypeLayoutRecipe, Language, AddressSpaceEnum),
+    MustBeSized(TypeLayoutRecipe, Language, BufferAddressSpaceEnum),
     #[error("Unknown layout error occured for {0} in {1}.")]
-    UnknownLayoutError(TypeLayoutRecipe, AddressSpaceEnum),
+    UnknownLayoutError(TypeLayoutRecipe, BufferAddressSpaceEnum),
 }
 
 #[derive(Debug, Clone)]
@@ -210,7 +191,7 @@ pub struct LayoutError {
     /// to fit `NotRepresentable` or `RequirementsNotSatisfied`.
     kind: LayoutErrorKind,
     language: Language,
-    address_space: AddressSpaceEnum,
+    address_space: BufferAddressSpaceEnum,
 
     colored: bool,
 }
@@ -230,8 +211,8 @@ impl LayoutError {
                 Language::Wgsl => "wgsl",
             },
             LayoutErrorKind::RequirementsNotSatisfied => match (self.language, self.address_space) {
-                (Language::Wgsl, AddressSpaceEnum::Storage) => "wgsl's storage address space",
-                (Language::Wgsl, AddressSpaceEnum::Uniform) => "wgsl's uniform address space",
+                (Language::Wgsl, BufferAddressSpaceEnum::Storage) => "wgsl's storage address space",
+                (Language::Wgsl, BufferAddressSpaceEnum::Uniform) => "wgsl's uniform address space",
             },
         }
     }
@@ -444,13 +425,13 @@ fn write_struct_mismatch(
                 "- increase the offset of `{field_name}` until it is divisible by {expected_align} by making previous fields larger or adding fields before it"
             )?;
             match (error.kind, error.language, error.address_space) {
-                (LayoutErrorKind::RequirementsNotSatisfied, Language::Wgsl, AddressSpaceEnum::Uniform) => {
+                (LayoutErrorKind::RequirementsNotSatisfied, Language::Wgsl, BufferAddressSpaceEnum::Uniform) => {
                     writeln!(f, "- use a storage binding instead of a uniform binding")?;
                 }
                 (
                     LayoutErrorKind::NotRepresentable | LayoutErrorKind::RequirementsNotSatisfied,
                     Language::Wgsl,
-                    AddressSpaceEnum::Storage | AddressSpaceEnum::Uniform,
+                    BufferAddressSpaceEnum::Storage | BufferAddressSpaceEnum::Uniform,
                 ) => {}
             }
             writeln!(f)?;
@@ -458,18 +439,18 @@ fn write_struct_mismatch(
             match error.language {
                 Language::Wgsl => {
                     match error.address_space {
-                        AddressSpaceEnum::Uniform => writeln!(
+                        BufferAddressSpaceEnum::Uniform => writeln!(
                             f,
                             "In {}, structs, arrays and array elements must be at least 16 byte aligned.",
                             error.context()
                         )?,
-                        AddressSpaceEnum::Storage => {}
+                        BufferAddressSpaceEnum::Storage => {}
                     }
 
                     match (error.kind, error.address_space) {
                         (
                             LayoutErrorKind::RequirementsNotSatisfied,
-                            AddressSpaceEnum::Uniform | AddressSpaceEnum::Storage,
+                            BufferAddressSpaceEnum::Uniform | BufferAddressSpaceEnum::Storage,
                         ) => writeln!(
                             f,
                             "More info about the wgsl's {} can be found at https://www.w3.org/TR/WGSL/#address-space-layout-constraints",
@@ -483,9 +464,9 @@ fn write_struct_mismatch(
                 }
             }
         }
-        StructMismatch::FieldCount |
-        StructMismatch::FieldName { .. } |
-        StructMismatch::FieldLayout {
+        StructMismatch::FieldCount
+        | StructMismatch::FieldName { .. }
+        | StructMismatch::FieldLayout {
             mismatch: TopLevelMismatch::Type,
             ..
         } => {
@@ -542,23 +523,23 @@ mod tests {
     const PRINT: bool = false;
 
     macro_rules! is_struct_mismatch {
-        ($result:expr, $as_error:ident, $mismatch:pat) => {
+        ($result:expr, $as_error:ident, $mismatch:pat) => {{
+            if let Err(e) = &$result
+                && PRINT
             {
-                if let Err(e) = &$result && PRINT {
-                    println!("{e}");
-                }
-                matches!(
-                    $result,
-                    Err(AddressSpaceError::$as_error($as_error::LayoutError(LayoutError {
-                        mismatch: LayoutMismatch::Struct {
-                            mismatch: $mismatch,
-                            ..
-                        },
-                        ..
-                    })))
-                )
+                println!("{e}");
             }
-        };
+            matches!(
+                $result,
+                Err(AddressSpaceError::$as_error($as_error::LayoutError(LayoutError {
+                    mismatch: LayoutMismatch::Struct {
+                        mismatch: $mismatch,
+                        ..
+                    },
+                    ..
+                })))
+            )
+        }};
     }
 
     fn enable_color() -> Option<Result<EncodingGuard<Render>, ThreadIsAlreadyEncoding>> {
@@ -705,7 +686,7 @@ mod tests {
             AddressSpaceError::RequirementsNotSatisfied(RequirementsNotSatisfied::MustBeSized(
                 _,
                 Language::Wgsl,
-                AddressSpaceEnum::Uniform
+                BufferAddressSpaceEnum::Uniform
             ))
         ));
 
@@ -731,7 +712,7 @@ mod tests {
             AddressSpaceError::NotRepresentable(NotRepresentable::MayNotContain(
                 _,
                 Language::Wgsl,
-                AddressSpaceEnum::Storage,
+                BufferAddressSpaceEnum::Storage,
                 RecipeContains::PackedVector
             ))
         ));
