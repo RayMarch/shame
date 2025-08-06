@@ -29,3 +29,14 @@ pub fn set_color<W: std::fmt::Write>(w: &mut W, hexcode: Option<&str>, use_256_c
         }
     }
 }
+
+/// Implements `Display` to print `Some(T)` as `T` and `None` as the provided &'static str.
+pub(crate) struct UnwrapOrStr<T>(pub Option<T>, pub &'static str);
+impl<T: std::fmt::Display> std::fmt::Display for UnwrapOrStr<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnwrapOrStr(Some(s), _) => s.fmt(f),
+            UnwrapOrStr(None, s) => s.fmt(f),
+        }
+    }
+}

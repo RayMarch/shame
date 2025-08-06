@@ -8,6 +8,7 @@ use syn::LitInt;
 use syn::{DataStruct, DeriveInput, FieldsNamed};
 
 use crate::util;
+use crate::util::Repr;
 
 macro_rules! bail {
     ($span: expr, $display: expr) => {return Err(syn::Error::new($span, $display,))};
@@ -81,12 +82,17 @@ pub fn impl_for_struct(
         .into_iter();
     let none_if_no_cpu_equivalent_type = cpu_attr.is_none().then_some(quote! { None }).into_iter();
 
-    // #[gpu_repr(packed)]
-    let gpu_repr_packed = util::find_gpu_repr_packed(&input.attrs)?;
-    if let (Some(span), WhichDerive::CpuLayout) = (&gpu_repr_packed, &which_derive) {
+    // #[gpu_repr(packed | storage)]
+    let gpu_repr = util::try_find_gpu_repr(&input.attrs)?;
+    if let (Some((span, _)), WhichDerive::CpuLayout) = (&gpu_repr, &which_derive) {
         bail!(*span, "`gpu_repr` attribute is only supported by `derive(GpuLayout)`")
     }
-    let is_gpu_repr_packed = gpu_repr_packed.is_some();
+    // if no `#[gpu_repr(_)]` attribute was explicitly specified, we default to `Repr::Wgsl`
+    let gpu_repr = gpu_repr.map(|(_, repr)| repr).unwrap_or(util::Repr::Wgsl);
+    let gpu_repr_shame = match gpu_repr {
+        Repr::Packed => quote!( #re::Repr::Packed ),
+        Repr::Wgsl => quote!( #re::Repr::Wgsl ),
+    };
 
     // #[repr(...)]
     let repr_c_attr = util::try_parse_repr(&input.attrs)?;
@@ -150,8 +156,20 @@ pub fn impl_for_struct(
             align: util::find_literal_list_attr::<syn::LitInt>("align", &field.attrs)?,
         };
 
+        match gpu_repr {
+            Repr::Packed => {
+                if fwa.align.is_some() {
+                    bail!(
+                        field.span(),
+                        "`#[gpu_repr(packed)]` structs do not support `#[align(N)]` attributes"
+                    );
+                }
+            }
+            Repr::Wgsl => {}
+        }
+
         if let Some((span, align_lit)) = &fwa.align {
-            match align_lit.base10_parse::<u32>().map(u32::is_power_of_two) {
+            match align_lit.base10_parse().map(u32::is_power_of_two) {
                 Ok(true) => (),
                 Ok(false) => bail!(*span, "alignment attribute must be a power of two"),
                 Err(_) => bail!(
@@ -197,30 +215,34 @@ pub fn impl_for_struct(
             let impl_gpu_layout = quote! {
                 impl<#generics_decl> #re::GpuLayout for #derive_struct_ident<#(#idents_of_generics),*>
                 where
-                    #(#first_fields_type: #re::GpuSized,)*
-                    #last_field_type: #re::GpuAligned,
+                    #(#first_fields_type: #re::NoBools + #re::NoHandles + #re::GpuLayout + #re::GpuSized,)*
+                    #last_field_type: #re::NoBools + #re::NoHandles + #re::GpuLayout,
                     #where_clause_predicates
                 {
-
-                    fn gpu_layout() -> #re::TypeLayout {
-                        let result = #re::TypeLayout::struct_from_parts(
-                            #re::TypeLayoutRules::Wgsl,
-                            #is_gpu_repr_packed,
-                            std::stringify!(#derive_struct_ident).into(),
+                    fn layout_recipe() -> #re::TypeLayoutRecipe {
+                        let result = #re::TypeLayoutRecipe::struct_from_parts(
+                            std::stringify!(#derive_struct_ident),
                             [
-                                #(
-                                    #re::FieldLayout {
-                                        name: std::stringify!(#field_ident).into(),
-                                        ty: <#field_type as #re::GpuLayout>::gpu_layout(),
-                                        custom_min_align: #field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")).into(),
-                                        custom_min_size: #field_size.into(),
-                                    },
-                                )*
-                            ].into_iter()
+                                #((
+                                    #re::FieldOptions::new(
+                                        std::stringify!(#field_ident),
+                                        #field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")).into(),
+                                        #field_size.into(),
+                                    ),
+                                    <#field_type as #re::GpuLayout>::layout_recipe()
+                                ),)*
+                            ],
+                            #gpu_repr_shame,
                         );
+
                         match result {
-                            Ok(layout) => layout,
-                            Err(e @ #re::StructLayoutError::UnsizedFieldMustBeLast { .. }) => unreachable!("all fields except last require bound `GpuSized`. {e}"),
+                            Ok(recipe_type) => recipe_type,
+                            Err(#re::StructFromPartsError::MustHaveAtLeastOneField) => unreachable!("checked above"),
+                            Err(#re::StructFromPartsError::OnlyLastFieldMayBeUnsized) => unreachable!("ensured by field trait bounds"),
+                            // GpuType is not implemented for derived structs directly, so they can't be used
+                            // as the field of another struct, instead shame::Struct<T> has to be used, which
+                            // only accepts sized structs.
+                            Err(#re::StructFromPartsError::MustNotHaveUnsizedStructField) => unreachable!("GpuType bound  for fields makes this impossible"),
                         }
                     }
 
@@ -243,8 +265,7 @@ pub fn impl_for_struct(
                 where
                     #(#triv #field_type: #re::VertexAttribute,)*
                     #where_clause_predicates
-                {
-                }
+                { }
             };
 
 
@@ -322,164 +343,67 @@ pub fn impl_for_struct(
                 }
             };
 
-            if gpu_repr_packed.is_some() {
+            match gpu_repr {
+                Repr::Packed =>
                 // this is basically only for vertex buffers, so
                 // we only implement `GpuLayout` and `VertexLayout`, as well as their implied traits
-                Ok(quote! {
-                    #impl_gpu_layout
-                    #impl_vertex_buffer_layout
-                    #impl_fake_auto_traits
-                    #impl_from_anys
-                })
-            } else {
-                // non gpu_repr(packed)
-                let struct_ref_doc = format!(
-                    r#"This struct was generated by `#[derive(shame::GpuLayout)]` 
-            as a version of `{derive_struct_ident}` which holds references to its fields. It is used as 
+                {
+                    Ok(quote! {
+                        #impl_gpu_layout
+                        #impl_vertex_buffer_layout
+                        #impl_fake_auto_traits
+                        #impl_from_anys
+                    })
+                }
+                Repr::Wgsl => {
+                    // non gpu_repr(packed)
+                    let struct_ref_doc = format!(
+                        r#"This struct was generated by `#[derive(shame::GpuLayout)]`
+            as a version of `{derive_struct_ident}` which holds references to its fields. It is used as
             the `std::ops::Deref` target of `shame::Ref<{derive_struct_ident}>`"#
-                );
+                    );
 
-                Ok(quote! {
-                    #impl_gpu_layout
-                    #impl_vertex_buffer_layout
-                    #impl_fake_auto_traits
-                    #impl_from_anys
+                    Ok(quote! {
+                        #impl_gpu_layout
+                        #impl_vertex_buffer_layout
+                        #impl_fake_auto_traits
+                        #impl_from_anys
 
-                    #[doc = #struct_ref_doc]
-                    #[allow(non_camel_case_types)]
-                    #[derive(Clone, Copy)]
-                    #vis struct #derive_struct_ref_ident<_AS: #re::AddressSpace, _AM: #re::AccessMode>
-                    where #(
-                        #triv #field_type: #re::GpuStore + #re::GpuType,
-                    )*
-                    {
-                        #(
-                            #field_vis #field_ident: #re::Ref<#field_type, _AS, _AM>,
+                        #[doc = #struct_ref_doc]
+                        #[allow(non_camel_case_types)]
+                        #[derive(Clone, Copy)]
+                        #vis struct #derive_struct_ref_ident<_AS: #re::AddressSpace, _AM: #re::AccessMode>
+                        where #(
+                            #triv #field_type: #re::GpuStore + #re::GpuType,
                         )*
-                    }
-
-                    impl<#generics_decl> #re::BufferFields for #derive_struct_ident<#(#idents_of_generics),*>
-                    where
-                        #(#triv #field_type: #re::GpuStore + #re::GpuType,)*
-                        #(#triv #first_fields_type: #re::GpuSized,)*
-                        #triv #last_field_type:     #re::GpuAligned,
-                        #where_clause_predicates
-                    {
-                        fn as_anys(&self) -> impl std::borrow::Borrow<[#re::Any]> {
-                            use #re::AsAny;
-                            [
-                                #(self.#field_ident.as_any()),*
-                            ]
+                        {
+                            #(
+                                #field_vis #field_ident: #re::Ref<#field_type, _AS, _AM>,
+                            )*
                         }
 
-                        fn clone_fields(&self) -> Self {
-                            Self {
-                                #(#field_ident: std::clone::Clone::clone(&self.#field_ident)),*
+                        impl<#generics_decl> #re::BufferFields for #derive_struct_ident<#(#idents_of_generics),*>
+                        where
+                            #(#triv #field_type: #re::GpuStore + #re::GpuType,)*
+                            #(#triv #first_fields_type: #re::GpuSized,)*
+                            #triv #last_field_type:     #re::GpuAligned,
+                            #where_clause_predicates
+                        {
+                            fn as_anys(&self) -> impl std::borrow::Borrow<[#re::Any]> {
+                                use #re::AsAny;
+                                [
+                                    #(self.#field_ident.as_any()),*
+                                ]
                             }
-                        }
 
-                        fn get_bufferblock_type() -> #re::ir::BufferBlock {
-                            let mut fields = std::vec::Vec::from([
-                                #(
-                                    #re::ir::SizedField {
-                                        name: std::stringify!(#first_fields_ident).into(),
-                                        custom_min_size: #first_fields_size,
-                                        custom_min_align: #first_fields_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")),
-                                        ty: <#first_fields_type as #re::GpuSized>::sized_ty(),
-                                    }
-                                ),*
-                            ]);
-
-                            let mut last_unsized = None::<#re::ir::RuntimeSizedArrayField>;
-                            #[allow(clippy::no_effect)]
-                            {
-                                // this part is only here to force a compiler error if the last field
-                                // uses the #[size(n)] attribute but the type is not shame::GpuSized.
-                                #(#enable_if_last_field_has_size_attribute; // only generate the line below if the last field has a #[size(n)] attribute
-                                    // compiler error if not shame::GpuSized
-                                    fn __() where #last_field_type: #re::GpuSized {}
-                                )*
-
-                                match <#last_field_type as #re::GpuAligned>::aligned_ty() {
-                                    #re::ir::AlignedType::Sized(ty) =>
-                                        fields.push(#re::ir::SizedField {
-                                            name: std::stringify!(#last_field_ident).into(),
-                                            custom_min_size: #last_field_size,
-                                            custom_min_align: #last_field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")),
-                                            ty
-                                        }),
-                                    #re::ir::AlignedType::RuntimeSizedArray(element_ty) =>
-                                        last_unsized = Some(#re::ir::RuntimeSizedArrayField {
-                                            name: std::stringify!(#last_field_ident).into(),
-                                            custom_min_align: #last_field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")),
-                                            element_ty
-                                        }),
+                            fn clone_fields(&self) -> Self {
+                                Self {
+                                    #(#field_ident: std::clone::Clone::clone(&self.#field_ident)),*
                                 }
                             }
 
-                            use #re::BufferBlockDefinitionError as E;
-                            match #re::ir::BufferBlock::new(
-                                std::stringify!(#derive_struct_ident).into(),
-                                fields,
-                                last_unsized
-                            ) {
-                                Ok(t) => t,
-                                Err(e) => match e {
-                                    E::MustHaveAtLeastOneField => unreachable!(">= 1 field is ensured by derive macro"),
-                                    E::FieldNamesMustBeUnique => unreachable!("unique field idents are ensured by rust struct definition"),
-                                }
-                            }
-                        }
-                    }
-
-                    impl<#generics_decl> #re::GpuStore for #derive_struct_ident<#(#idents_of_generics),*>
-                    where
-                        #(#triv #field_type: #re::GpuStore + #re::GpuType,)*
-                        #where_clause_predicates
-                    {
-                        type RefFields<AS: #re::AddressSpace, AM: #re::AccessMode> = #derive_struct_ref_ident<AS, AM>;
-
-                        fn store_ty() -> #re::ir::StoreType where
-                        #triv Self: #re::GpuType {
-                            unreachable!("Self: !GpuType")
-                        }
-
-                        fn instantiate_buffer_inner<AS: #re::BufferAddressSpace>(
-                            args: Result<#re::BindingArgs, #re::InvalidReason>,
-                            bind_ty: #re::BindingType
-                        ) -> #re::BufferInner<Self, AS>
-                        where
-                            #triv Self:
-                                #re::NoAtomics +
-                                #re::NoBools
-                        {
-                            #re::BufferInner::new_fields(args, bind_ty)
-                        }
-
-                        fn instantiate_buffer_ref_inner<AS: #re::BufferAddressSpace, AM: #re::AccessModeReadable>(
-                            args: Result<#re::BindingArgs, #re::InvalidReason>,
-                            bind_ty: #re::BindingType
-                        ) -> #re::BufferRefInner<Self, AS, AM>
-                        where
-                            #triv Self: #re::NoBools,
-                        {
-                            #re::BufferRefInner::new_fields(args, bind_ty)
-                        }
-
-                        fn impl_category() -> #re::GpuStoreImplCategory {
-                            #re::GpuStoreImplCategory::Fields(<Self as #re::BufferFields>::get_bufferblock_type())
-                        }
-                    }
-
-                    impl<#generics_decl> #re::SizedFields for #derive_struct_ident<#(#idents_of_generics),*>
-                    where
-                        #(#triv #field_type:  #re::GpuSized + #re::GpuStore + #re::GpuType,)*
-                        #where_clause_predicates
-                    {
-                        fn get_sizedstruct_type() -> #re::ir::SizedStruct {
-                            let struct_ = #re::ir::SizedStruct::new_nonempty(
-                                std::stringify!(#derive_struct_ident).into(),
-                                std::vec::Vec::from([
+                            fn get_bufferblock_type() -> #re::ir::BufferBlock {
+                                let mut fields = std::vec::Vec::from([
                                     #(
                                         #re::ir::SizedField {
                                             name: std::stringify!(#first_fields_ident).into(),
@@ -488,66 +412,169 @@ pub fn impl_for_struct(
                                             ty: <#first_fields_type as #re::GpuSized>::sized_ty(),
                                         }
                                     ),*
-                                ]),
-                                #re::ir::SizedField {
-                                    name: std::stringify!(#last_field_ident).into(),
-                                    custom_min_size: #last_field_size,
-                                    custom_min_align: #last_field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")),
-                                    ty: <#last_field_type as #re::GpuSized>::sized_ty(),
+                                ]);
+
+                                let mut last_unsized = None::<#re::ir::RuntimeSizedArrayField>;
+                                #[allow(clippy::no_effect)]
+                                {
+                                    // this part is only here to force a compiler error if the last field
+                                    // uses the #[size(n)] attribute but the type is not shame::GpuSized.
+                                    #(#enable_if_last_field_has_size_attribute; // only generate the line below if the last field has a #[size(n)] attribute
+                                        // compiler error if not shame::GpuSized
+                                        fn __() where #last_field_type: #re::GpuSized {}
+                                    )*
+
+                                    match <#last_field_type as #re::GpuAligned>::aligned_ty() {
+                                        #re::ir::AlignedType::Sized(ty) =>
+                                            fields.push(#re::ir::SizedField {
+                                                name: std::stringify!(#last_field_ident).into(),
+                                                custom_min_size: #last_field_size,
+                                                custom_min_align: #last_field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")),
+                                                ty
+                                            }),
+                                        #re::ir::AlignedType::RuntimeSizedArray(element_ty) =>
+                                            last_unsized = Some(#re::ir::RuntimeSizedArrayField {
+                                                name: std::stringify!(#last_field_ident).into(),
+                                                custom_min_align: #last_field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")),
+                                                element_ty
+                                            }),
+                                    }
                                 }
-                            );
-                            match struct_ {
-                                Ok(s) => s,
-                                Err(#re::ir::StructureFieldNamesMustBeUnique) => unreachable!("field name uniqueness is checked by rust"),
+
+                                use #re::BufferBlockDefinitionError as E;
+                                match #re::ir::BufferBlock::new(
+                                    std::stringify!(#derive_struct_ident).into(),
+                                    fields,
+                                    last_unsized
+                                ) {
+                                    Ok(t) => t,
+                                    Err(e) => match e {
+                                        E::MustHaveAtLeastOneField => unreachable!(">= 1 field is ensured by derive macro"),
+                                        E::FieldNamesMustBeUnique(_) => unreachable!("unique field idents are ensured by rust struct definition"),
+                                    }
+                                }
                             }
                         }
-                    }
 
-                    impl<#generics_decl> #re::GetAllFields for #derive_struct_ident<#(#idents_of_generics),*>
-                    where
-                        #(#triv #first_fields_type: #re::GpuSized,)*
-                        #triv #last_field_type: #re::GpuAligned,
-                        #where_clause_predicates
-                    {
-                        fn fields_as_anys_unchecked(self_: #re::Any) -> impl std::borrow::Borrow<[#re::Any]> {
-                            [
-                                #(self_.get_field(std::stringify!(#field_ident).into())),*
-                            ]
-                        }
-                    }
+                        impl<#generics_decl> #re::GpuStore for #derive_struct_ident<#(#idents_of_generics),*>
+                        where
+                            #(#triv #field_type: #re::GpuStore + #re::GpuType,)*
+                            #where_clause_predicates
+                        {
+                            type RefFields<AS: #re::AddressSpace, AM: #re::AccessMode> = #derive_struct_ref_ident<AS, AM>;
 
-                    impl<AS: #re::AddressSpace, AM: #re::AccessMode> #re::FromAnys for #derive_struct_ref_ident<AS, AM>
-                    where #(
-                        #triv #field_type: #re::GpuStore + #re::GpuType,
-                    )* {
-                        fn expected_num_anys() -> usize {#num_fields}
+                            fn store_ty() -> #re::ir::StoreType where
+                            #triv Self: #re::GpuType {
+                                unreachable!("Self: !GpuType")
+                            }
 
-                        #[track_caller]
-                        fn from_anys(mut anys: impl Iterator<Item = #re::Any>) -> Self {
-                            use #re::{
-                                collect_into_array_exact,
-                                push_wrong_amount_of_args_error
-                            };
-                            const EXPECTED_LEN: usize = #num_fields;
-                            let [#(#field_ident),*] = match collect_into_array_exact::<#re::Any, EXPECTED_LEN>(anys) {
-                                Ok(t) => t,
-                                Err(actual_len) => {
-                                    let any = push_wrong_amount_of_args_error(actual_len, EXPECTED_LEN, #re::call_info!());
-                                    [any; EXPECTED_LEN]
-                                }
-                            };
-                            Self {
-                                #(#field_ident: From::from(#field_ident)),*
+                            fn instantiate_buffer_inner<AS: #re::BufferAddressSpace>(
+                                args: Result<#re::BindingArgs, #re::InvalidReason>,
+                                bind_ty: #re::BindingType
+                            ) -> #re::BufferInner<Self, AS>
+                            where
+                                #triv Self:
+                                    #re::NoAtomics +
+                                    #re::NoBools
+                            {
+                                #re::BufferInner::new_fields(args, bind_ty)
+                            }
+
+                            fn instantiate_buffer_ref_inner<AS: #re::BufferAddressSpace, AM: #re::AccessModeReadable>(
+                                args: Result<#re::BindingArgs, #re::InvalidReason>,
+                                bind_ty: #re::BindingType
+                            ) -> #re::BufferRefInner<Self, AS, AM>
+                            where
+                                #triv Self: #re::NoBools,
+                            {
+                                #re::BufferRefInner::new_fields(args, bind_ty)
+                            }
+
+                            fn impl_category() -> #re::GpuStoreImplCategory {
+                                #re::GpuStoreImplCategory::Fields(<Self as #re::BufferFields>::get_bufferblock_type())
                             }
                         }
-                    }
-                })
+
+                        impl<#generics_decl> #re::SizedFields for #derive_struct_ident<#(#idents_of_generics),*>
+                        where
+                            #(#triv #field_type:  #re::GpuSized + #re::GpuStore + #re::GpuType,)*
+                            #where_clause_predicates
+                        {
+                            fn get_sizedstruct_type() -> #re::ir::SizedStruct {
+                                let struct_ = #re::ir::SizedStruct::new_nonempty(
+                                    std::stringify!(#derive_struct_ident).into(),
+                                    std::vec::Vec::from([
+                                        #(
+                                            #re::ir::SizedField {
+                                                name: std::stringify!(#first_fields_ident).into(),
+                                                custom_min_size: #first_fields_size,
+                                                custom_min_align: #first_fields_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")),
+                                                ty: <#first_fields_type as #re::GpuSized>::sized_ty(),
+                                            }
+                                        ),*
+                                    ]),
+                                    #re::ir::SizedField {
+                                        name: std::stringify!(#last_field_ident).into(),
+                                        custom_min_size: #last_field_size,
+                                        custom_min_align: #last_field_align.map(|align: u32| TryFrom::try_from(align).expect("power of two validated during codegen")),
+                                        ty: <#last_field_type as #re::GpuSized>::sized_ty(),
+                                    }
+                                );
+                                match struct_ {
+                                    Ok(s) => s,
+                                    Err(#re::ir::StructureFieldNamesMustBeUnique { .. }) => unreachable!("field name uniqueness is checked by rust"),
+                                }
+                            }
+                        }
+
+                        impl<#generics_decl> #re::GetAllFields for #derive_struct_ident<#(#idents_of_generics),*>
+                        where
+                            #(#triv #first_fields_type: #re::GpuSized,)*
+                            #triv #last_field_type: #re::GpuAligned,
+                            #where_clause_predicates
+                        {
+                            fn fields_as_anys_unchecked(self_: #re::Any) -> impl std::borrow::Borrow<[#re::Any]> {
+                                [
+                                    #(self_.get_field(std::stringify!(#field_ident).into())),*
+                                ]
+                            }
+                        }
+
+                        impl<AS: #re::AddressSpace, AM: #re::AccessMode> #re::FromAnys for #derive_struct_ref_ident<AS, AM>
+                        where #(
+                            #triv #field_type: #re::GpuStore + #re::GpuType,
+                        )* {
+                            fn expected_num_anys() -> usize {#num_fields}
+
+                            #[track_caller]
+                            fn from_anys(mut anys: impl Iterator<Item = #re::Any>) -> Self {
+                                use #re::{
+                                    collect_into_array_exact,
+                                    push_wrong_amount_of_args_error
+                                };
+                                const EXPECTED_LEN: usize = #num_fields;
+                                let [#(#field_ident),*] = match collect_into_array_exact::<#re::Any, EXPECTED_LEN>(anys) {
+                                    Ok(t) => t,
+                                    Err(actual_len) => {
+                                        let any = push_wrong_amount_of_args_error(actual_len, EXPECTED_LEN, #re::call_info!());
+                                        [any; EXPECTED_LEN]
+                                    }
+                                };
+                                Self {
+                                    #(#field_ident: From::from(#field_ident)),*
+                                }
+                            }
+                        }
+                    })
+                }
             }
         }
         WhichDerive::CpuLayout => {
             let align_attr_or_none = match repr_align_attr {
                 None => quote!(None),
-                Some(n) => quote!(Some(#n as u64)),
+                Some(n) => quote!(
+                    Some(#re::U32PowerOf2::try_from_usize(#n)).expect("rust checks that N in repr(C, align(N)) is a power of 2.")
+                ),
             };
 
             Ok(quote! {

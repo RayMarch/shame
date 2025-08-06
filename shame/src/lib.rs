@@ -184,7 +184,7 @@ pub use frontend::rust_types::vec_range_traits::VecRangeBoundsInclusive;
 pub mod aliases {
     use crate::frontend::rust_types::aliases;
 
-    #[rustfmt::skip]    
+    #[rustfmt::skip]
     pub use aliases::rust_simd::{
         f16x1, f32x1, f64x1, u32x1, i32x1, boolx1,
         f16x2, f32x2, f64x2, u32x2, i32x2, boolx2,
@@ -192,16 +192,16 @@ pub mod aliases {
         f16x4, f32x4, f64x4, u32x4, i32x4, boolx4,
     };
 
-    #[rustfmt::skip]    
+    #[rustfmt::skip]
     pub use aliases::rust_simd::{
         f16x2x2, f32x2x2, f64x2x2,
         f16x2x3, f32x2x3, f64x2x3,
         f16x2x4, f32x2x4, f64x2x4,
-    
+
         f16x3x2, f32x3x2, f64x3x2,
         f16x3x3, f32x3x3, f64x3x3,
         f16x3x4, f32x3x4, f64x3x4,
-    
+
         f16x4x2, f32x4x2, f64x4x2,
         f16x4x3, f32x4x3, f64x4x3,
         f16x4x4, f32x4x4, f64x4x4,
@@ -315,10 +315,10 @@ pub use frontend::texture::texture_formats as tf;
 pub use shame_derive::CpuLayout;
 pub use shame_derive::GpuLayout;
 pub use frontend::rust_types::layout_traits::GpuLayout;
+pub use frontend::rust_types::layout_traits::gpu_layout;
 pub use frontend::rust_types::layout_traits::CpuLayout;
+pub use frontend::rust_types::layout_traits::cpu_layout;
 pub use frontend::rust_types::type_layout::TypeLayout;
-pub use frontend::rust_types::type_layout::TypeLayoutError;
-pub use frontend::rust_types::layout_traits::ArrayElementsUnsizedError;
 
 // derived traits
 pub use frontend::rust_types::type_traits::GpuStore;
@@ -331,6 +331,7 @@ pub use frontend::rust_types::struct_::SizedFields;
 pub use frontend::rust_types::type_traits::NoBools;
 pub use frontend::rust_types::type_traits::NoAtomics;
 pub use frontend::rust_types::type_traits::NoHandles;
+pub use frontend::rust_types::type_traits::VertexAttribute;
 
 pub use frontend::rust_types::layout_traits::VertexLayout;
 
@@ -461,6 +462,56 @@ pub mod any {
     pub use crate::ir::ir_type::StructKind;
     pub use crate::ir::ir_type::StructureDefinitionError;
     pub use crate::ir::ir_type::StructureFieldNamesMustBeUnique;
+
+    pub mod layout {
+        use crate::frontend::rust_types::type_layout;
+
+        // type layout
+        pub use type_layout::TypeLayout;
+        pub use type_layout::Repr;
+        pub mod repr {
+            use crate::frontend::rust_types::type_layout;
+        }
+        pub use type_layout::VectorLayout;
+        pub use type_layout::PackedVectorLayout;
+        pub use type_layout::MatrixLayout;
+        pub use type_layout::ArrayLayout;
+        pub use type_layout::StructLayout;
+        pub use type_layout::FieldLayout;
+
+        // recipe types
+        pub use type_layout::recipe::TypeLayoutRecipe;
+        pub use type_layout::recipe::UnsizedStruct;
+        pub use type_layout::recipe::RuntimeSizedArray;
+        pub use type_layout::recipe::SizedType;
+        pub use type_layout::recipe::Vector;
+        pub use type_layout::recipe::Matrix;
+        pub use type_layout::recipe::MatrixMajor;
+        pub use type_layout::recipe::SizedArray;
+        pub use type_layout::recipe::Atomic;
+        pub use type_layout::recipe::PackedVector;
+        pub use type_layout::recipe::SizedStruct;
+
+        // recipe type parts
+        pub use type_layout::recipe::ScalarType;
+        pub use type_layout::recipe::ScalarTypeFp;
+        pub use type_layout::recipe::ScalarTypeInteger;
+        pub use type_layout::recipe::Len;
+        pub use type_layout::recipe::Len2;
+        pub use type_layout::recipe::SizedField;
+        pub use type_layout::recipe::RuntimeSizedArrayField;
+        pub use type_layout::recipe::CanonName;
+        pub use type_layout::recipe::SizedOrArray;
+        pub use type_layout::recipe::FieldOptions;
+
+        // layout calculation utility
+        pub use type_layout::recipe::StructLayoutCalculator;
+        pub use type_layout::recipe::FieldOffsets;
+
+        // conversion and builder errors
+        pub use type_layout::recipe::builder::IsUnsizedStructError;
+        pub use type_layout::recipe::builder::StructFromPartsError;
+    }
 
     // runtime binding api
     pub use any::shared_io::BindPath;

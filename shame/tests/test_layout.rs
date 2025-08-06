@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types, unused)]
 use pretty_assertions::{assert_eq, assert_ne};
 
-use shame as sm;
+use shame::{self as sm, cpu_layout, gpu_layout};
 use sm::{aliases::*, CpuLayout, GpuLayout};
 
 #[test]
@@ -21,7 +21,7 @@ fn basic_layout_eq() {
         c: i32,
     }
 
-    assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+    assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
 }
 
 #[test]
@@ -50,9 +50,9 @@ fn attributes_dont_contribute_to_eq() {
         c: i32,
     }
 
-    assert_eq!(OnGpuA::gpu_layout(), OnCpu::cpu_layout());
-    assert_eq!(OnGpuB::gpu_layout(), OnCpu::cpu_layout());
-    assert_eq!(OnGpuA::gpu_layout(), OnGpuB::gpu_layout());
+    assert_eq!(gpu_layout::<OnGpuA>(), cpu_layout::<OnCpu>());
+    assert_eq!(gpu_layout::<OnGpuB>(), cpu_layout::<OnCpu>());
+    assert_eq!(gpu_layout::<OnGpuA>(), gpu_layout::<OnGpuB>());
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn fixed_by_align_size_attribute() {
             c: i32,
         }
 
-        assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+        assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
     }
 
     {
@@ -94,7 +94,7 @@ fn fixed_by_align_size_attribute() {
             c: f32x3_size32,
         }
 
-        assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+        assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
     }
 }
 
@@ -115,7 +115,7 @@ fn different_align_struct_eq() {
         c: i32,
     }
 
-    assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+    assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn unsized_struct_layout_eq() {
         c: [i32],
     }
 
-    assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+    assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
 }
 
 #[derive(Clone, Copy)]
@@ -147,21 +147,25 @@ struct f32x4_cpu(pub [f32; 4]);
 struct f32x3_cpu(pub [f32; 3]);
 
 impl CpuLayout for f32x3_cpu {
-    fn cpu_layout() -> shame::TypeLayout { f32x3::gpu_layout() }
+    fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x3>() }
 }
 
 #[derive(Clone, Copy)]
 #[repr(C, align(8))]
 struct f32x2_cpu(pub [f32; 2]);
 impl CpuLayout for f32x2_cpu {
-    fn cpu_layout() -> shame::TypeLayout { f32x2::gpu_layout() }
+    fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x2>() }
 }
 
 #[derive(Clone, Copy)]
 #[repr(C)]
 struct f32x2_align4(pub [f32; 2]);
 impl CpuLayout for f32x2_align4 {
-    fn cpu_layout() -> shame::TypeLayout { f32x2::gpu_layout() }
+    fn cpu_layout() -> shame::TypeLayout {
+        let mut layout = gpu_layout::<f32x2>();
+        layout.set_align(shame::any::U32PowerOf2::_4);
+        layout
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -169,7 +173,11 @@ impl CpuLayout for f32x2_align4 {
 struct f32x4_align4(pub [f32; 4]);
 
 impl CpuLayout for f32x4_align4 {
-    fn cpu_layout() -> shame::TypeLayout { f32x4::gpu_layout() }
+    fn cpu_layout() -> shame::TypeLayout {
+        let mut layout = gpu_layout::<f32x4>();
+        layout.set_align(shame::any::U32PowerOf2::_4);
+        layout
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -182,7 +190,11 @@ static_assertions::assert_eq_align!(glam::Vec3, f32x3_align4);
 static_assertions::assert_eq_align!(glam::Vec4, f32x4_cpu);
 
 impl CpuLayout for f32x3_align4 {
-    fn cpu_layout() -> shame::TypeLayout { f32x3::gpu_layout() }
+    fn cpu_layout() -> shame::TypeLayout {
+        let mut layout = gpu_layout::<f32x3>();
+        layout.set_align(shame::any::U32PowerOf2::_4.into());
+        layout
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -190,7 +202,7 @@ impl CpuLayout for f32x3_align4 {
 struct f32x3_size32(pub [f32; 3], [u8; 20]);
 
 impl CpuLayout for f32x3_size32 {
-    fn cpu_layout() -> shame::TypeLayout { f32x3::gpu_layout() }
+    fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x3>() }
 }
 
 
@@ -212,7 +224,7 @@ fn unsized_struct_vec3_align_layout_eq() {
         c: [f32x3_cpu],
     }
 
-    assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+    assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
 }
 
 #[test]
@@ -231,7 +243,7 @@ fn unsized_struct_vec3_align_layout_eq() {
     // the alignment on the top level of the layout doesn't matter.
     // two layouts are only considered different if an alignment mismatch
     // leads to different offsets of fields or array elements
-    assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+    assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
 }
 
 #[test]
@@ -246,11 +258,11 @@ fn unsized_struct_vec3_align_layout_eq() {
     struct OnCpu { // size=12, align=4
         a: f32x3_align4,
     }
-    assert_ne!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
-    assert!(OnGpu::gpu_layout().byte_size() == Some(16));
-    assert!(OnGpu::gpu_layout().align() == 16);
-    assert!(OnCpu::cpu_layout().byte_size() == Some(12));
-    assert!(OnCpu::cpu_layout().align() == 4);
+    assert_ne!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
+    assert!(gpu_layout::<OnGpu>().byte_size() == Some(16));
+    assert!(gpu_layout::<OnGpu>().align().as_u32() == 16);
+    assert!(cpu_layout::<OnCpu>().byte_size() == Some(12));
+    assert!(cpu_layout::<OnCpu>().align().as_u32() == 4);
 }
 
 #[test]
@@ -283,15 +295,15 @@ fn unsized_struct_nested_vec3_align_layout_eq() {
         c: [InnerCpu],
     }
 
-    assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+    assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
 }
 
 #[test]
 fn unsized_array_layout_eq() {
-    assert_eq!(<sm::Array<f32x1>>::gpu_layout(), <[f32]>::cpu_layout());
-    assert_eq!(<sm::Array<f32x3>>::gpu_layout(), <[f32x3_cpu]>::cpu_layout());
-    assert_ne!(<sm::Array<f32x3>>::gpu_layout(), <[f32x3_align4]>::cpu_layout());
-    assert_ne!(<sm::Array<f32x3>>::gpu_layout(), <[f32x3_size32]>::cpu_layout());
+    assert_eq!(gpu_layout::<sm::Array<f32x1>>(), cpu_layout::<[f32]>());
+    assert_eq!(gpu_layout::<sm::Array<f32x3>>(), cpu_layout::<[f32x3_cpu]>());
+    assert_ne!(gpu_layout::<sm::Array<f32x3>>(), cpu_layout::<[f32x3_align4]>());
+    assert_ne!(gpu_layout::<sm::Array<f32x3>>(), cpu_layout::<[f32x3_size32]>());
 }
 
 #[test]
@@ -318,14 +330,15 @@ fn layouts_mismatch() {
         c: i32,
     }
 
-    assert_ne!(OnGpuLess::gpu_layout(), OnCpu::cpu_layout());
-    assert_ne!(OnGpuMore::gpu_layout(), OnCpu::cpu_layout());
+    assert_ne!(gpu_layout::<OnGpuLess>(), cpu_layout::<OnCpu>());
+    assert_ne!(gpu_layout::<OnGpuMore>(), cpu_layout::<OnCpu>());
 }
 
 #[test]
 fn external_vec_type() {
     // using duck-traiting just so that the proc-macro uses `CpuLayoutExt::layout()`
     pub mod my_mod {
+        use shame::gpu_layout;
         use shame as sm;
         use sm::aliases::*;
         use sm::GpuLayout as _;
@@ -335,11 +348,15 @@ fn external_vec_type() {
         }
 
         impl CpuLayoutExt for glam::Vec4 {
-            fn cpu_layout() -> shame::TypeLayout { f32x4::gpu_layout() }
+            fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x4>() }
         }
 
         impl CpuLayoutExt for glam::Vec3 {
-            fn cpu_layout() -> shame::TypeLayout { f32x3::gpu_layout() }
+            fn cpu_layout() -> shame::TypeLayout {
+                let mut layout = gpu_layout::<f32x3>();
+                layout.set_align(sm::any::U32PowerOf2::_4);
+                layout
+            }
         }
     }
 
@@ -357,19 +374,10 @@ fn external_vec_type() {
         b: glam::Vec4,
     }
 
-    assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+    assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
 
     #[derive(sm::GpuLayout)]
     struct OnGpu2 {
-        a: f32x3,
-        b: f32x3,
-        #[align(16)]
-        c: f32x4,
-    }
-
-    #[derive(sm::GpuLayout)]
-    #[gpu_repr(packed)]
-    struct OnGpu2Packed {
         a: f32x3,
         b: f32x3,
         #[align(16)]
@@ -384,8 +392,20 @@ fn external_vec_type() {
         c: glam::Vec4,
     }
 
-    assert_ne!(OnGpu2::gpu_layout(), OnCpu2::cpu_layout());
-    assert_eq!(OnGpu2Packed::gpu_layout(), OnCpu2::cpu_layout());
+    assert_ne!(gpu_layout::<OnGpu2>(), cpu_layout::<OnCpu2>());
+
+    // TODO: delete or use compile fail test crate like trybuild to make
+    // sure that align and size attributes aren't allowed on packed structs.
+    // #[derive(sm::GpuLayout)]
+    // #[gpu_repr(packed)]
+    // struct OnGpu2Packed {
+    //     a: f32x3,
+    //     b: f32x3,
+    //     #[align(16)]
+    //     c: f32x4,
+    // }
+
+    // assert_eq!(gpu_layout::<OnGpu2Packed>(), cpu_layout::<OnCpu2>());
 }
 
 #[test]
@@ -407,26 +427,28 @@ fn external_vec_type() {
             uv : f32x2_align4,
         }
 
-        assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
+        assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
     }
     {
-        #[derive(sm::GpuLayout)]
-        #[gpu_repr(packed)]
-        struct OnGpu {
-            pos: f32x3,
-            nor: f32x3,
-            #[align(8)] uv : f32x2,
-        }
+        // TODO: delete or use compile fail test crate like trybuild to make
+        // sure that align and size attributes aren't allowed on packed structs.
+        // #[derive(sm::GpuLayout)]
+        // #[gpu_repr(packed)]
+        // struct OnGpu {
+        //     pos: f32x3,
+        //     nor: f32x3,
+        //     #[align(8)] uv : f32x2,
+        // }
 
-        #[derive(sm::CpuLayout)]
-        #[repr(C)]
-        struct OnCpu {
-            pos: f32x3_align4,
-            nor: f32x3_align4,
-            uv : f32x2_cpu,
-        }
+        // #[derive(sm::CpuLayout)]
+        // #[repr(C)]
+        // struct OnCpu {
+        //     pos: f32x3_align4,
+        //     nor: f32x3_align4,
+        //     uv : f32x2_cpu,
+        // }
 
-        assert_eq!(OnGpu::gpu_layout(), OnCpu::cpu_layout());
-        enum __ where OnGpu: sm::VertexLayout {}
+        // assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
+        // enum __ where OnGpu: sm::VertexLayout {}
     }
 }

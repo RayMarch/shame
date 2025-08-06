@@ -5,7 +5,7 @@ use super::len::x1;
 use super::mem::AddressSpace;
 use super::reference::{AccessMode, AccessModeReadable, AccessModeWritable, Read};
 use super::scalar_type::ScalarTypeInteger;
-use super::type_layout::{ElementLayout, TypeLayout, TypeLayoutRules, TypeLayoutSemantics};
+use super::type_layout::{self, recipe, TypeLayout, ArrayLayout};
 use super::type_traits::{
     BindingArgs, EmptyRefFields, GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools, NoHandles,
 };
@@ -159,15 +159,18 @@ impl<T: GpuType + GpuSized, const N: usize> GpuSized for Array<T, Size<N>> {
 impl<T: GpuType + GpuStore + GpuSized, N: ArrayLen> ToGpuType for Array<T, N> {
     type Gpu = Self;
 
-
-
     fn to_gpu(&self) -> Self::Gpu { self.clone() }
 
     fn as_gpu_type_ref(&self) -> Option<&Self::Gpu> { Some(self) }
 }
 
 impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
-    fn gpu_layout() -> TypeLayout { TypeLayout::from_array(TypeLayoutRules::Wgsl, &T::sized_ty(), N::LEN) }
+    fn layout_recipe() -> recipe::TypeLayoutRecipe {
+        match N::LEN {
+            Some(n) => recipe::SizedArray::new(Rc::new(T::layout_recipe_sized()), n).into(),
+            None => recipe::RuntimeSizedArray::new(T::layout_recipe_sized()).into(),
+        }
+    }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         let (t_cpu_name, t_cpu_layout) = match T::cpu_type_name_and_layout()? {
@@ -185,17 +188,16 @@ impl<T: GpuType + GpuSized + GpuLayout, N: ArrayLen> GpuLayout for Array<T, N> {
 
         let result = (
             name.into(),
-            TypeLayout::new(
-                N::LEN.map(|n| n.get() as u64 * t_cpu_size),
-                t_cpu_layout.align(),
-                TypeLayoutSemantics::Array(
-                    Rc::new(ElementLayout {
-                        byte_stride: stride_of_array_from_element_align_size(t_cpu_layout.align(), t_cpu_size),
-                        ty: t_cpu_layout,
-                    }),
-                    N::LEN.map(NonZeroU32::get),
-                ),
-            ),
+            ArrayLayout {
+                byte_size: N::LEN.map(|n| n.get() as u64 * t_cpu_size),
+                align: t_cpu_layout.align().into(),
+                // array stride is element size according to
+                // https://doc.rust-lang.org/reference/type-layout.html#r-layout.properties.size
+                byte_stride: t_cpu_size,
+                element_ty: t_cpu_layout,
+                len: N::LEN.map(NonZeroU32::get),
+            }
+            .into(),
         );
 
         Some(Ok(result))

@@ -2,8 +2,9 @@ use std::{fmt::Display, rc::Rc};
 
 use thiserror::Error;
 
+use crate::any::layout::{Repr};
 use crate::frontend::any::Any;
-use crate::frontend::rust_types::type_layout::TypeLayout;
+use crate::frontend::rust_types::type_layout::{recipe, TypeLayout};
 use crate::{
     call_info,
     common::iterator_ext::try_collect,
@@ -13,7 +14,6 @@ use crate::{
             io_iter::LocationCounter,
             EncodingErrorKind,
         },
-        rust_types::type_layout::TypeLayoutSemantics,
     },
     ir::{
         expr::{BuiltinShaderIn, BuiltinShaderIo, Expr, Interpolator, ShaderIo},
@@ -108,7 +108,7 @@ impl Any {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VertexAttribFormat {
     /// regular [`crate::vec`] types
-    Fine(Len, ScalarType),
+    Fine(Len, recipe::ScalarType),
     /// packed [`crate::packed::PackedVec`] types
     Coarse(PackedVector),
 }
@@ -238,7 +238,7 @@ impl VertexAttribFormat {
     #[allow(missing_docs)]
     pub fn type_in_shader(self) -> SizedType {
         match self {
-            VertexAttribFormat::Fine(l, t) => SizedType::Vector(l, t),
+            VertexAttribFormat::Fine(l, t) => SizedType::Vector(l, t.into()),
             VertexAttribFormat::Coarse(coarse) => coarse.decompressed_ty(),
         }
     }
@@ -251,33 +251,32 @@ impl Attrib {
     ) -> Option<(Box<[Attrib]>, u64)> {
         let stride = {
             let size = layout.byte_size()?;
-            stride_of_array_from_element_align_size(layout.align(), size)
+            recipe::array_stride(layout.align(), size, Repr::Wgsl)
         };
-        use TypeLayoutSemantics as TLS;
+        use TypeLayout::*;
 
-        let attribs: Box<[Attrib]> = match &layout.kind {
-            TLS::Matrix(..) | TLS::Array(..) | TLS::Vector(_, ScalarType::Bool) => return None,
-            TLS::Vector(len, non_bool) => [Attrib {
+        let attribs: Box<[Attrib]> = match &layout {
+            Matrix(..) | Array(..) => return None,
+            Vector(v) => [Attrib {
                 offset: 0,
                 location: location_counter.next(),
-                format: VertexAttribFormat::Fine(*len, *non_bool),
+                format: VertexAttribFormat::Fine(v.ty.len, v.ty.scalar),
             }]
             .into(),
-            TLS::PackedVector(packed_vector) => [Attrib {
+            PackedVector(v) => [Attrib {
                 offset: 0,
                 location: location_counter.next(),
-                format: VertexAttribFormat::Coarse(*packed_vector),
+                format: VertexAttribFormat::Coarse(v.ty),
             }]
             .into(),
-            TLS::Structure(rc) => try_collect(rc.fields.iter().map(|f| {
+            Struct(rc) => try_collect(rc.fields.iter().map(|f| {
                 Some(Attrib {
                     offset: f.rel_byte_offset,
                     location: location_counter.next(),
-                    format: match f.field.ty.kind {
-                        TLS::Vector(_, ScalarType::Bool) => return None,
-                        TLS::Vector(len, non_bool) => Some(VertexAttribFormat::Fine(len, non_bool)),
-                        TLS::PackedVector(packed_vector) => Some(VertexAttribFormat::Coarse(packed_vector)),
-                        TLS::Matrix(..) | TLS::Array(..) | TLS::Structure(..) => None,
+                    format: match &f.ty {
+                        Vector(v) => Some(VertexAttribFormat::Fine(v.ty.len, v.ty.scalar)),
+                        PackedVector(v) => Some(VertexAttribFormat::Coarse(v.ty)),
+                        Matrix(..) | Array(..) | Struct(..) => None,
                     }?,
                 })
             }))?,

@@ -7,11 +7,11 @@ use super::{
     mem::AddressSpace,
     reference::{AccessMode, AccessModeReadable},
     scalar_type::{dtype_as_scalar_from_f64, ScalarType, ScalarTypeInteger, ScalarTypeNumber},
-    type_layout::TypeLayoutRules,
     type_traits::{BindingArgs, GpuAligned, GpuStoreImplCategory, NoAtomics, NoHandles, VertexAttribute},
     AsAny, GpuType, To, ToGpuType,
 };
 use crate::{
+    any::layout::{self},
     call_info,
     common::{
         proc_macro_utils::{collect_into_array_exact, push_wrong_amount_of_args_error},
@@ -68,7 +68,7 @@ pub type scalar<T> = vec<T, x1>;
 /// let my_vec3 = sm::vec!(1.0, 2.0, 3.0);
 /// let my_vec4 = sm::vec!(my_vec3, 0.0); // component concatenation, like usual in shaders
 /// let my_vec4 = my_vec3.extend(0.0); // or like this
-///    
+///
 /// let my_normal = sm::vec!(1.0, 1.0, 0.0).normalize();
 /// let rgb = my_normal.remap(-1.0..=1.0, 0.0..=1.0); // remap linear ranges (instead of " * 0.5 + 0.5")
 ///
@@ -572,8 +572,19 @@ impl<T: ScalarType, L: Len> GpuStore for vec<T, L> {
     fn impl_category() -> GpuStoreImplCategory { GpuStoreImplCategory::GpuType(Self::store_ty()) }
 }
 
-impl<T: ScalarType, L: Len> GpuLayout for vec<T, L> {
-    fn gpu_layout() -> TypeLayout { TypeLayout::from_sized_ty(TypeLayoutRules::Wgsl, &<Self as GpuSized>::sized_ty()) }
+impl<T: ScalarType, L: Len> GpuLayout for vec<T, L>
+where
+    vec<T, L>: NoBools,
+{
+    fn layout_recipe() -> layout::TypeLayoutRecipe {
+        layout::Vector::new(
+            T::SCALAR_TYPE
+                .try_into()
+                .expect("guaranteed via `NoBools` trait bound above"),
+            L::LEN,
+        )
+        .into()
+    }
 
     fn cpu_type_name_and_layout()
     -> Option<Result<(std::borrow::Cow<'static, str>, TypeLayout), super::layout_traits::ArrayElementsUnsizedError>>
@@ -1095,7 +1106,14 @@ impl<T: ScalarType, L: Len> VertexAttribute for vec<T, L>
 where
     Self: NoBools,
 {
-    fn vertex_attrib_format() -> VertexAttribFormat { VertexAttribFormat::Fine(L::LEN, T::SCALAR_TYPE) }
+    fn vertex_attrib_format() -> VertexAttribFormat {
+        VertexAttribFormat::Fine(
+            L::LEN,
+            T::SCALAR_TYPE
+                .try_into()
+                .expect("Self: NoBools bound on impl ensures no bools"),
+        )
+    }
 }
 
 impl<T: ScalarType, L: Len> FromAnys for vec<T, L> {

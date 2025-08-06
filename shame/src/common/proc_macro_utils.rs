@@ -5,9 +5,7 @@ use crate::{
         any::{Any, InvalidReason},
         rust_types::{
             error::FrontendError,
-            type_layout::{
-                FieldLayout, FieldLayoutWithOffset, StructLayout, TypeLayout, TypeLayoutRules, TypeLayoutSemantics,
-            },
+            type_layout::{FieldLayout, StructLayout, TypeLayout},
         },
     },
     ir::{
@@ -56,9 +54,10 @@ pub fn collect_into_array_exact<T, const N: usize>(mut it: impl Iterator<Item = 
     }
 }
 
+#[derive(Clone)]
 pub struct ReprCField {
     pub name: &'static str,
-    pub alignment: usize,
+    pub alignment: U32PowerOf2,
     pub layout: TypeLayout,
 }
 
@@ -67,10 +66,10 @@ pub enum ReprCError {
 }
 
 pub fn repr_c_struct_layout(
-    repr_c_align_attribute: Option<u64>,
+    repr_c_align_attribute: Option<U32PowerOf2>,
     struct_name: &'static str,
     first_fields_with_offsets_and_sizes: &[(ReprCField, usize, usize)],
-    last_field: ReprCField,
+    mut last_field: ReprCField,
     last_field_size: Option<usize>,
 ) -> Result<TypeLayout, ReprCError> {
     let last_field_offset = match first_fields_with_offsets_and_sizes.last() {
@@ -80,7 +79,7 @@ pub fn repr_c_struct_layout(
                 return Err(ReprCError::SecondLastElementIsUnsized);
             };
             round_up(
-                last_field.alignment as u64,
+                last_field.alignment.as_u64(),
                 *_2nd_last_offset as u64 + *_2nd_last_size as u64,
             )
         }
@@ -89,7 +88,7 @@ pub fn repr_c_struct_layout(
     let max_alignment = first_fields_with_offsets_and_sizes
         .iter()
         .map(|(f, _, _)| f.alignment)
-        .fold(last_field.alignment, ::std::cmp::max) as u64;
+        .fold(last_field.alignment, ::std::cmp::max);
 
     let struct_alignment = match repr_c_align_attribute {
         Some(repr_c_align) => max_alignment.max(repr_c_align),
@@ -97,42 +96,45 @@ pub fn repr_c_struct_layout(
     };
     let last_field_size = last_field_size.map(|s| s as u64);
 
-    let total_struct_size = last_field_size.map(|last_size| round_up(struct_alignment, last_field_offset + last_size));
+    let total_struct_size =
+        last_field_size.map(|last_size| round_up(struct_alignment.as_u64(), last_field_offset + last_size));
 
+    let new_size = |layout_size: Option<u64>, actual_size: Option<u64>| match (layout_size, actual_size) {
+        (_, Some(s)) => Some(s),    // prefer actual size
+        (Some(s), None) => Some(s), // but still use layout size if no actual size
+        (None, None) => None,
+    };
     let mut fields = first_fields_with_offsets_and_sizes
         .iter()
         .map(|(field, offset, size)| (field, *offset as u64, *size as u64))
-        .map(|(field, offset, size)| FieldLayoutWithOffset {
-            field: FieldLayout {
-                custom_min_align: None.into(),
-                custom_min_size: (field.layout.byte_size() != Some(size)).then_some(size).into(),
+        .map(|(mut field, offset, size)| {
+            let mut layout = field.layout.clone();
+            layout.set_byte_size(new_size(field.layout.byte_size(), Some(size)));
+            FieldLayout {
+                rel_byte_offset: offset,
                 name: field.name.into(),
-                ty: field.layout.clone(),
-            },
-            rel_byte_offset: offset,
+                ty: layout,
+            }
         })
-        .chain(std::iter::once(FieldLayoutWithOffset {
-            field: FieldLayout {
-                custom_min_align: None.into(),
-                custom_min_size: (last_field.layout.byte_size() != last_field_size)
-                    .then_some(last_field_size)
-                    .flatten()
-                    .into(),
+        .chain(std::iter::once({
+            last_field
+                .layout
+                .set_byte_size(new_size(last_field.layout.byte_size(), last_field_size));
+            FieldLayout {
+                rel_byte_offset: last_field_offset,
                 name: last_field.name.into(),
                 ty: last_field.layout,
-            },
-            rel_byte_offset: last_field_offset,
+            }
         }))
         .collect::<Vec<_>>();
 
-    Ok(TypeLayout::new(
-        total_struct_size,
-        struct_alignment,
-        TypeLayoutSemantics::Structure(Rc::new(StructLayout {
-            name: struct_name.into(),
-            fields,
-        })),
-    ))
+    Ok(StructLayout {
+        byte_size: total_struct_size,
+        align: struct_alignment.into(),
+        name: struct_name.into(),
+        fields,
+    }
+    .into())
 }
 
 #[track_caller]

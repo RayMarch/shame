@@ -17,7 +17,7 @@ use crate::frontend::rust_types::{reference::AccessModeReadable, scalar_type::Sc
 use crate::ir::pipeline::StageMask;
 use crate::ir::recording::{Context, MemoryRegion};
 use crate::ir::Type;
-use crate::{self as shame, call_info, ir};
+use crate::{self as shame, call_info, ir, GpuLayout};
 
 use std::borrow::Borrow;
 use std::marker::PhantomData;
@@ -30,9 +30,32 @@ use super::binding::Binding;
 /// Implemented by the marker types
 /// - [`mem::Uniform`]
 /// - [`mem::Storage`]
-pub trait BufferAddressSpace: AddressSpace + SupportsAccess<Read> {}
-impl BufferAddressSpace for mem::Uniform {}
-impl BufferAddressSpace for mem::Storage {}
+pub trait BufferAddressSpace: AddressSpace + SupportsAccess<Read> {
+    /// Either Storage or Uniform address space.
+    const BUFFER_ADDRESS_SPACE: BufferAddressSpaceEnum;
+}
+/// Either Storage or Uniform address space.
+#[derive(Debug, Clone, Copy)]
+pub enum BufferAddressSpaceEnum {
+    /// Storage address space
+    Storage,
+    /// Uniform address space
+    Uniform,
+}
+impl BufferAddressSpace for mem::Uniform {
+    const BUFFER_ADDRESS_SPACE: BufferAddressSpaceEnum = BufferAddressSpaceEnum::Uniform;
+}
+impl BufferAddressSpace for mem::Storage {
+    const BUFFER_ADDRESS_SPACE: BufferAddressSpaceEnum = BufferAddressSpaceEnum::Storage;
+}
+impl std::fmt::Display for BufferAddressSpaceEnum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BufferAddressSpaceEnum::Storage => write!(f, "storage address space"),
+            BufferAddressSpaceEnum::Uniform => write!(f, "uniform address space"),
+        }
+    }
+}
 
 /// A read-only buffer binding, for writeable buffers and atomics use [`BufferRef`] instead.
 ///
@@ -97,7 +120,7 @@ where
 
 impl<T, AS, const DYN_OFFSET: bool> Buffer<T, AS, DYN_OFFSET>
 where
-    T: GpuStore + NoHandles + NoAtomics + NoBools,
+    T: GpuStore + NoHandles + NoAtomics + NoBools + GpuLayout,
     AS: BufferAddressSpace,
 {
     #[track_caller]
@@ -114,7 +137,7 @@ where
 
 impl<T, AS, AM, const DYN_OFFSET: bool> BufferRef<T, AS, AM, DYN_OFFSET>
 where
-    T: GpuStore + NoHandles + NoBools,
+    T: GpuStore + NoHandles + NoBools + GpuLayout,
     AS: BufferAddressSpace,
     AM: AccessModeReadable,
 {
@@ -294,7 +317,7 @@ impl<T: GpuStore, AS: BufferAddressSpace, AM: AccessModeReadable> BufferRefInner
 #[rustfmt::skip] impl<T: GpuStore + NoHandles + NoAtomics + NoBools, AS: BufferAddressSpace, const DYN_OFFSET: bool>
 Binding for Buffer<T, AS, DYN_OFFSET>
 where
-    T: GpuSized
+    T: GpuSized+ GpuLayout
 {
     fn binding_type() -> BindingType { BufferInner::<T, AS>::binding_type(DYN_OFFSET) }
     #[track_caller]
@@ -316,9 +339,9 @@ fn store_type_from_impl_category(category: GpuStoreImplCategory) -> ir::StoreTyp
 }
 
 #[rustfmt::skip] impl<T: GpuStore + NoHandles + NoAtomics + NoBools, AS: BufferAddressSpace, const DYN_OFFSET: bool>
-Binding for Buffer<Array<T>, AS, DYN_OFFSET> 
-where 
-    T: GpuType + GpuSized
+Binding for Buffer<Array<T>, AS, DYN_OFFSET>
+where
+    T: GpuType + GpuSized + GpuLayout
 {
     fn binding_type() -> BindingType { BufferInner::<T, AS>::binding_type(DYN_OFFSET) }
     #[track_caller]
@@ -464,7 +487,7 @@ where
 ///
 /// // field access returns references
 /// let world: sm::Ref<f32x4x4> = buffer.world;
-///  
+///
 /// // get fields via `.get()`
 /// let matrix: f32x4x4 = buffer.world.get();
 ///
@@ -488,7 +511,7 @@ where
     pub(crate) inner: BufferRefInner<Content, AS, AM>,
 }
 
-#[rustfmt::skip] impl<T: GpuStore + NoBools + NoHandles, AS, AM, const DYN_OFFSET: bool> 
+#[rustfmt::skip] impl<T: GpuStore + NoBools + NoHandles + GpuLayout, AS, AM, const DYN_OFFSET: bool>
 Binding for BufferRef<T, AS, AM, DYN_OFFSET>
 where
     AS: BufferAddressSpace + SupportsAccess<AM>,
@@ -497,7 +520,7 @@ where
     fn binding_type() -> BindingType { BufferRefInner::<T, AS, AM>::binding_type(DYN_OFFSET) }
     #[track_caller]
     fn new_binding(args: Result<BindingArgs, InvalidReason>) -> Self { BufferRef::new(args) }
-    
+
     fn store_ty() -> ir::StoreType {
         store_type_from_impl_category(T::impl_category())
     }
