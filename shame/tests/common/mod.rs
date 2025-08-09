@@ -35,7 +35,7 @@ pub fn basic_test_setup() -> Result<gpu::Setup, gpu::Error> {
 /// * `wg_dims`: the dimensions of the thread-grid that makes up each individual workgroup
 #[track_caller]
 pub fn init_array_via_gpu_compute<const N: usize, const D: usize, T, F>(
-    gpu: sm::Gpu,
+    gpu: &sm::Gpu,
     dispatch_wgs: [u32; D],
     wg_dims: [u32; D],
     f: F,
@@ -56,7 +56,6 @@ where
     let pipeline: wgpu::ComputePipeline = {
         let mut enc = gpu.create_pipeline_encoder(Default::default()).unwrap();
         let mut pipe = enc.new_compute_pipeline(wg_dims);
-        println!("test @ {caller}");
         let buffer = pipe.bind_groups.next().next();
         f(pipe, buffer);
         enc.finish().unwrap()
