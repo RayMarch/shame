@@ -4,6 +4,8 @@ use std::{
     fmt::{Debug, Display},
 };
 
+type Location = &'static std::panic::Location<'static>;
+
 const ALL_ERROR_FILTERS: [wgpu::ErrorFilter; 3] = [
     wgpu::ErrorFilter::Validation,
     wgpu::ErrorFilter::OutOfMemory,
@@ -17,10 +19,12 @@ const ALL_ERROR_FILTERS: [wgpu::ErrorFilter; 3] = [
 pub struct WgpuErrorScope<'a> {
     device: &'a wgpu::Device,
     unpopped_scopes: bool,
-    location: Cell<&'static std::panic::Location<'static>>,
+    location: Cell<Location>,
 }
 
 impl<'a> WgpuErrorScope<'a> {
+    /// note: this is expensive. Every creation of a new scope causes allocations,
+    /// awaiting the returned error futures also may take a while
     #[track_caller]
     pub fn new(device: &'a wgpu::Device) -> Self {
         push_all_filters_error_scopes(device);
@@ -32,24 +36,35 @@ impl<'a> WgpuErrorScope<'a> {
     }
 
     /// collect wgpu errors and return them, destroy self.
-    pub async fn finish(mut self) -> Result<(), WgpuErrors> {
+    ///
+    /// note: awaiting this error may take long
+    #[track_caller]
+    pub fn finish(mut self) -> impl Future<Output = Result<(), WgpuErrors>> {
         self.unpopped_scopes = false;
-        pop_all_filters_error_scopes(self.device).await
+        pop_all_filters_error_scopes(self.device, std::panic::Location::caller())
     }
 
     /// collects wgpu errors and returns them as `Err` if there are any.
     /// Otherwise returns `Ok(t)`
+    ///
+    /// note: awaiting this error may take long
     #[allow(unused)]
-    pub async fn err_or<T>(self, t: T) -> Result<T, WgpuErrors> {
-        self.finish().await?;
-        Ok(t)
+    pub fn err_or<T>(self, t: T) -> impl Future<Output = Result<T, WgpuErrors>> {
+        use futures::FutureExt as _;
+        self.finish().then(async |e| {
+            e?;
+            Ok(t)
+        })
     }
 
-    pub async fn next(&self) -> Result<(), WgpuErrors> {
-        let result = pop_all_filters_error_scopes(self.device);
+    /// note: awaiting this error may take long
+    #[track_caller]
+    pub fn next(&self) -> impl Future<Output = Result<(), WgpuErrors>> {
+        let caller = std::panic::Location::caller();
+        let result = pop_all_filters_error_scopes(self.device, caller);
         push_all_filters_error_scopes(self.device);
-        self.location.set(std::panic::Location::caller());
-        result.await // await only after the error scopes have been popped and pushed
+        self.location.set(caller);
+        result // await only after the error scopes have been popped and pushed
     }
 }
 
@@ -57,14 +72,14 @@ fn push_all_filters_error_scopes(device: &wgpu::Device) {
     ALL_ERROR_FILTERS.map(|filter| device.push_error_scope(filter));
 }
 
-async fn pop_all_filters_error_scopes(device: &wgpu::Device) -> Result<(), WgpuErrors> {
+async fn pop_all_filters_error_scopes(device: &wgpu::Device, location: Location) -> Result<(), WgpuErrors> {
     // only await after all scopes have been popped.
     let pending_results = ALL_ERROR_FILTERS.map(|_| device.pop_error_scope());
 
     let mut errors = None;
     for pending_result in pending_results {
         if let Some(err) = pending_result.await {
-            push_error(&mut errors, err)
+            push_error(&mut errors, err, location)
         }
     }
     match errors {
@@ -88,12 +103,13 @@ impl Drop for WgpuErrorScope<'_> {
                     loc.column()
                 );
             }
-            let _ = pollster::block_on(pop_all_filters_error_scopes(self.device));
+            let _ = pollster::block_on(pop_all_filters_error_scopes(self.device, self.location.get()));
         }
     }
 }
 
 pub struct WgpuErrors {
+    pub location: Option<Location>,
     pub first: wgpu::Error,
     pub rest: VecDeque<wgpu::Error>,
 }
@@ -106,8 +122,13 @@ impl Debug for WgpuErrors {
 
 impl Display for WgpuErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(loc) = self.location {
+            writeln!(f, "\n--> {loc}")?;
+        }
         match self.rest.len() {
-            0 => write!(f, "{}", self.first),
+            0 => {
+                write!(f, "{}", self.first)
+            }
             n => {
                 writeln!(f, "{n} wgpu errors:")?;
                 writeln!(f, "{}", self.first)?;
@@ -123,17 +144,19 @@ impl Display for WgpuErrors {
 impl From<wgpu::Error> for WgpuErrors {
     fn from(first: wgpu::Error) -> Self {
         WgpuErrors {
+            location: None,
             first,
             rest: Default::default(),
         }
     }
 }
 
-fn push_error(errors: &mut Option<WgpuErrors>, error: wgpu::Error) {
+fn push_error(errors: &mut Option<WgpuErrors>, error: wgpu::Error, location: Location) {
     match errors {
         Some(errors) => errors.rest.push_back(error),
         None => {
             *errors = Some(WgpuErrors {
+                location: Some(location),
                 first: error,
                 rest: Default::default(),
             })
