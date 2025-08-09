@@ -275,7 +275,7 @@ pub struct WorkGroup<Dim: GridDim> {
     pub thread_grid_size: vec<u32, Dim>, // user defined [u32; N] fed into sm::vec::new
     /// the 1-dimensional numeric index of a thread within its workgroup.
     ///
-    /// It lies in the range `shame::zero()..self.thread_grid_size`
+    /// It lies in the range `0..self.thread_grid_size.comp_product()`
     ///
     /// this value is different per thread
     pub thread_id: u32x1,

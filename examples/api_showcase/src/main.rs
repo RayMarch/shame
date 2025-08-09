@@ -503,10 +503,10 @@ impl sm::CpuLayout for Mat4 {
 // // declare your own trait with a `layout()` function like this
 // // This function will be used by the `derive(GpuLayout)` proc macro
 // pub trait MyCpuLayoutTrait {
-//     fn layout() -> shame::TypeLayout;
+//     fn cpu_layout() -> shame::TypeLayout;
 // }
 
 // // tell `shame` about the layout semantics of `glam` types
 // impl MyCpuLayoutTrait for glam::Mat4 {
-//     fn layout() -> shame::TypeLayout { sm::f32x4x4::layout() }
+//     fn cpu_layout() -> shame::TypeLayout { sm::f32x4x4::gpu_layout() }
 // }

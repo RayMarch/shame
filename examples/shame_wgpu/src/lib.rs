@@ -207,6 +207,7 @@ impl Gpu {
                 vertex_writable_storage_by_default: desc.vertex_writable_storage_by_default,
                 zero_init_workgroup_memory: desc.zero_init_workgroup_memory,
             })?,
+            call_info: call_info!(),
             surface_format: self.surface_format,
         })
     }
@@ -215,6 +216,7 @@ impl Gpu {
 pub struct PipelineEncoder<P: IsPipelineKind> {
     gpu: wgpu::Device,
     enc_guard: EncodingGuard<P>,
+    call_info: shame::__private::CallInfo,
     surface_format: Option<wgpu::TextureFormat>,
 }
 
@@ -328,7 +330,8 @@ impl PipelineEncoder<Compute> {
     /// or code generation.
     #[track_caller]
     pub fn finish(self) -> Result<wgpu::ComputePipeline, Error> {
-        let pdef = self.enc_guard.finish()?;
+        let mut pdef = self.enc_guard.finish()?;
+        pdef.label = Some(format!("@{}", self.call_info));
 
         if shame::__private::DEBUG_PRINT_ENABLED {
             //println!("code spans:\n{:?}", pdef.shader.code);
@@ -347,7 +350,8 @@ impl PipelineEncoder<Render> {
     /// or code generation.
     #[track_caller]
     pub fn finish(self) -> Result<wgpu::RenderPipeline, Error> {
-        let pdef = self.enc_guard.finish()?;
+        let mut pdef = self.enc_guard.finish()?;
+        pdef.label = Some(format!("{}", self.call_info));
 
         if shame::__private::DEBUG_PRINT_ENABLED {
             //println!("code spans:\n{:?}", pdef.shader.code);

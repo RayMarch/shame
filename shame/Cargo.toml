@@ -31,3 +31,4 @@ shame_wgpu = { path = "../examples/shame_wgpu" }
 bytemuck = { version = "1.19", features = ["derive"] }
 wgpu = "25.0.2"
 pollster = "0.4"
+futures = "0.3.31"
