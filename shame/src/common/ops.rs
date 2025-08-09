@@ -53,7 +53,7 @@ macro_rules! impl_ops {
     ) => {
         //implements the lhs x rhs, and the rhs x lhs version
         impl_ops!{$(<$($G: $B),*> $Add $(! $op:)? $add($lhs: $Lhs, $rhs: $Rhs) -> $Out: $imp;)*}
-        impl_ops!{$(<$($G: $B),*> $Add $(! $op:)? $add($rhs: $Rhs, $lhs: $Lhs) -> $Out: $imp;)*}
+        impl_ops!{$(<$($G: $B),*> $Add $(! $op:)? $add($lhs: $Rhs, $rhs: $Lhs) -> $Out: $imp;)*}
     };
 
     (
