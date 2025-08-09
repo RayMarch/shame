@@ -415,7 +415,7 @@ pub fn blend(blend: sm::Blend) -> wgpu::BlendState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct WgpuVertexBufferLayout {
     pub array_stride: wgpu::BufferAddress,
     pub step_mode: wgpu::VertexStepMode,
@@ -719,14 +719,16 @@ pub fn render_pipeline(
                     },
                     shame::Draw::Triangle { .. } => wgpu::PolygonMode::Fill,
                 },
-                strip_index_format: match pdef.pipeline.rasterizer.vertex_indexing {
-                    sm::Indexing::Incremental => None,
-                    sm::Indexing::BufferU8 => match draw.is_strip() {
-                        true => return Err(ShameToWgpuError::UnsupportedIndexBufferFormat(sm::Indexing::BufferU8)),
-                        false => None,
+                strip_index_format: match draw.is_strip() {
+                    true => match pdef.pipeline.rasterizer.vertex_indexing {
+                        sm::Indexing::Incremental => None,
+                        sm::Indexing::BufferU8 => {
+                            return Err(ShameToWgpuError::UnsupportedIndexBufferFormat(sm::Indexing::BufferU8));
+                        }
+                        sm::Indexing::BufferU16 => Some(wgpu::IndexFormat::Uint16),
+                        sm::Indexing::BufferU32 => Some(wgpu::IndexFormat::Uint32),
                     },
-                    sm::Indexing::BufferU16 => Some(wgpu::IndexFormat::Uint16),
-                    sm::Indexing::BufferU32 => Some(wgpu::IndexFormat::Uint32),
+                    false => None,
                 },
                 front_face,
                 cull_mode: match draw {
