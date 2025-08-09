@@ -51,7 +51,7 @@ macro_rules! bind_group {
         }
 
         $crate::__reexport::concat_idents! {TResources = $Struct, Resources {
-            pub struct TResources<'a> {
+            $vis struct TResources<'a> {
                 $(pub $field: <$field_ty as $crate::binding::AsBindingResource>::BindingResource<'a>),*
             }
 
