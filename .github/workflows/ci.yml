@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-linux:
-    name: Build on ${{ matrix.os }}
+    name: build and test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
