@@ -6,6 +6,8 @@
 
 ## Shader metaprogramming in Rust
 
+[![CI](https://github.com/RayMarch/shame/actions/workflows/ci.yml/badge.svg)](https://github.com/RayMarch/shame/actions/workflows/ci.yml)
+
 A lightweight [DSL] for writing GPU-pipelines in Rust
 
 `shame` is designed for use in conjunction with the Metal/Vulkan/WebGPU generation of graphics APIs or [wgpu]/[SDL3] style libraries.
