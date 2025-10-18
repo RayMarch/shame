@@ -2,7 +2,11 @@
 #![forbid(unsafe_code)]
 //#![warn(clippy::cast_lossless)]
 #![deny(missing_docs)]
-#![allow(clippy::match_like_matches_macro, clippy::diverging_sub_expression)]
+#![allow(
+    mismatched_lifetime_syntaxes,
+    clippy::match_like_matches_macro,
+    clippy::diverging_sub_expression
+)]
 #![allow(unused)]
 
 mod backend;

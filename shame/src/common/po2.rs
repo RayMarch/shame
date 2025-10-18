@@ -91,6 +91,7 @@ impl U32PowerOf2 {
     pub const fn max(self, other: Self) -> Self { if self as u32 > other as u32 { self } else { other } }
 }
 
+#[allow(missing_docs)]
 #[derive(Debug)]
 pub struct NotAU32PowerOf2(u32);
 
