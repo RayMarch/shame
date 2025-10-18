@@ -557,7 +557,7 @@ pub fn impl_for_struct(
                                     Ok(t) => t,
                                     Err(actual_len) => {
                                         let any = push_wrong_amount_of_args_error(actual_len, EXPECTED_LEN, #re::call_info!());
-                                        [any; EXPECTED_LEN]
+                                        std::array::from_fn(|_| any)
                                     }
                                 };
                                 Self {
