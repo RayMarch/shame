@@ -163,7 +163,7 @@ struct f32x2_align4(pub [f32; 2]);
 impl CpuLayout for f32x2_align4 {
     fn cpu_layout() -> shame::TypeLayout {
         let mut layout = gpu_layout::<f32x2>();
-        layout.set_align(shame::any::U32PowerOf2::_4);
+        layout.set_align(shame::U32PowerOf2::_4);
         layout
     }
 }
@@ -175,7 +175,7 @@ struct f32x4_align4(pub [f32; 4]);
 impl CpuLayout for f32x4_align4 {
     fn cpu_layout() -> shame::TypeLayout {
         let mut layout = gpu_layout::<f32x4>();
-        layout.set_align(shame::any::U32PowerOf2::_4);
+        layout.set_align(shame::U32PowerOf2::_4);
         layout
     }
 }
@@ -192,7 +192,7 @@ static_assertions::assert_eq_align!(glam::Vec4, f32x4_cpu);
 impl CpuLayout for f32x3_align4 {
     fn cpu_layout() -> shame::TypeLayout {
         let mut layout = gpu_layout::<f32x3>();
-        layout.set_align(shame::any::U32PowerOf2::_4.into());
+        layout.set_align(shame::U32PowerOf2::_4);
         layout
     }
 }
@@ -354,7 +354,7 @@ fn external_vec_type() {
         impl CpuLayoutExt for glam::Vec3 {
             fn cpu_layout() -> shame::TypeLayout {
                 let mut layout = gpu_layout::<f32x3>();
-                layout.set_align(sm::any::U32PowerOf2::_4);
+                layout.set_align(sm::U32PowerOf2::_4);
                 layout
             }
         }

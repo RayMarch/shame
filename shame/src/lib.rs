@@ -319,6 +319,8 @@ pub use frontend::rust_types::layout_traits::gpu_layout;
 pub use frontend::rust_types::layout_traits::CpuLayout;
 pub use frontend::rust_types::layout_traits::cpu_layout;
 pub use frontend::rust_types::type_layout::TypeLayout;
+pub use common::po2::U32PowerOf2;
+pub use common::po2::NotAU32PowerOf2;
 
 // derived traits
 pub use frontend::rust_types::type_traits::GpuStore;
