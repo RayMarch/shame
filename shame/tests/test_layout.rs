@@ -1,5 +1,6 @@
 #![allow(non_camel_case_types, unused)]
 use pretty_assertions::{assert_eq, assert_ne};
+use sm::__private::proc_macro_reexports::CpuAligned;
 
 use shame::{self as sm, cpu_layout, gpu_layout};
 use sm::{aliases::*, CpuLayout, GpuLayout};
@@ -147,25 +148,27 @@ struct f32x4_cpu(pub [f32; 4]);
 struct f32x3_cpu(pub [f32; 3]);
 
 impl CpuLayout for f32x3_cpu {
-    fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x3>() }
+    fn cpu_layout() -> shame::TypeLayout {
+        // TODO(release): replace this with `rust_layout_with_shame_semantics::<Self, f32x3>()`
+        // and find a proper solution to the consequences. Its size is 16, and not 12.
+        let mut layout = gpu_layout::<f32x3>();
+        layout.set_align(Self::CPU_ALIGNMENT);
+        layout
+    }
 }
 
 #[derive(Clone, Copy)]
 #[repr(C, align(8))]
 struct f32x2_cpu(pub [f32; 2]);
 impl CpuLayout for f32x2_cpu {
-    fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x2>() }
+    fn cpu_layout() -> shame::TypeLayout { rust_layout_with_shame_semantics::<Self, f32x2>() }
 }
 
 #[derive(Clone, Copy)]
 #[repr(C)]
 struct f32x2_align4(pub [f32; 2]);
 impl CpuLayout for f32x2_align4 {
-    fn cpu_layout() -> shame::TypeLayout {
-        let mut layout = gpu_layout::<f32x2>();
-        layout.set_align(shame::U32PowerOf2::_4);
-        layout
-    }
+    fn cpu_layout() -> shame::TypeLayout { rust_layout_with_shame_semantics::<Self, f32x2>() }
 }
 
 #[derive(Clone, Copy)]
@@ -173,11 +176,7 @@ impl CpuLayout for f32x2_align4 {
 struct f32x4_align4(pub [f32; 4]);
 
 impl CpuLayout for f32x4_align4 {
-    fn cpu_layout() -> shame::TypeLayout {
-        let mut layout = gpu_layout::<f32x4>();
-        layout.set_align(shame::U32PowerOf2::_4);
-        layout
-    }
+    fn cpu_layout() -> shame::TypeLayout { rust_layout_with_shame_semantics::<Self, f32x4>() }
 }
 
 #[derive(Clone, Copy)]
@@ -191,8 +190,10 @@ static_assertions::assert_eq_align!(glam::Vec4, f32x4_cpu);
 
 impl CpuLayout for f32x3_align4 {
     fn cpu_layout() -> shame::TypeLayout {
+        // TODO(release): replace this with `rust_layout_with_shame_semantics::<Self, f32x3>()`
+        // and find a proper solution to the consequences. Its size is 16, and not 12.
         let mut layout = gpu_layout::<f32x3>();
-        layout.set_align(shame::U32PowerOf2::_4);
+        layout.set_align(Self::CPU_ALIGNMENT);
         layout
     }
 }
@@ -202,7 +203,13 @@ impl CpuLayout for f32x3_align4 {
 struct f32x3_size32(pub [f32; 3], [u8; 20]);
 
 impl CpuLayout for f32x3_size32 {
-    fn cpu_layout() -> shame::TypeLayout { gpu_layout::<f32x3>() }
+    fn cpu_layout() -> shame::TypeLayout {
+        // TODO(release): replace this with `rust_layout_with_shame_semantics::<Self, f32x3>()`
+        // and find a proper solution to the consequences. Its size is 16, and not 12.
+        let mut layout = gpu_layout::<f32x3>();
+        layout.set_align(Self::CPU_ALIGNMENT);
+        layout
+    }
 }
 
 
@@ -338,6 +345,7 @@ fn layouts_mismatch() {
 fn external_vec_type() {
     // using duck-traiting just so that the proc-macro uses `CpuLayoutExt::layout()`
     pub mod my_mod {
+        use super::rust_layout_with_shame_semantics;
         use shame::gpu_layout;
         use shame as sm;
         use sm::aliases::*;
@@ -352,11 +360,7 @@ fn external_vec_type() {
         }
 
         impl CpuLayoutExt for glam::Vec3 {
-            fn cpu_layout() -> shame::TypeLayout {
-                let mut layout = gpu_layout::<f32x3>();
-                layout.set_align(sm::U32PowerOf2::_4);
-                layout
-            }
+            fn cpu_layout() -> shame::TypeLayout { rust_layout_with_shame_semantics::<Self, f32x3>() }
         }
     }
 
@@ -451,4 +455,19 @@ fn external_vec_type() {
         // assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
         // enum __ where OnGpu: sm::VertexLayout {}
     }
+}
+
+/// helper for defining a `TypeLayout` for a cpu type that
+/// represents a `GpuSemantics` on the Gpu, but has alignment and size of `Layout` on the Cpu
+pub fn rust_layout_with_shame_semantics<CpuType, GpuSemantics: sm::GpuLayout>() -> sm::TypeLayout {
+    let mut layout = sm::gpu_layout::<GpuSemantics>();
+
+    layout.set_align(CpuType::CPU_ALIGNMENT);
+    layout.set_byte_size(Some(size_of::<CpuType>() as u64));
+
+    // these are just here because we are testing
+    assert_eq!(layout.align().as_u32(), align_of::<CpuType>() as u32);
+    assert_eq!(layout.byte_size().map(|x| x as _), CpuType::CPU_SIZE);
+
+    layout
 }
