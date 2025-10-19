@@ -9,15 +9,8 @@ use std::{
 use crate::{
     any::U32PowerOf2,
     call_info,
-    common::{
-        ignore_eq::IgnoreInEqOrdHash,
-        prettify::{set_color},
-    },
-    ir::{
-        self,
-        ir_type::{CanonName},
-        recording::Context,
-    },
+    common::{ignore_eq::IgnoreInEqOrdHash, prettify::set_color},
+        ir::{self, ir_type::CanonName, recording::Context},
 };
 use recipe::{Matrix, Vector, PackedVector};
 
@@ -176,7 +169,7 @@ impl TypeLayout {
         }
     }
 
-/// mutable reference to the alignment requirement of the represented type.
+    /// mutable reference to the alignment requirement of the represented type.
     ///
     /// may allocate a new `Rc` (via `Rc::make_mut`) for `Array`/`Struct` layouts
     pub fn align_mut(&mut self) -> &mut U32PowerOf2 {
@@ -194,6 +187,16 @@ impl TypeLayout {
         match self.removable_byte_size_mut() {
             Ok(removable) => removable.as_mut(),
             Err(fixed) => Some(fixed),
+        }
+    }
+
+    /// set the byte size of the `TypeLayout` to `new_size` (or `Some(new_size)` if the type can be unsized)
+    ///
+    /// use [`removable_byte_size_mut`] if you need more control
+    pub fn set_byte_size(&mut self, new_size: u64) {
+        match self.removable_byte_size_mut() {
+            Ok(removable) => *removable = Some(new_size),
+            Err(fixed) => *fixed = new_size,
         }
     }
 
@@ -233,12 +236,12 @@ impl TypeLayout {
             }
             TypeLayout::Array(a) => {
                 let mut array = (**a).clone();
-// FIXME: confusing: this is always written, even if self is sized and `byte_size` is None
+                // FIXME: confusing: this is always written, even if self is sized and `byte_size` is None
                 array.byte_size = byte_size;
                 *a = Rc::new(array);
             }
             TypeLayout::Struct(s) => {
-// FIXME: confusing: this is always written, even if self is sized and `byte_size` is None
+                // FIXME: confusing: this is always written, even if self is sized and `byte_size` is None
                 let mut struct_ = (**s).clone();
                 struct_.byte_size = byte_size;
                 *s = Rc::new(struct_);
@@ -247,9 +250,7 @@ impl TypeLayout {
     }
 
     /// Sets the alignment
-    pub fn set_align(&mut self, align: U32PowerOf2) {
-        *self.align_mut() = align
-    }
+    pub fn set_align(&mut self, align: U32PowerOf2) { *self.align_mut() = align }
 
     // TODO(chronicl) this should be removed with improved any api for storage/uniform bindings
     pub(crate) fn from_store_ty(store_type: ir::StoreType) -> Result<Self, recipe::ir_compat::RecipeConversionError> {

@@ -187,8 +187,8 @@ fn sized_field_to_field_layout(field: &SizedField, offset: u64, repr: Repr) -> F
     let mut ty = field.ty.layout(repr);
     // VERY IMPORTANT: TypeLayout::from_sized_type does not take into account
     // custom_min_align and custom_min_size, but field.byte_size and field.align do.
-    ty.set_byte_size_if_some(Some(field.byte_size(repr)));
-    ty.set_align(field.align(repr));
+    ty.set_byte_size(field.byte_size(repr));
+    *ty.align_mut() = field.align(repr);
 
     FieldLayout {
         rel_byte_offset: offset,

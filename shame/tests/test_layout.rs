@@ -152,7 +152,7 @@ impl CpuLayout for f32x3_cpu {
         // TODO(release): replace this with `rust_layout_with_shame_semantics::<Self, f32x3>()`
         // and find a proper solution to the consequences. Its size is 16, and not 12.
         let mut layout = gpu_layout::<f32x3>();
-        layout.set_align(Self::CPU_ALIGNMENT);
+        *layout.align_mut() = Self::CPU_ALIGNMENT;
         layout
     }
 }
@@ -193,7 +193,7 @@ impl CpuLayout for f32x3_align4 {
         // TODO(release): replace this with `rust_layout_with_shame_semantics::<Self, f32x3>()`
         // and find a proper solution to the consequences. Its size is 16, and not 12.
         let mut layout = gpu_layout::<f32x3>();
-        layout.set_align(Self::CPU_ALIGNMENT);
+        *layout.align_mut() = Self::CPU_ALIGNMENT;
         layout
     }
 }
@@ -207,7 +207,7 @@ impl CpuLayout for f32x3_size32 {
         // TODO(release): replace this with `rust_layout_with_shame_semantics::<Self, f32x3>()`
         // and find a proper solution to the consequences. Its size is 16, and not 12.
         let mut layout = gpu_layout::<f32x3>();
-        layout.set_align(Self::CPU_ALIGNMENT);
+        *layout.align_mut() = Self::CPU_ALIGNMENT;
         layout
     }
 }
@@ -457,6 +457,7 @@ fn external_vec_type() {
     }
 }
 
+#[rustfmt::skip]
 #[test]
 fn test_set_align_size() {
     #[derive(sm::GpuLayout)]
@@ -478,7 +479,7 @@ fn test_set_align_size() {
     for (i, lay) in layouts.iter_mut().enumerate() {
         let new_align = sm::U32PowerOf2::_128;
         assert_ne!(lay.align(), new_align, "#{i}: align of {lay} is already {new_align:?}, change new_align to make the test work");
-        lay.set_align(new_align);
+        *lay.align_mut() = new_align;
         assert_eq!(lay.align(), new_align, "#{i}: align of {lay} is not {new_align:?}");
 
         let new_size = 128;
@@ -501,7 +502,7 @@ fn test_set_align_size() {
 pub fn rust_layout_with_shame_semantics<CpuType, GpuSemantics: sm::GpuLayout>() -> sm::TypeLayout {
     let mut layout = sm::gpu_layout::<GpuSemantics>();
 
-    layout.set_align(CpuType::CPU_ALIGNMENT);
+    *layout.align_mut() = CpuType::CPU_ALIGNMENT;
     layout.set_byte_size_if_some(Some(size_of::<CpuType>() as u64));
 
     // these are just here because we are testing
