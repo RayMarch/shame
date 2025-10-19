@@ -109,7 +109,7 @@ pub fn repr_c_struct_layout(
         .map(|(field, offset, size)| (field, *offset as u64, *size as u64))
         .map(|(mut field, offset, size)| {
             let mut layout = field.layout.clone();
-            layout.set_byte_size(new_size(field.layout.byte_size(), Some(size)));
+            layout.set_byte_size_if_some(new_size(field.layout.byte_size(), Some(size)));
             FieldLayout {
                 rel_byte_offset: offset,
                 name: field.name.into(),
@@ -119,7 +119,7 @@ pub fn repr_c_struct_layout(
         .chain(std::iter::once({
             last_field
                 .layout
-                .set_byte_size(new_size(last_field.layout.byte_size(), last_field_size));
+                .set_byte_size_if_some(new_size(last_field.layout.byte_size(), last_field_size));
             FieldLayout {
                 rel_byte_offset: last_field_offset,
                 name: last_field.name.into(),

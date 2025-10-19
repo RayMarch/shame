@@ -176,8 +176,45 @@ impl TypeLayout {
         }
     }
 
+/// mutable reference to the alignment requirement of the represented type.
+    ///
+    /// may allocate a new `Rc` (via `Rc::make_mut`) for `Array`/`Struct` layouts
+    pub fn align_mut(&mut self) -> &mut U32PowerOf2 {
+        match self {
+            TypeLayout::Vector(v) => &mut v.align,
+            TypeLayout::Matrix(m) => &mut m.align,
+            TypeLayout::PackedVector(v) => &mut v.align,
+            TypeLayout::Array(a) => &mut Rc::make_mut(a).align,
+            TypeLayout::Struct(s) => &mut Rc::make_mut(s).align,
+        }
+    }
+
+    /// mutable access to the `byte_size` if it exists
+    pub fn try_byte_size_mut(&mut self) -> Option<&mut u64> {
+        match self.removable_byte_size_mut() {
+            Ok(removable) => removable.as_mut(),
+            Err(fixed) => Some(fixed),
+        }
+    }
+
+    /// mutable access to the size of a `self`
+    ///
+    /// returns
+    /// - `Ok(&mut option)` if `self`'s represented type can exist in an unsized configuration (e.g. struct, array)
+    /// - `Err(&mut size)` if `self`'s represented type is always sized (e.g. vector, matrix)
+    pub fn removable_byte_size_mut(&mut self) -> Result<&mut Option<u64>, &mut u64> {
+        match self {
+            TypeLayout::Vector(v) => Err(&mut v.byte_size),
+            TypeLayout::Matrix(m) => Err(&mut m.byte_size),
+            TypeLayout::PackedVector(v) => Err(&mut v.byte_size),
+            TypeLayout::Array(a) => Ok(&mut Rc::make_mut(a).byte_size),
+            TypeLayout::Struct(s) => Ok(&mut Rc::make_mut(s).byte_size),
+        }
+    }
+
+    // TODO: remove, this function does not always behave as specified (struct being sized, `byte_size` = None)
     /// If self is sized and `byte_size` is None, the size is not overwritten.
-    pub fn set_byte_size(&mut self, byte_size: Option<u64>) {
+    pub fn set_byte_size_if_some(&mut self, byte_size: Option<u64>) {
         match self {
             TypeLayout::Vector(v) => {
                 if let Some(size) = byte_size {
@@ -196,10 +233,12 @@ impl TypeLayout {
             }
             TypeLayout::Array(a) => {
                 let mut array = (**a).clone();
+// FIXME: confusing: this is always written, even if self is sized and `byte_size` is None
                 array.byte_size = byte_size;
                 *a = Rc::new(array);
             }
             TypeLayout::Struct(s) => {
+// FIXME: confusing: this is always written, even if self is sized and `byte_size` is None
                 let mut struct_ = (**s).clone();
                 struct_.byte_size = byte_size;
                 *s = Rc::new(struct_);
@@ -209,28 +248,7 @@ impl TypeLayout {
 
     /// Sets the alignment
     pub fn set_align(&mut self, align: U32PowerOf2) {
-        let align = align.into();
-        match self {
-            TypeLayout::Vector(v) => {
-                v.align = align;
-            }
-            TypeLayout::Matrix(m) => {
-                m.align = align;
-            }
-            TypeLayout::PackedVector(v) => {
-                v.align = align;
-            }
-            TypeLayout::Array(a) => {
-                let mut array = (**a).clone();
-                array.align = align;
-                *a = Rc::new(array);
-            }
-            TypeLayout::Struct(s) => {
-                let mut struct_ = (**s).clone();
-                struct_.align = align;
-                *s = Rc::new(struct_);
-            }
-        }
+        *self.align_mut() = align
     }
 
     // TODO(chronicl) this should be removed with improved any api for storage/uniform bindings

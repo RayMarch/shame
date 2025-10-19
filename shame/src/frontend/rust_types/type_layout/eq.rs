@@ -572,7 +572,7 @@ mod tests {
     impl CpuLayout for f32x3_size16 {
         fn cpu_layout() -> shame::TypeLayout {
             let mut layout = gpu_layout::<f32x3>();
-            layout.set_byte_size(Some(16));
+            layout.set_byte_size_if_some(Some(16));
             layout
         }
     }

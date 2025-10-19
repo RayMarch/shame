@@ -457,13 +457,52 @@ fn external_vec_type() {
     }
 }
 
+#[test]
+fn test_set_align_size() {
+    #[derive(sm::GpuLayout)]
+    struct OnGpu {
+        a: f32x1,
+        b: u32x1,
+        c: sm::Array<i32x1, sm::Size<4>>,
+    }
+
+    let mut layouts = [
+        gpu_layout::<f32x1>(),
+        gpu_layout::<f32x4>(),
+        gpu_layout::<f32x4x4>(),
+        gpu_layout::<sm::packed::snorm16x2>(),
+        gpu_layout::<sm::Array<f32x3>>(),
+        gpu_layout::<sm::Struct<OnGpu>>(),
+    ];
+
+    for (i, lay) in layouts.iter_mut().enumerate() {
+        let new_align = sm::U32PowerOf2::_128;
+        assert_ne!(lay.align(), new_align, "#{i}: align of {lay} is already {new_align:?}, change new_align to make the test work");
+        lay.set_align(new_align);
+        assert_eq!(lay.align(), new_align, "#{i}: align of {lay} is not {new_align:?}");
+
+        let new_size = 128;
+        assert_ne!(lay.byte_size(), Some(new_size), "#{i}: size of {lay} is already {new_size}, change new_size to make the test work");
+        match lay.removable_byte_size_mut() {
+            Ok(removable) => *removable = Some(new_size),
+            Err(fixed) => *fixed = new_size,
+        };
+        assert_eq!(lay.byte_size(), Some(new_size), "#{i}: size of {lay} is not {new_size:?}");
+
+        if let Ok(removable) = lay.removable_byte_size_mut() {
+            *removable = None;
+            assert_eq!(lay.byte_size(), None, "#{i}: size of {lay} is not None");
+        };
+    }
+}
+
 /// helper for defining a `TypeLayout` for a cpu type that
 /// represents a `GpuSemantics` on the Gpu, but has alignment and size of `Layout` on the Cpu
 pub fn rust_layout_with_shame_semantics<CpuType, GpuSemantics: sm::GpuLayout>() -> sm::TypeLayout {
     let mut layout = sm::gpu_layout::<GpuSemantics>();
 
     layout.set_align(CpuType::CPU_ALIGNMENT);
-    layout.set_byte_size(Some(size_of::<CpuType>() as u64));
+    layout.set_byte_size_if_some(Some(size_of::<CpuType>() as u64));
 
     // these are just here because we are testing
     assert_eq!(layout.align().as_u32(), align_of::<CpuType>() as u32);
