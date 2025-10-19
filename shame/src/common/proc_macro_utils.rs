@@ -101,9 +101,9 @@ impl std::fmt::Display for CpuLayoutImplMismatch {
                 writeln!(f, ".")?;
                 writeln!(
                     f,
-                    "This is most likely caused by a mistake in the `shame::CpuLayout` implementation of {t}
-                or in the implementation of one of the types it is composed of. 
-                The size must be equal to what `std::mem::size_of` returns."
+                    "This is most likely caused by a mistake in the `shame::CpuLayout` implementation of {t} \
+                    or in the implementation of one of the types it is composed of. \
+                    The size must be equal to what `std::mem::size_of` returns."
                 )?;
             }
         }
@@ -124,6 +124,7 @@ fn try_report_cpu_layout_impl_mismatch(err: CpuLayoutImplMismatch) {
             println!("`shame` warning @ {caller}:\n{err}");
         } else {
             // unable to report assumed implementation mistake of `CpuLayout` for a given type
+            panic!("shame error at {caller} \n{err}");
         }
     });
 }
