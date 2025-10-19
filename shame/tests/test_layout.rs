@@ -503,7 +503,7 @@ pub fn rust_layout_with_shame_semantics<CpuType, GpuSemantics: sm::GpuLayout>() 
     let mut layout = sm::gpu_layout::<GpuSemantics>();
 
     *layout.align_mut() = CpuType::CPU_ALIGNMENT;
-    layout.set_byte_size_if_some(Some(size_of::<CpuType>() as u64));
+    layout.set_byte_size(size_of::<CpuType>() as u64);
 
     // these are just here because we are testing
     assert_eq!(layout.align().as_u32(), align_of::<CpuType>() as u32);

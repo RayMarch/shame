@@ -215,43 +215,6 @@ impl TypeLayout {
         }
     }
 
-    // TODO: remove, this function does not always behave as specified (struct being sized, `byte_size` = None)
-    /// If self is sized and `byte_size` is None, the size is not overwritten.
-    pub fn set_byte_size_if_some(&mut self, byte_size: Option<u64>) {
-        match self {
-            TypeLayout::Vector(v) => {
-                if let Some(size) = byte_size {
-                    v.byte_size = size;
-                }
-            }
-            TypeLayout::Matrix(m) => {
-                if let Some(size) = byte_size {
-                    m.byte_size = size;
-                }
-            }
-            TypeLayout::PackedVector(v) => {
-                if let Some(size) = byte_size {
-                    v.byte_size = size;
-                }
-            }
-            TypeLayout::Array(a) => {
-                let mut array = (**a).clone();
-                // FIXME: confusing: this is always written, even if self is sized and `byte_size` is None
-                array.byte_size = byte_size;
-                *a = Rc::new(array);
-            }
-            TypeLayout::Struct(s) => {
-                // FIXME: confusing: this is always written, even if self is sized and `byte_size` is None
-                let mut struct_ = (**s).clone();
-                struct_.byte_size = byte_size;
-                *s = Rc::new(struct_);
-            }
-        }
-    }
-
-    /// Sets the alignment
-    pub fn set_align(&mut self, align: U32PowerOf2) { *self.align_mut() = align }
-
     // TODO(chronicl) this should be removed with improved any api for storage/uniform bindings
     pub(crate) fn from_store_ty(store_type: ir::StoreType) -> Result<Self, recipe::ir_compat::RecipeConversionError> {
         let t: recipe::TypeLayoutRecipe = store_type.try_into()?;

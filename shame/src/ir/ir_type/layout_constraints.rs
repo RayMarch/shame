@@ -6,7 +6,10 @@ use std::{
 
 use thiserror::Error;
 
-use crate::frontend::rust_types::type_layout::{display::LayoutInfo, eq::CheckEqLayoutMismatch, TypeLayout};
+use crate::{
+    common::proc_macro_utils::CpuLayoutImplMismatch,
+    frontend::rust_types::type_layout::{display::LayoutInfo, eq::CheckEqLayoutMismatch, TypeLayout},
+};
 use crate::{
     backend::language::Language,
     call_info,
@@ -480,6 +483,8 @@ Type `{}` contains type `{struct_or_block_name}` which has a custom byte-alignme
         gpu_name: String,
         gpu_stride: u64,
     },
+    #[error(transparent)]
+    CpuLayoutImplMismatch(#[from] CpuLayoutImplMismatch),
 }
 
 #[allow(missing_docs)]

@@ -242,7 +242,7 @@ pub fn impl_for_struct(
                             // GpuType is not implemented for derived structs directly, so they can't be used
                             // as the field of another struct, instead shame::Struct<T> has to be used, which
                             // only accepts sized structs.
-                            Err(#re::StructFromPartsError::MustNotHaveUnsizedStructField) => unreachable!("GpuType bound  for fields makes this impossible"),
+                            Err(#re::StructFromPartsError::MustNotHaveUnsizedStructField) => unreachable!("GpuType bound for fields makes this impossible"),
                         }
                     }
 
@@ -600,7 +600,7 @@ pub fn impl_for_struct(
                                     layout: <#first_fields_type>::cpu_layout(), // DO NOT refactor to `as #re::CpuLayout`, that would prevent the duck-trait trick for circumventing the orphan rule
                                 },
                                 std::mem::offset_of!(#derive_struct_ident, #first_fields_ident),
-                                std::mem::size_of::<#first_fields_type>(),
+                                std::mem::size_of::<#first_fields_type>(), // TODO(release): it is correct that this uses `std::mem::size_of`. At the time of writing, the example implementations of `CpuLayout` for `f32x3_cpu` in the type layout tests are technically wrong, causing the size of <#first_fields_type>::cpu_layout() to disagree with this one. This needs to be addressed!
                             )),*
                         ],
                         #re::ReprCField {
