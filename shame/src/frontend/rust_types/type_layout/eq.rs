@@ -1,5 +1,5 @@
 use crate::common::prettify::UnwrapOrStr;
-use crate::frontend::rust_types::type_layout::display::LayoutInfo;
+use crate::frontend::rust_types::type_layout::display::LayoutInfoFlags;
 
 use super::*;
 
@@ -353,7 +353,7 @@ impl CheckEqLayoutMismatch {
                 let (mismatch_field_index, layout_info) = match &mismatch {
                     StructMismatch::FieldName { field_index, .. } => {
                         writeln!(f, "names of field {field_index} are different.")?;
-                        (Some(field_index), LayoutInfo::NONE)
+                        (Some(field_index), LayoutInfoFlags::NONE)
                     }
                     StructMismatch::FieldLayout {
                         field_index,
@@ -362,7 +362,7 @@ impl CheckEqLayoutMismatch {
                         ..
                     } => {
                         writeln!(f, "type of `{}` is different.", field_left.name)?;
-                        (Some(field_index), LayoutInfo::NONE)
+                        (Some(field_index), LayoutInfoFlags::NONE)
                     }
                     StructMismatch::FieldLayout {
                         field_index,
@@ -384,10 +384,10 @@ impl CheckEqLayoutMismatch {
                             )?;
                             // Not showing byte size info, because it can be misleading since
                             // the inner type is the one that has mismatching byte size.
-                            (Some(field_index), LayoutInfo::NONE)
+                            (Some(field_index), LayoutInfoFlags::NONE)
                         } else {
                             writeln!(f, "byte size of `{}` is different.", field_left.name)?;
-                            (Some(field_index), LayoutInfo::SIZE)
+                            (Some(field_index), LayoutInfoFlags::SIZE)
                         }
                     }
                     StructMismatch::FieldLayout {
@@ -413,10 +413,10 @@ impl CheckEqLayoutMismatch {
                             )?;
                             // Not showing stride info, because it can be misleading since
                             // the inner type is the one that has mismatching stride.
-                            (Some(field_index), LayoutInfo::NONE)
+                            (Some(field_index), LayoutInfoFlags::NONE)
                         } else {
                             writeln!(f, "array stride of {} is different.", field_left.name)?;
-                            (Some(field_index), LayoutInfo::STRIDE)
+                            (Some(field_index), LayoutInfoFlags::STRIDE)
                         }
                     }
                     StructMismatch::FieldOffset {
@@ -427,12 +427,12 @@ impl CheckEqLayoutMismatch {
                         writeln!(f, "offset of {} is different.", field_left.name)?;
                         (
                             Some(field_index),
-                            LayoutInfo::OFFSET | LayoutInfo::ALIGN | LayoutInfo::SIZE,
+                            LayoutInfoFlags::OFFSET | LayoutInfoFlags::ALIGN | LayoutInfoFlags::SIZE,
                         )
                     }
                     StructMismatch::FieldCount => {
                         writeln!(f, "number of fields is different.")?;
-                        (None, LayoutInfo::NONE)
+                        (None, LayoutInfoFlags::NONE)
                     }
                 };
                 writeln!(f)?;

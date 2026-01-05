@@ -14,7 +14,7 @@ use crate::{
 };
 
 impl Display for TypeLayout {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.write(f, LayoutInfo::ALL) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { self.write(f, LayoutInfoFlags::ALL) }
 }
 
 impl TypeLayout {
@@ -37,7 +37,7 @@ impl TypeLayout {
         }
     }
 
-    pub(crate) fn write<W: Write>(&self, f: &mut W, layout_info: LayoutInfo) -> std::fmt::Result {
+    pub(crate) fn write<W: Write>(&self, f: &mut W, layout_info: LayoutInfoFlags) -> std::fmt::Result {
         use TypeLayout::*;
 
         match self {
@@ -51,7 +51,7 @@ impl TypeLayout {
                 let info_offset = plain.len() + 1;
 
                 // Write header if some layout information is requested
-                if layout_info != LayoutInfo::NONE {
+                if layout_info != LayoutInfoFlags::NONE {
                     writeln!(f, "{:info_offset$}{}", "", layout_info.header())?;
                 }
 
@@ -70,9 +70,9 @@ impl StructLayout {
     /// a short name for this `StructLayout`, useful for printing inline
     pub fn short_name(&self) -> String { self.name.to_string() }
 
-    pub(crate) fn writer(&self, layout_info: LayoutInfo) -> StructWriter<'_> { StructWriter::new(self, layout_info) }
+    pub(crate) fn writer(&self, layout_info: LayoutInfoFlags) -> StructWriter<'_> { StructWriter::new(self, layout_info) }
 
-    pub(crate) fn write<W: Write>(&self, f: &mut W, layout_info: LayoutInfo) -> std::fmt::Result {
+    pub(crate) fn write<W: Write>(&self, f: &mut W, layout_info: LayoutInfoFlags) -> std::fmt::Result {
         use TypeLayout::*;
 
         let mut writer = self.writer(layout_info);
@@ -97,9 +97,9 @@ impl ArrayLayout {
 
 /// A bitmask that indicates which layout information should be displayed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LayoutInfo(u8);
+pub struct LayoutInfoFlags(u8);
 #[rustfmt::skip]
-impl LayoutInfo {
+impl LayoutInfoFlags {
     pub const NONE:   Self    = Self(0);
     pub const OFFSET: Self    = Self(1 << 0);
     pub const ALIGN:  Self    = Self(1 << 1);
@@ -107,12 +107,12 @@ impl LayoutInfo {
     pub const STRIDE: Self    = Self(1 << 3);
     pub const ALL:    Self    = Self(Self::OFFSET.0 | Self::ALIGN.0 | Self::SIZE.0 | Self::STRIDE.0);
 }
-impl std::ops::BitOr for LayoutInfo {
+impl std::ops::BitOr for LayoutInfoFlags {
     type Output = Self;
 
-    fn bitor(self, rhs: Self) -> Self::Output { LayoutInfo(self.0 | rhs.0) }
+    fn bitor(self, rhs: Self) -> Self::Output { LayoutInfoFlags(self.0 | rhs.0) }
 }
-impl LayoutInfo {
+impl LayoutInfoFlags {
     pub fn contains(&self, other: Self) -> bool { (self.0 & other.0) == other.0 }
 
     pub fn header(&self) -> String {
@@ -150,12 +150,12 @@ impl LayoutInfo {
 pub struct StructWriter<'a> {
     s: &'a StructLayout,
     tab: &'static str,
-    layout_info: LayoutInfo,
+    layout_info: LayoutInfoFlags,
     layout_info_offset: usize,
 }
 
 impl<'a> StructWriter<'a> {
-    pub fn new(s: &'a StructLayout, layout_info: LayoutInfo) -> Self {
+    pub fn new(s: &'a StructLayout, layout_info: LayoutInfoFlags) -> Self {
         let mut this = Self {
             s,
             // Could make this configurable
@@ -201,7 +201,7 @@ impl<'a> StructWriter<'a> {
     }
 
     pub(crate) fn write_header<W: Write>(&self, f: &mut W) -> std::fmt::Result {
-        if self.layout_info != LayoutInfo::NONE {
+        if self.layout_info != LayoutInfoFlags::NONE {
             let info_offset = self.layout_info_offset();
             write!(f, "{:info_offset$}{}", "", self.layout_info.header())?;
         }
@@ -240,7 +240,7 @@ impl<'a> StructWriter<'a> {
     pub(crate) fn write_struct_end<W: Write>(&self, f: &mut W) -> std::fmt::Result { write!(f, "}}") }
 
     pub(crate) fn writeln_header<W: Write>(&self, f: &mut W) -> std::fmt::Result {
-        if self.layout_info != LayoutInfo::NONE {
+        if self.layout_info != LayoutInfoFlags::NONE {
             self.write_header(f)?;
             writeln!(f)?;
         }
