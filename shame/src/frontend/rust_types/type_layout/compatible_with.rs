@@ -7,7 +7,7 @@ use crate::{
     frontend::{
         encoding::buffer::BufferAddressSpaceEnum,
         rust_types::type_layout::{
-            display::LayoutInfo,
+            display::LayoutInfoFlags,
             eq::{try_find_mismatch, LayoutMismatch, StructMismatch, TopLevelMismatch},
             recipe::to_layout::RecipeContains,
             ArrayLayout,
@@ -32,9 +32,10 @@ pub use mem::{Storage, Uniform};
 /// - the type layout **satisfies the layout requirements** of the address space
 /// - the type layout recipe is **representable** in the target language
 ///
-/// To be representable in a language means that the type layout recipe, can be expressed in the
+/// To be representable in a language means that the type layout recipe can be expressed in the
 /// language's type system:
-/// 1. all types in the recipe can be expressed in the target language (for example `bool` or `PackedVector` can't be expressed in wgsl)
+/// 1. all types in the recipe can be expressed in the target language (for example `bool` (with guaranteed align=1, size=1) 
+///    or `PackedVector` can't be expressed in wgsl)
 /// 2. the available layout algorithms in the target language can produce the same layout as the one produced by the recipe
 /// 3. support for the custom attributes the recipe uses, such as `#[align(N)]` and `#[size(N)]`.
 ///    Custom attributes may be rejected by the target language itself (NotRepresentable error)
@@ -64,8 +65,8 @@ impl<AS: BufferAddressSpace> TypeLayoutCompatibleWith<AS> {
             (Language::Wgsl, BufferAddressSpaceEnum::Uniform, None) => {
                 return Err(RequirementsNotSatisfied::MustBeSized(recipe, language, address_space).into());
             }
-            (Language::Wgsl, BufferAddressSpaceEnum::Uniform, Some(_))
-            | (Language::Wgsl, BufferAddressSpaceEnum::Storage, _) => {}
+            (Language::Wgsl, BufferAddressSpaceEnum::Uniform, Some(_)) |
+            (Language::Wgsl, BufferAddressSpaceEnum::Storage, _) => {}
         }
 
         // Check that the recipe is representable in the target language.
@@ -258,9 +259,10 @@ fn write_top_level_mismatch(
     mismatch: &TopLevelMismatch,
 ) -> Result<(), std::fmt::Error> {
     match mismatch {
-        TopLevelMismatch::Type => unreachable!(
-            "The LayoutError is produced by comparing two semantically equivalent TypeLayouts, so all (nested) types are the same"
-        ),
+        TopLevelMismatch::Type => {
+            // unreachable: The LayoutError is produced by comparing two semantically equivalent TypeLayouts, so all (nested) types are the same
+            writeln!(f, "[internal error trying to find top-level type layout mismatch: the types seem identical, please report this error]");
+        },
         TopLevelMismatch::ArrayStride {
             array_left,
             array_right,
@@ -334,10 +336,10 @@ fn write_struct_mismatch(
         } => {
             let outer_most_array_has_mismatch = field_left.ty.short_name() == array_left.short_name();
             let layout_info = if outer_most_array_has_mismatch {
-                LayoutInfo::STRIDE
+                LayoutInfoFlags::STRIDE
             } else {
                 // if an inner array has the stride mismatch, showing the outer array's stride could be confusing
-                LayoutInfo::NONE
+                LayoutInfoFlags::NONE
             };
 
             writeln!(
@@ -360,10 +362,10 @@ fn write_struct_mismatch(
         } => {
             let outer_most_array_has_mismatch = field_left.ty.short_name() == left.short_name();
             let layout_info = if outer_most_array_has_mismatch {
-                LayoutInfo::SIZE
+                LayoutInfoFlags::SIZE
             } else {
                 // if an inner array has the byte size mismatch, showing the outer array's byte size could be confusing
-                LayoutInfo::NONE
+                LayoutInfoFlags::NONE
             };
 
             if !outer_most_array_has_mismatch {
@@ -408,7 +410,7 @@ fn write_struct_mismatch(
             write_struct(
                 f,
                 struct_left,
-                LayoutInfo::OFFSET | LayoutInfo::ALIGN | LayoutInfo::SIZE,
+                LayoutInfoFlags::OFFSET | LayoutInfoFlags::ALIGN | LayoutInfoFlags::SIZE,
                 Some(*field_index),
                 error.colored,
             )?;
@@ -464,15 +466,14 @@ fn write_struct_mismatch(
                 }
             }
         }
-        StructMismatch::FieldCount
-        | StructMismatch::FieldName { .. }
-        | StructMismatch::FieldLayout {
+        StructMismatch::FieldCount |
+        StructMismatch::FieldName { .. } |
+        StructMismatch::FieldLayout {
             mismatch: TopLevelMismatch::Type,
             ..
         } => {
-            unreachable!(
-                "The LayoutError is produced by comparing two semantically equivalent TypeLayouts, so all (nested) types are the same"
-            )
+            // unreachable: The LayoutError is produced by comparing two semantically equivalent TypeLayouts, so all (nested) types are the same
+            writeln!(f, "[internal error trying to find struct layout mismatch: the structs seem identical, please report this error]");
         }
     }
     Ok(())
@@ -481,7 +482,7 @@ fn write_struct_mismatch(
 fn write_struct<W>(
     f: &mut W,
     s: &StructLayout,
-    layout_info: LayoutInfo,
+    layout_info: LayoutInfoFlags,
     highlight_field: Option<usize>,
     colored: bool,
 ) -> std::fmt::Result
