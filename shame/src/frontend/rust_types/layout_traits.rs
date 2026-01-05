@@ -185,12 +185,14 @@ pub trait GpuLayout {
 /// println!("OnGpu:\n{}\n", OnGpu::gpu_layout());
 /// println!("OnCpu:\n{}\n", OnCpu::cpu_layout());
 /// ```
+#[track_caller]
 pub fn gpu_layout<T: GpuLayout + ?Sized>() -> TypeLayout { T::layout_recipe().layout() }
 
 /// (no documentation yet)
 // `CpuLayout::cpu_layout` exists, but this function exists for consistency with
 // the `gpu_layout` function. `GpuLayout::gpu_layout` does not exist, so that implementors
 // of `GpuLayout` can't overwrite it.
+#[track_caller]
 pub fn cpu_layout<T: CpuLayout + ?Sized>() -> TypeLayout { T::cpu_layout() }
 
 pub(crate) fn cpu_type_name_and_layout<T: GpuLayout>(ctx: &Context) -> Option<(Cow<'static, str>, TypeLayout)> {

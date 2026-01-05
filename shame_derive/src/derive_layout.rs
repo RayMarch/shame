@@ -585,6 +585,7 @@ pub fn impl_for_struct(
                 #(#field_type: #re::CpuAligned,)*
                 #where_clause_predicates
             {
+                #[track_caller]
                 fn cpu_layout() -> #re::TypeLayout {
                     //use #re::CpuLayout // using `use` instead of `as #re::CpuAligned` allows for duck-traits to circumvent the orphan rule
                     use #re::CpuAligned;
