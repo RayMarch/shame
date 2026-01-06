@@ -97,6 +97,87 @@ fn fixed_by_align_size_attribute() {
 
         assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
     }
+
+    {
+        #[derive(sm::GpuLayout)]
+        struct OnGpu {
+            a: f32x1,
+            #[size(16)]
+            b: f32x3,
+            c: i32x1,
+        }
+
+        #[derive(sm::CpuLayout)]
+        #[repr(C)]
+        struct OnCpu {
+            a: f32,
+            b: f32x3_size16,
+            c: i32,
+        }
+
+        assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
+    }
+
+    {
+        #[derive(sm::GpuLayout)]
+        struct OnGpu {
+            a: f32x1,
+            b: i32x1,
+            #[size(16)] 
+            c: f32x3, // TODO(release) this should work even without #[size(16)], no?
+        }
+
+        #[derive(sm::CpuLayout)]
+        #[repr(C)]
+        struct OnCpu {
+            a: f32,
+            b: i32,
+            c: f32x3_size16,
+        }
+        
+        assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
+    }
+
+    {
+        #[derive(sm::GpuLayout)]
+        struct OnGpu {
+            a: f32x4,
+            b: f32x3, // align 16
+            c: i32x1,
+        }
+
+        #[derive(sm::CpuLayout)]
+        #[repr(C)]
+        struct OnCpu {
+            a: f32x4_cpu,
+            b: f32x3_align4, // de-facto 16 aligned
+            c: i32,
+        }
+
+        assert_eq!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
+    }
+
+    {
+        // this is the case where rust's idea that `size` must be multiple of `align`
+        // clashes with wgsl's `vec3f`
+
+        #[derive(sm::GpuLayout)]
+        struct OnGpu {
+            a: f32x1,
+            b: f32x3,
+            c: i32x1,
+        }
+
+        #[derive(sm::CpuLayout)]
+        #[repr(C)]
+        struct OnCpu {
+            a: f32,
+            b: f32x3_cpu,
+            c: i32,
+        }
+
+        assert_ne!(gpu_layout::<OnGpu>(), cpu_layout::<OnCpu>());
+    }
 }
 
 #[test]
@@ -143,16 +224,31 @@ fn unsized_struct_layout_eq() {
 #[repr(C, align(16))]
 struct f32x4_cpu(pub [f32; 4]);
 
+impl CpuLayout for f32x4_cpu {
+    fn cpu_layout() -> shame::TypeLayout {
+        rust_layout_with_shame_semantics::<Self, f32x4>()
+    }
+}
+
 #[derive(Clone, Copy)]
 #[repr(C, align(16))]
 struct f32x3_cpu(pub [f32; 3]);
 
 impl CpuLayout for f32x3_cpu {
     fn cpu_layout() -> shame::TypeLayout {
-        // TODO(release): replace this with `rust_layout_with_shame_semantics::<Self, f32x3>()`
-        // and find a proper solution to the consequences. Its size is 16, and not 12.
-        let mut layout = gpu_layout::<f32x3>();
-        *layout.align_mut() = Self::CPU_ALIGNMENT;
+        println!("this impl of `CpuLayout` is wrong, do not copy-paste it into your application");
+        // This impl of `CpuLayout` is wrong. It claims that `Self` has size 12
+        // and not size 16, as `std::mem::size_of::<Self>()` would return. 
+        // It still represents a way a user might try to replicate wgsl's vec3f.
+        // At the time of writing it is undecided how we want to deal with this.
+        // The user can have an align4 and an align16 implementation of Vec3, similar
+        // to `glam`. The user could then choose depending on the desired packing.
+        // Atm this does not cause an actual memory bug, because actual offsets and
+        // sizes are used in cpu-layout checks.
+
+        // TODO(release): decide on the above issue and, depending on decision, remove `f32x3_cpu` entirely
+        let mut layout = gpu_layout::<f32x3>(); // size 12
+        *layout.align_mut() = Self::CPU_ALIGNMENT; // align 16
         layout
     }
 }
@@ -200,15 +296,21 @@ impl CpuLayout for f32x3_align4 {
 
 #[derive(Clone, Copy)]
 #[repr(C, align(16))]
+struct f32x3_size16(pub [f32; 3], [u8; 4]);
+
+impl CpuLayout for f32x3_size16 {
+    fn cpu_layout() -> shame::TypeLayout {
+        rust_layout_with_shame_semantics::<Self, sm::f32x3>()
+    }
+}
+
+#[derive(Clone, Copy)]
+#[repr(C, align(16))]
 struct f32x3_size32(pub [f32; 3], [u8; 20]);
 
 impl CpuLayout for f32x3_size32 {
     fn cpu_layout() -> shame::TypeLayout {
-        // TODO(release): replace this with `rust_layout_with_shame_semantics::<Self, f32x3>()`
-        // and find a proper solution to the consequences. Its size is 16, and not 12.
-        let mut layout = gpu_layout::<f32x3>();
-        *layout.align_mut() = Self::CPU_ALIGNMENT;
-        layout
+        rust_layout_with_shame_semantics::<Self, sm::f32x3>()
     }
 }
 
@@ -310,6 +412,7 @@ fn unsized_array_layout_eq() {
     assert_eq!(gpu_layout::<sm::Array<f32x1>>(), cpu_layout::<[f32]>());
     assert_eq!(gpu_layout::<sm::Array<f32x3>>(), cpu_layout::<[f32x3_cpu]>());
     assert_ne!(gpu_layout::<sm::Array<f32x3>>(), cpu_layout::<[f32x3_align4]>());
+    assert_ne!(gpu_layout::<sm::Array<f32x3>>(), cpu_layout::<[f32x3_size16]>());
     assert_ne!(gpu_layout::<sm::Array<f32x3>>(), cpu_layout::<[f32x3_size32]>());
 }
 

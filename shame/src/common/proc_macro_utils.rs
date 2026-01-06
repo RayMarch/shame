@@ -70,12 +70,13 @@ pub enum ReprCError {
 #[derive(Debug, thiserror::Error, Clone)]
 pub enum CpuLayoutImplMismatch {
     UnexpectedSize {
-        type_name: String,
+        field_index: usize,
+        field_type_name: String,
         struct_name: &'static str,
         /// size that was expected by `std::mem::size_of` / `CpuAligned::CPU_SIZE`
-        expected: Option<u64>,
+        expected_field_size: Option<u64>,
         /// size that was provided by the (maybe user defined) impl of `CpuLayout`
-        cpu_layout_provided: Option<u64>,
+        cpu_layout_provided_field_size: Option<u64>,
     },
 }
 
@@ -83,27 +84,31 @@ impl std::fmt::Display for CpuLayoutImplMismatch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CpuLayoutImplMismatch::UnexpectedSize {
-                type_name: t,
+                field_index,
+                field_type_name: t,
                 struct_name,
-                expected: std_mem_size,
-                cpu_layout_provided: cpu_layout_impl_size,
+                expected_field_size: std_mem_size,
+                cpu_layout_provided_field_size: cpu_layout_impl_size,
             } => {
-                write!(f, "The `CpuLayout` implementation of `{t}` claims that `{t}` ")?;
+                let field_index_count_from_1 = field_index + 1;
+                write!(f, "Field {field_index_count_from_1} of struct `{struct_name}` has a type with a `CpuLayout` implementation that \
+                claims this field is a `{t}` ");
+                
                 match cpu_layout_impl_size {
-                    Some(s) => write!(f, "has a compile-time known size of {s},")?,
-                    None => write!(f, "is unsized at compile-time,")?,
+                    Some(s) => write!(f, "with a byte-size of {s},"),
+                    None => write!(f, "with a size unknown at compile time,"),
                 };
-                write!(f, "\nbut a `{t}` within `{struct_name}` was just observed ")?;
+
                 match std_mem_size {
-                    Some(s) => write!(f, "having a compile-time known size of {s}")?,
-                    None => write!(f, "being unsized")?,
+                    Some(s) => write!(f, "\nbut this field has an actual byte-size of {s}"),
+                    None => write!(f, "\nbut the size of this field is actually unknown at compile-time (unsized)"),
                 };
                 writeln!(f, ".")?;
                 writeln!(
                     f,
-                    "This is most likely caused by a mistake in the `shame::CpuLayout` implementation of {t} \
+                    "This is most likely caused by a mistake in the `shame::CpuLayout` implementation of this field's type \
                     or in the implementation of one of the types it is composed of. \
-                    The size must be equal to what `std::mem::size_of` returns."
+                    The size of the layout returned in the `CpuLayout` implementation must be equal to what `std::mem::size_of` returns."
                 )?;
             }
         }
@@ -185,10 +190,11 @@ pub fn repr_c_struct_layout(
         .chain(std::iter::once({
             if last_field.layout.byte_size() != last_field_trait_size {
                 try_report_cpu_layout_impl_mismatch(CpuLayoutImplMismatch::UnexpectedSize {
+                    field_index: first_fields_with_offsets_and_sizes.len(),
                     struct_name,
-                    type_name: last_field.layout.short_name(),
-                    expected: last_field_trait_size,
-                    cpu_layout_provided: last_field.layout.byte_size(),
+                    field_type_name: last_field.layout.short_name(),
+                    expected_field_size: last_field_trait_size,
+                    cpu_layout_provided_field_size: last_field.layout.byte_size(),
                 });
             }
 
