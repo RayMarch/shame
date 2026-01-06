@@ -35,7 +35,7 @@ pub(crate) mod recipe;
 /// use shame as sm;
 /// assert_eq!(sm::cpu_layout::<f32>(), sm::gpu_layout<sm::vec<f32, sm::x1>>());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum TypeLayout {
     /// `vec<T, L>`
     Vector(VectorLayout),
@@ -49,6 +49,14 @@ pub enum TypeLayout {
     Array(Rc<ArrayLayout>),
     /// structures which may be empty and may have an unsized last field
     Struct(Rc<StructLayout>),
+}
+
+impl Debug for TypeLayout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // debug assertions should display the proper presentation of diffs, 
+        // so we us the Display trait here, too
+        write!(f, "{}", self)
+    }
 }
 
 #[allow(missing_docs)]
