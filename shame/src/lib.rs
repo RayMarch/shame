@@ -423,6 +423,11 @@ pub mod results {
     pub type Dict<K, V> = std::collections::BTreeMap<K, V>;
 }
 
+/// everything related to type layouts
+pub mod layout {
+    pub use crate::frontend::rust_types::type_layout::recipe::ScalarType;
+}
+
 // #[doc(hidden)] interface starts here
 // (not part of the public api)
 
