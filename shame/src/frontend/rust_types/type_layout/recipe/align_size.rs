@@ -355,7 +355,7 @@ pub const fn array_align(element_align: U32PowerOf2, repr: Repr) -> U32PowerOf2 
     }
 }
 
-/// Returns an array's size=>stride (the distance between consecutive elements) given the alignment and size of its elements.
+/// Returns an array's stride (the distance between consecutive elements) given the alignment and size of its elements.
 pub const fn array_stride(element_align: U32PowerOf2, element_size: u64, repr: Repr) -> u64 {
     let element_align = match repr {
         Repr::Wgsl => element_align,
