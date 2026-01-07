@@ -41,7 +41,7 @@ pub enum StructureDefinitionError {
         "runtime sized arrays are only allowed as the last field of a buffer-block struct. They are not allowed in sized structs."
     )]
     RuntimeSizedArrayNotAllowedInSizedStruct,
-    #[error("field names must be unique within a structure definition")]
+    #[error(transparent)]
     FieldNamesMustBeUnique(StructureFieldNamesMustBeUnique),
 }
 
@@ -425,7 +425,8 @@ impl TryFrom<Rc<Struct>> for BufferBlock {
 
 /// an error created if a struct contains two or more fields of the same name
 #[allow(missing_docs)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("struct fields {} and {} have the same name. Field names must be unique within a structure definition", self.first_occurence + 1, self.second_occurence + 1)]
 pub struct StructureFieldNamesMustBeUnique {
     pub first_occurence: usize,
     pub second_occurence: usize,
