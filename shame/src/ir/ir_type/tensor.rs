@@ -532,16 +532,16 @@ impl PackedVector {
 
     pub fn align(&self, repr: Repr) -> U32PowerOf2 {
         match repr {
-            Repr::Packed => return PACKED_ALIGN,
-            Repr::Wgsl | Repr::WgslUniform => {}
+            Repr::Packed => PACKED_ALIGN,
+            Repr::Wgsl | Repr::WgslUniform => {
+                let align = match self.byte_size() {
+                    PackedVectorByteSize::_2 => SizedType::Vector(Len::X1, ScalarType::F16).align(),
+                    PackedVectorByteSize::_4 => SizedType::Vector(Len::X1, ScalarType::U32).align(),
+                    PackedVectorByteSize::_8 => SizedType::Vector(Len::X2, ScalarType::U32).align(),
+                };
+                U32PowerOf2::try_from(align as u32).expect("the above all have power of 2 align")
+            }
         }
-
-        let align = match self.byte_size() {
-            PackedVectorByteSize::_2 => SizedType::Vector(Len::X1, ScalarType::F16).align(),
-            PackedVectorByteSize::_4 => SizedType::Vector(Len::X1, ScalarType::U32).align(),
-            PackedVectorByteSize::_8 => SizedType::Vector(Len::X2, ScalarType::U32).align(),
-        };
-        U32PowerOf2::try_from(align as u32).expect("the above all have power of 2 align")
     }
 }
 

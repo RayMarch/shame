@@ -1,4 +1,4 @@
-#![allow(unused, clippy::no_effect)]
+#![allow(unused, clippy::no_effect, clippy::unnecessary_operation)]
 use shame as sm;
 use shame::prelude::*;
 use shame::aliases::*;
