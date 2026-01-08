@@ -156,9 +156,9 @@ pub enum AddressSpaceError {
 pub enum NotRepresentable {
     #[error("{0}")]
     LayoutError(LayoutError),
-    #[error("{0} contains a {3}, which is not allowed in {1}'s {2}.")]
+    #[error("{0} contains a {3}, which is not allowed in {1}'s {2} address space.")]
     MayNotContain(TypeLayoutRecipe, Language, BufferAddressSpaceEnum, RecipeContains),
-    #[error("Unknown layout error occured for {0} in {1}.")]
+    #[error("Unknown layout error occured for {0} in {1} address space.")]
     UnknownLayoutError(TypeLayoutRecipe, BufferAddressSpaceEnum),
 }
 
@@ -167,11 +167,11 @@ pub enum RequirementsNotSatisfied {
     #[error("{0}")]
     LayoutError(LayoutError),
     #[error(
-        "The size of `{0}` on the gpu is not known at compile time. {1}'s {2} \
+        "The size of `{0}` on the gpu is not known at compile time. {1}'s {2} address space \
      requires that the size of {0} on the gpu is known at compile time."
     )]
     MustBeSized(TypeLayoutRecipe, Language, BufferAddressSpaceEnum),
-    #[error("Unknown layout error occured for {0} in {1}.")]
+    #[error("Unknown layout error occured for {0} in {1} address space.")]
     UnknownLayoutError(TypeLayoutRecipe, BufferAddressSpaceEnum),
 }
 
@@ -455,7 +455,7 @@ fn write_struct_mismatch(
                             BufferAddressSpaceEnum::Uniform | BufferAddressSpaceEnum::Storage,
                         ) => writeln!(
                             f,
-                            "More info about the wgsl's {} can be found at https://www.w3.org/TR/WGSL/#address-space-layout-constraints",
+                            "More info about the wgsl's {} address space can be found at https://www.w3.org/TR/WGSL/#address-space-layout-constraints",
                             error.address_space
                         )?,
                         (LayoutErrorKind::NotRepresentable, _) => writeln!(

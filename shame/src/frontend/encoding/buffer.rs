@@ -51,8 +51,8 @@ impl BufferAddressSpace for mem::Storage {
 impl std::fmt::Display for BufferAddressSpaceEnum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BufferAddressSpaceEnum::Storage => write!(f, "storage address space"),
-            BufferAddressSpaceEnum::Uniform => write!(f, "uniform address space"),
+            BufferAddressSpaceEnum::Storage => write!(f, "storage"),
+            BufferAddressSpaceEnum::Uniform => write!(f, "uniform"),
         }
     }
 }
