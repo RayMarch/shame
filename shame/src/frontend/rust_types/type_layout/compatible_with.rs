@@ -289,19 +289,19 @@ fn write_top_level_mismatch(
                 true => Ok(()), // don't mention nesting
                 false => write!(f, " within `{}`", layout_left.short_name())
             });
-            let requires_a_byte_size_of_left_size = display(|f| match left.byte_size() {
+            let requires_a_byte_size_of_right_size = display(|f| match right.byte_size() {
                 Some(size) => write!(f, "requires a byte size of {size}"),
                 None => write!(f, "must be runtime-sized"),
             });
             let constraint = error.context();
-            let has_a_byte_size_of_right_size = display(|f| match right.byte_size() {
+            let has_a_byte_size_of_left_size = display(|f| match left.byte_size() {
                 Some(size) => write!(f, "has a byte size of {size}"),
                 None => write!(f, "is runtime-sized"),
             });
 
             writeln!(
                 f,
-                "`{left_name}`{within_layout_left} {requires_a_byte_size_of_left_size} in {constraint}, but {has_a_byte_size_of_right_size}.",
+                "`{left_name}`{within_layout_left} {requires_a_byte_size_of_right_size} in {constraint}, but {has_a_byte_size_of_left_size}.",
             )?;
         }
     }
@@ -365,6 +365,7 @@ fn write_struct_mismatch(
             } else {
                 write!(f, "Field")?;
             }
+
             writeln!(
                 f,
                 " `{}` of `{}` requires a byte size of {} in {}, but has a byte size of {}",
