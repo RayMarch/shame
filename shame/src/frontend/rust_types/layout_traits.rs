@@ -136,7 +136,7 @@ use std::rc::Rc;
 /// [`StorageTexture`]: crate::StorageTexture
 ///
 pub trait GpuLayout {
-    /// Returns a [`TypeLayoutRecipe`] that describes how the type is laid out in memory.
+    /// Returns a [`TypeLayoutRecipe`] that describes how a layout algorithm (repr) should layout this type in memory.  
     fn layout_recipe() -> TypeLayoutRecipe;
 
     /// For `GpuSized` types, this returns the [`SizedType`] that describes the type's layout.
