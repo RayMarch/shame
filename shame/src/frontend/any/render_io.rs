@@ -248,10 +248,11 @@ impl Attrib {
     pub(crate) fn get_attribs_and_stride(
         layout: &TypeLayout,
         mut location_counter: &LocationCounter,
+        stride_repr: Repr,
     ) -> Option<(Box<[Attrib]>, u64)> {
         let stride = {
             let size = layout.byte_size()?;
-            recipe::array_stride(layout.align(), size, Repr::Wgsl)
+            recipe::array_stride(layout.align(), size, stride_repr)
         };
         use TypeLayout::*;
 

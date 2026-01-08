@@ -96,11 +96,11 @@ impl<T: VertexLayout> VertexBuffer<'_, T> {
             // identical to what it would be in an `array<T>`. If the `T` itself is a struct that
             // uses #[gpu_repr(packed)], that makes `T`s alignment equal to 1 and therefore the
             // chosen repr here doesn't matter.
-            let stride_check = Some(Repr::default());
+            let stride_repr = Repr::default();
 
-            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, stride_check);
+            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, Some(stride_repr));
 
-            let attribs_and_stride = Attrib::get_attribs_and_stride(&gpu_layout, &location_counter).ok_or_else(|| {
+            let attribs_and_stride = Attrib::get_attribs_and_stride(&gpu_layout, &location_counter, stride_repr).ok_or_else(|| {
                 ctx.push_error(FrontendError::MalformedVertexBufferLayout(gpu_layout).into());
                 InvalidReason::ErrorThatWasPushed
             });
