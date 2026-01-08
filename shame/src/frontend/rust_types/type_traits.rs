@@ -183,8 +183,8 @@ pub trait GpuAligned {
     message = "`{Self}` may contain `bool`s, which have an unspecified memory footprint on the graphics device."
 )]
 // implementor note:
-// NoXYZ traits must require GpuLayout or some other base trait, so that the
-// error message isn't misleading for user provided types `T`. Those types will show
+// NoXYZ traits should require some other base trait, so that the
+// error message isn't misleading for user provided types `T`. Those types will then show
 // the base trait diagnostic, instead of "`T` contains `XYZ`" which it doesn't.
 /// types that don't contain booleans at any nesting level
 ///
@@ -197,19 +197,20 @@ pub trait NoBools {}
     message = "`{Self}` may be or contain a `shame::Atomic` type. Atomics are usable via `shame::BufferRef<_, Storage, ReadWrite>` or via allocations in workgroup memory"
 )]
 // implementor note:
-// NoXYZ traits must require GpuLayout or some other base trait, so that the
-// error message isn't misleading for user provided types `T`. Those types will show
+// NoXYZ traits should require some other base trait, so that the
+// error message isn't misleading for user provided types `T`. Those types will then show
 // the base trait diagnostic, instead of "`T` contains `XYZ`" which it doesn't.
 /// types that don't contain atomics at any nesting level
 pub trait NoAtomics {}
 
-// implementor note:
-// NoXYZ traits must require GpuLayout or some other base trait, so that the
-// error message isn't misleading for user provided types `T`. Those types will show
-// the base trait diagnostic, instead of "`T` contains `XYZ`" which it doesn't.
 #[diagnostic::on_unimplemented(
     message = "`{Self}` may be or contain a handle type such as `Texture`, `Sampler`, `StorageTexture`."
 )]
+// implementor note:
+// NoXYZ traits should require some other base trait, so that the
+// error message isn't misleading for user provided types `T`. Those types will then show
+// the base trait diagnostic, instead of "`T` contains `XYZ`" which it doesn't.
+
 /// Implemented by types that aren't/contain no textures, storage textures, their array variants or samplers
 pub trait NoHandles {}
 
