@@ -214,13 +214,13 @@ pub(crate) fn cpu_type_name_and_layout<T: GpuLayout>(ctx: &Context) -> Option<(C
 /// returns the `TypeLayout` of `T` and pushes an error to the provided context if it is incompatible with its associated cpu layout
 pub(crate) fn get_layout_compare_with_cpu_push_error<T: GpuLayout>(
     ctx: &Context,
-    skip_stride_check: bool,
+    treat_as_array_element_with_stride_repr: Option<Repr>,
 ) -> TypeLayout {
     const ERR_COMMENT: &str = "`GpuLayout` uses WGSL layout rules unless #[gpu_repr(packed)] is used.\nsee https://www.w3.org/TR/WGSL/#structure-member-layout\n`CpuLayout` uses #[repr(C)].\nsee https://doc.rust-lang.org/reference/type-layout.html#r-layout.repr.c.struct";
 
     let gpu_layout = gpu_layout::<T>();
     if let Some((cpu_name, cpu_layout)) = cpu_type_name_and_layout::<T>(ctx) {
-        check_layout_push_error(ctx, &cpu_name, &cpu_layout, &gpu_layout, skip_stride_check, ERR_COMMENT).ok();
+        check_layout_push_error(ctx, &cpu_name, &cpu_layout, &gpu_layout, treat_as_array_element_with_stride_repr, ERR_COMMENT).ok();
     }
     gpu_layout
 }
@@ -235,36 +235,39 @@ pub(crate) fn check_layout_push_error(
     cpu_name: &str,
     cpu_layout: &TypeLayout,
     gpu_layout: &TypeLayout,
-    skip_stride_check: bool,
+    treat_as_array_element_with_stride_repr: Option<Repr>,
     comment_on_mismatch_error: &str,
 ) -> Result<(), InvalidReason> {
     type_layout::eq::check_eq(("cpu", cpu_layout), ("gpu", gpu_layout))
         .map_err(|e| LayoutError::LayoutMismatch(e, Some(comment_on_mismatch_error.to_string())))
         .and_then(|_| {
-            if skip_stride_check {
-                Ok(())
-            } else {
-                // the layout is an element in an array, so the strides need to match too
-                match (cpu_layout.byte_size(), gpu_layout.byte_size()) {
-                    (None, None) | (None, Some(_)) => Err(LayoutError::UnsizedStride { name: cpu_name.into() }),
-                    (Some(_), None) => Err(LayoutError::UnsizedStride {
-                        name: gpu_layout.short_name(),
-                    }),
-                    
-                    (Some(cpu_size), Some(gpu_size)) => {
-                        let cpu_stride = repr_c_array_stride_from_array_element_size(cpu_size);
+            match treat_as_array_element_with_stride_repr {
+                None => {
+                    Ok(())
+                }
+                Some(stride_repr) => {
+                    // the layout is an element in an array, so the strides need to match too
+                    match (cpu_layout.byte_size(), gpu_layout.byte_size()) {
+                        (None, None) | (None, Some(_)) => Err(LayoutError::UnsizedStride { name: cpu_name.into() }),
+                        (Some(_), None) => Err(LayoutError::UnsizedStride {
+                            name: gpu_layout.short_name(),
+                        }),
 
-                        let gpu_stride = array_stride(gpu_layout.align(), gpu_size, Repr::default());
+                        (Some(cpu_size), Some(gpu_size)) => {
+                            let cpu_stride = repr_c_array_stride_from_array_element_size(cpu_size);
 
-                        if cpu_stride != gpu_stride {
-                            Err(LayoutError::StrideMismatch {
-                                cpu_name: cpu_name.into(),
-                                cpu_stride,
-                                gpu_name: gpu_layout.short_name(),
-                                gpu_stride,
-                            })
-                        } else {
-                            Ok(())
+                            let gpu_stride = array_stride(gpu_layout.align(), gpu_size, stride_repr);
+
+                            if cpu_stride != gpu_stride {
+                                Err(LayoutError::StrideMismatch {
+                                    cpu_name: cpu_name.into(),
+                                    cpu_stride,
+                                    gpu_name: gpu_layout.short_name(),
+                                    gpu_stride,
+                                })
+                            } else {
+                                Ok(())
+                            }
                         }
                     }
                 }

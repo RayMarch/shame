@@ -125,9 +125,8 @@ where
 {
     #[track_caller]
     fn new(args: Result<BindingArgs, InvalidReason>) -> Self {
-        let skip_stride_check = true; // not a vertex buffer
         Context::try_with(call_info!(), |ctx| {
-            get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check)
+            get_layout_compare_with_cpu_push_error::<T>(ctx, None)
         });
         Self {
             inner: T::instantiate_buffer_inner(args, BufferInner::<T, AS>::binding_type(DYN_OFFSET)),
@@ -143,9 +142,8 @@ where
 {
     #[track_caller]
     fn new(args: Result<BindingArgs, InvalidReason>) -> Self {
-        let skip_stride_check = true; // not a vertex buffer
         Context::try_with(call_info!(), |ctx| {
-            get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check)
+            get_layout_compare_with_cpu_push_error::<T>(ctx, None)
         });
         Self {
             inner: T::instantiate_buffer_ref_inner(args, BufferRefInner::<T, AS, AM>::binding_type(DYN_OFFSET)),
