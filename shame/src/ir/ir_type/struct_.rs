@@ -42,7 +42,7 @@ pub enum StructureDefinitionError {
     )]
     RuntimeSizedArrayNotAllowedInSizedStruct,
     #[error(transparent)]
-    FieldNamesMustBeUnique(StructureFieldNamesMustBeUnique),
+    FieldNamesMustBeUnique(#[from] StructureFieldNamesMustBeUnique),
 }
 
 pub trait Field {
@@ -207,9 +207,7 @@ impl Struct {
                 ctx.latest_user_caller(),
             );
         });
-        if let Err(e) = check_for_duplicate_field_names(&struct_.sized_fields, struct_.last_unsized.as_ref()) {
-            return Err(StructureDefinitionError::FieldNamesMustBeUnique(e));
-        }
+        check_for_duplicate_field_names(&struct_.sized_fields, struct_.last_unsized.as_ref())?;
 
         Ok(struct_)
     }
