@@ -156,7 +156,7 @@ impl BuiltinTemplateStructs {
                         new_field("exp", SizedType::Vector(len, ir::ScalarType::I32)),
                     );
                     match struc {
-                        Err(StructureFieldNamesMustBeUnique) => unreachable!("field names above are unique"),
+                        Err(StructureFieldNamesMustBeUnique { .. }) => unreachable!("field names above are unique"),
                         Ok(s) => s,
                     }
                 }
@@ -167,7 +167,7 @@ impl BuiltinTemplateStructs {
                         new_field("whole", SizedType::Vector(len, fp.into())),
                     );
                     match struc {
-                        Err(StructureFieldNamesMustBeUnique) => unreachable!("field names above are unique"),
+                        Err(StructureFieldNamesMustBeUnique { .. }) => unreachable!("field names above are unique"),
                         Ok(s) => s,
                     }
                 }
@@ -179,7 +179,7 @@ impl BuiltinTemplateStructs {
                         new_field("exchanged", SizedType::Vector(ir::Len::X1, ir::ScalarType::Bool)),
                     );
                     match struc {
-                        Err(StructureFieldNamesMustBeUnique) => unreachable!("field names above are unique"),
+                        Err(StructureFieldNamesMustBeUnique { .. }) => unreachable!("field names above are unique"),
                         Ok(s) => s,
                     }
                 }

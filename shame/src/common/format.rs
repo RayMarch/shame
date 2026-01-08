@@ -1,7 +1,8 @@
-use std::fmt::Write;
+use std::fmt::{Display, Write};
 
 use crate::ir::recording::CallInfo;
 
+/// Ordinal formatting suffix for numbers.
 /// for "1st" "2nd" "3rd", and the likes. for `1` returns `"st"`
 pub fn numeral_suffix(i: usize) -> &'static str {
     match i {
@@ -133,4 +134,16 @@ pub fn write_error_excerpt(f: &mut impl Write, call_info: CallInfo, use_colors: 
     }
 
     Ok(())
+}
+
+/// Turn a closure into a struct implementing [`Display`]. Code borrowed from `Typst`
+pub fn display<F: Fn(&mut std::fmt::Formatter) -> std::fmt::Result>(f: F) -> impl Display {
+    struct Wrapper<F>(F);
+
+    impl<F: Fn(&mut std::fmt::Formatter) -> std::fmt::Result> Display for Wrapper<F> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            self.0(f)
+        }
+    }
+    Wrapper(f)
 }

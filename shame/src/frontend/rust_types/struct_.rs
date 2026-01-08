@@ -22,14 +22,13 @@ use std::{
 };
 
 use super::layout_traits::{GetAllFields, GpuLayout};
-use super::type_layout::TypeLayout;
+use super::type_layout::{self, recipe, TypeLayout};
 use super::type_traits::{GpuAligned, GpuSized, GpuStore, GpuStoreImplCategory, NoBools};
 use super::{
     error::FrontendError,
     layout_traits::{ArrayElementsUnsizedError, FromAnys},
     mem::AddressSpace,
     reference::{AccessMode, AccessModeReadable},
-    type_layout::TypeLayoutSemantics,
     type_traits::{BindingArgs, NoAtomics, NoHandles},
     typecheck_downcast, AsAny,
 };
@@ -134,8 +133,8 @@ impl<T: SizedFields + GpuStore> Deref for Struct<T> {
     fn deref(&self) -> &Self::Target { &self.fields }
 }
 
-impl<T: SizedFields + GpuStore> GpuLayout for Struct<T> {
-    fn gpu_layout() -> TypeLayout { T::gpu_layout() }
+impl<T: SizedFields + GpuStore + NoBools + GpuLayout> GpuLayout for Struct<T> {
+    fn layout_recipe() -> recipe::TypeLayoutRecipe { T::layout_recipe() }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
         T::cpu_type_name_and_layout().map(|x| x.map(|(name, l)| (format!("Struct<{name}>").into(), l)))

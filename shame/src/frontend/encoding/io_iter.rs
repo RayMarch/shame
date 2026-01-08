@@ -2,42 +2,25 @@
 use std::{cell::Cell, iter, marker::PhantomData, rc::Rc};
 
 use crate::{
-    call_info,
-    common::integer::post_inc_u32,
-    frontend::{
+    any::layout::Repr, call_info, common::integer::post_inc_u32, frontend::{
         any::{
-            render_io::{Attrib, Location, VertexAttribFormat, VertexBufferLayout},
-            shared_io::{BindPath, BindingType},
-            Any, InvalidReason,
+            Any, InvalidReason, render_io::{Attrib, Location, VertexAttribFormat, VertexBufferLayout}, shared_io::{BindPath, BindingType}
         },
         error::InternalError,
         rust_types::{
-            error::FrontendError,
-            layout_traits::{
-                cpu_type_name_and_layout, get_layout_compare_with_cpu_push_error, ArrayElementsUnsizedError, FromAnys,
-                GpuLayout, VertexLayout,
-            },
-            reference::AccessMode,
-            struct_::SizedFields,
-            type_traits::{BindingArgs, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools},
-            GpuType,
+            GpuType, error::FrontendError, layout_traits::{
+                ArrayElementsUnsizedError, FromAnys, GpuLayout, VertexLayout, cpu_type_name_and_layout, get_layout_compare_with_cpu_push_error
+            }, reference::AccessMode, struct_::SizedFields, type_traits::{BindingArgs, GpuSized, GpuStore, GpuStoreImplCategory, NoAtomics, NoBools}
         },
         texture::{
-            texture_array::{StorageTextureArray, TextureArray},
-            texture_traits::{
+            Sampler, Texture, TextureKind, texture_array::{StorageTextureArray, TextureArray}, texture_traits::{
                 LayerCoords, SamplingFormat, SamplingMethod, Spp, StorageTextureCoords, StorageTextureFormat,
                 SupportsCoords, SupportsSpp, TextureCoords,
-            },
-            Sampler, Texture, TextureKind,
+            }
         },
-    },
-    ir::{
-        self,
-        ir_type::{Field, LayoutError},
-        pipeline::{PipelineError, StageMask},
-        recording::Context,
-        TextureFormatWrapper,
-    },
+    }, ir::{
+        self, TextureFormatWrapper, ir_type::{Field, LayoutError}, pipeline::{PipelineError, StageMask}, recording::Context
+    }
 };
 
 use super::{binding::Binding, rasterizer::VertexIndex};
@@ -106,10 +89,18 @@ impl<T: VertexLayout> VertexBuffer<'_, T> {
     fn new(slot: u32, location_counter: Rc<LocationCounter>) -> Self {
         let call_info = call_info!();
         let attribs_and_stride = Context::try_with(call_info, |ctx| {
-            let skip_stride_check = false; // it is implied that T is in an array, the strides must match
-            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check);
+            // it is implied that T is in an array, the strides must match
+            // 
+            // the stride check repr only affects vertex buffers where `T = f32x3`.
+            // In those cases we assume a stride of 16 bytes, so that the stride of `T` is
+            // identical to what it would be in an `array<T>`. If the `T` itself is a struct that
+            // uses #[gpu_repr(packed)], that makes `T`s alignment equal to 1 and therefore the
+            // chosen repr here doesn't matter.
+            let stride_repr = Repr::default();
 
-            let attribs_and_stride = Attrib::get_attribs_and_stride(&gpu_layout, &location_counter).ok_or_else(|| {
+            let gpu_layout = get_layout_compare_with_cpu_push_error::<T>(ctx, Some(stride_repr));
+
+            let attribs_and_stride = Attrib::get_attribs_and_stride(&gpu_layout, &location_counter, stride_repr).ok_or_else(|| {
                 ctx.push_error(FrontendError::MalformedVertexBufferLayout(gpu_layout).into());
                 InvalidReason::ErrorThatWasPushed
             });
@@ -454,13 +445,13 @@ impl BindingIter<'_> {
     /// let texarr: sm::TextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
     /// let texarr: sm::TextureArray<sm::Filterable<f32x4>, 4> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## storage textures
     /// ```
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm> = bind_group.next();
     /// let texsto: sm::StorageTexture<sm::tf::Rgba8Unorm, u32x2> = bind_group.next();
     /// ```
-    /// ---    
+    /// ---
     /// ## Arrays of storage textures
     /// ```
     /// let texstoarr: sm::StorageTextureArray<sm::tf::Rgba8Unorm, 4> = bind_group.next();
@@ -558,14 +549,13 @@ impl PushConstants<'_> {
     #[track_caller]
     pub fn get<T>(self) -> T
     where
-        T: GpuStore + GpuSized + NoAtomics + NoBools,
+        T: GpuStore + GpuSized + NoAtomics + NoBools + GpuLayout,
     {
         let _caller_scope = Context::call_info_scope();
 
         // the push constants structure as a whole doesn't need to have the same stride
-        let skip_stride_check = true;
         Context::try_with(call_info!(), |ctx| {
-            let _ = get_layout_compare_with_cpu_push_error::<T>(ctx, skip_stride_check);
+            let _ = get_layout_compare_with_cpu_push_error::<T>(ctx, None);
 
             match T::impl_category() {
                 GpuStoreImplCategory::Fields(buffer_block) => match buffer_block.last_unsized_field() {

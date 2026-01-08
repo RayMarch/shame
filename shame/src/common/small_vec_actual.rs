@@ -222,6 +222,23 @@ impl<T, const N: usize> std::borrow::Borrow<[T]> for SmallVec<T, N> {
     fn borrow(&self) -> &[T] { self }
 }
 
+impl<T, const N: usize> std::fmt::Display for SmallVec<T, N>
+where
+    T: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        let mut iter = self.iter();
+        if let Some(first) = iter.next() {
+            write!(f, "{}", first)?;
+            for item in iter {
+                write!(f, ", {}", item)?;
+            }
+        }
+        write!(f, "]")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
