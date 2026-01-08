@@ -1,20 +1,12 @@
 use std::fmt::Write;
 
 use crate::{
-    any::layout::StructLayout,
-    call_info,
-    common::prettify::{set_color, UnwrapOrStr},
-    frontend::{
+    BufferAddressSpace, Language, TypeLayout, any::layout::StructLayout, call_info, common::{format::display, prettify::{UnwrapDisplayOr, set_color}}, frontend::{
         encoding::buffer::BufferAddressSpaceEnum,
         rust_types::type_layout::{
-            display::LayoutInfoFlags,
-            eq::{try_find_mismatch, LayoutMismatch, StructMismatch, TopLevelMismatch},
-            recipe::to_layout::RecipeContains,
-            ArrayLayout,
+            ArrayLayout, display::{self, LayoutInfoFlags}, eq::{LayoutMismatch, StructMismatch, TopLevelMismatch, try_find_mismatch}, recipe::to_layout::RecipeContains
         },
-    },
-    ir::{ir_type::max_u64_po2_dividing, recording::Context},
-    mem, BufferAddressSpace, Language, TypeLayout,
+    }, ir::{ir_type::max_u64_po2_dividing, recording::Context}, mem
 };
 
 use super::{recipe::TypeLayoutRecipe, Repr};
@@ -280,7 +272,7 @@ fn write_top_level_mismatch(
             } else {
                 writeln!(
                     f,
-                    "`{}` in `{}` requires a stride of {} in {}, but has a stride of {}.",
+                    "`{}` within `{}` requires a stride of {} in {}, but has a stride of {}.",
                     array_left.short_name(),
                     layout_left.short_name(),
                     array_right.byte_stride,
@@ -291,26 +283,26 @@ fn write_top_level_mismatch(
         }
         TopLevelMismatch::ByteSize { left, right } => {
             let outer_most_array_has_mismatch = left.short_name() == layout_left.short_name();
-            if outer_most_array_has_mismatch {
-                writeln!(
-                    f,
-                    "`{}` has a byte size of {} in {}, but has a byte size of {}.",
-                    layout_left.short_name(),
-                    UnwrapOrStr(layout_left.byte_size(), ""),
-                    error.context(),
-                    UnwrapOrStr(layout_right.byte_size(), "")
-                )?;
-            } else {
-                writeln!(
-                    f,
-                    "`{}` in `{}` has a byte size of {} in {}, but has a byte size of {}.",
-                    layout_left.short_name(),
-                    layout_left.short_name(),
-                    UnwrapOrStr(layout_left.byte_size(), ""),
-                    error.context(),
-                    UnwrapOrStr(layout_right.byte_size(), "")
-                )?;
-            }
+
+            let left_name = left.short_name();
+            let within_layout_left = display(|f| match outer_most_array_has_mismatch {
+                true => Ok(()), // don't mention nesting
+                false => write!(f, " within `{}`", layout_left.short_name())
+            });
+            let requires_a_byte_size_of_left_size = display(|f| match left.byte_size() {
+                Some(size) => write!(f, "requires a byte size of {size}"),
+                None => write!(f, "must be runtime-sized"),
+            });
+            let constraint = error.context();
+            let has_a_byte_size_of_right_size = display(|f| match right.byte_size() {
+                Some(size) => write!(f, "has a byte size of {size}"),
+                None => write!(f, "is runtime-sized"),
+            });
+
+            writeln!(
+                f,
+                "`{left_name}`{within_layout_left} {requires_a_byte_size_of_left_size} in {constraint}, but {has_a_byte_size_of_right_size}.",
+            )?;
         }
     }
     Ok(())
@@ -378,9 +370,9 @@ fn write_struct_mismatch(
                 " `{}` of `{}` requires a byte size of {} in {}, but has a byte size of {}",
                 field_left.name,
                 struct_left.name,
-                UnwrapOrStr(field_right.ty.byte_size(), ""),
+                UnwrapDisplayOr(field_right.ty.byte_size(), ""),
                 error.context(),
-                UnwrapOrStr(field_left.ty.byte_size(), "")
+                UnwrapDisplayOr(field_left.ty.byte_size(), "")
             )?;
             writeln!(f, "The full layout of `{}` is:", struct_left.short_name())?;
             write_struct(f, struct_left, layout_info, Some(*field_index), error.colored)?;

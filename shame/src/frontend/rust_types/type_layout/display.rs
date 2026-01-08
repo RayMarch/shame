@@ -9,7 +9,7 @@ use crate::{
         layout::{ArrayLayout, StructLayout},
         U32PowerOf2,
     },
-    common::prettify::UnwrapOrStr,
+    common::prettify::UnwrapDisplayOr,
     TypeLayout,
 };
 
@@ -132,10 +132,10 @@ impl LayoutInfoFlags {
 
     pub fn format(&self, offset: Option<u64>, align: U32PowerOf2, size: Option<u64>, stride: Option<u64>) -> String {
         let infos: [(Self, &'static str, &dyn Display); 4] = [
-            (Self::OFFSET, "offset", &UnwrapOrStr(offset, "")),
+            (Self::OFFSET, "offset", &UnwrapDisplayOr(offset, "")),
             (Self::ALIGN, "align", &align.as_u32()),
-            (Self::SIZE, "size", &UnwrapOrStr(size, "")),
-            (Self::STRIDE, "stride", &UnwrapOrStr(stride, "")),
+            (Self::SIZE, "size", &UnwrapDisplayOr(size, "")),
+            (Self::STRIDE, "stride", &UnwrapDisplayOr(stride, "")),
         ];
         let mut parts = Vec::with_capacity(4);
         for (info, info_str, value) in infos {

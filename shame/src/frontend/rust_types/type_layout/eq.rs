@@ -1,4 +1,5 @@
-use crate::common::prettify::UnwrapOrStr;
+use crate::common::format::display;
+use crate::common::prettify::UnwrapDisplayOr;
 use crate::frontend::rust_types::type_layout::display::LayoutInfoFlags;
 
 use super::*;
@@ -320,11 +321,17 @@ impl CheckEqLayoutMismatch {
                     )?;
                     writeln!(
                         f,
-                        "`{}` ({a_name}) has a byte size of {}, while `{}` ({b_name}) has a byte size of {}.",
+                        "`{}` ({a_name}) {}, while `{}` ({b_name}) {}.",
                         left.short_name(),
-                        UnwrapOrStr(left.byte_size(), "runtime-sized"),
+                        display(|f| match left.byte_size() {
+                            Some(size) => write!(f, "has a byte-size of {size}"),
+                            None => write!(f, "is runtime-sized"),
+                        }),
                         right.short_name(),
-                        UnwrapOrStr(right.byte_size(), "runtime-sized")
+                        display(|f| match right.byte_size() {
+                            Some(size) => write!(f, "has a byte-size of {size}"),
+                            None => write!(f, "is runtime-sized"),
+                        }),
                     )?;
                 }
             },
@@ -376,10 +383,10 @@ impl CheckEqLayoutMismatch {
                                 f,
                                 "byte size of `{}` is {} in `{}` and the byte size of `{}` is {} in `{}`.",
                                 left.short_name(),
-                                UnwrapOrStr(left.byte_size(), "runtime-sized"),
+                                UnwrapDisplayOr(left.byte_size(), "runtime-sized"),
                                 struct_left.name,
                                 right.short_name(),
-                                UnwrapOrStr(right.byte_size(), "runtime-sized"),
+                                UnwrapDisplayOr(right.byte_size(), "runtime-sized"),
                                 struct_right.name,
                             )?;
                             // Not showing byte size info, because it can be misleading since
