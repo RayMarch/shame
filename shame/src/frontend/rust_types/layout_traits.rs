@@ -157,6 +157,12 @@ pub trait GpuLayout {
     ///
     /// If this association exists, this function returns the name and layout of
     /// that Cpu type, otherwise `None` is returned.
+    /// examples: 
+    /// - vec: has no association like that
+    /// - PackedVec: has no association like that
+    /// - mat: has no association like that
+    /// - Array<T>: has such an association if the inner type does
+    /// - Struct<T>: has such an association if `T` does
     ///
     /// implementor note: if a nested type's `cpu_type_name_and_layout` returns `Some`
     /// this function _MUST NOT_ return `None`, as it would throw away assumptions

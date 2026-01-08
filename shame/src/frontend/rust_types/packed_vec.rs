@@ -142,10 +142,7 @@ impl<T: PackedScalarType, L: LenEven> GpuLayout for PackedVec<T, L> {
     }
 
     fn cpu_type_name_and_layout() -> Option<Result<(Cow<'static, str>, TypeLayout), ArrayElementsUnsizedError>> {
-        let sized_ty: recipe::SizedType = Self::layout_recipe_sized();
-        let name = sized_ty.to_string().into();
-        let layout = sized_ty.layout(Repr::default());
-        Some(Ok((name, layout)))
+        None
     }
 }
 
