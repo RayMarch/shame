@@ -10,7 +10,7 @@ use thiserror::Error;
 use super::{align_of_array, canon_name::CanonName, round_up, LayoutError, SizedType, StoreType, Type};
 use crate::{
     call_info,
-    common::{iterator_ext::IteratorExt, po2::U32PowerOf2, pool::Key},
+    common::{format::numeral_suffix, iterator_ext::IteratorExt, po2::U32PowerOf2, pool::Key},
     ir::recording::{Context, Ident},
 };
 use crate::{
@@ -423,10 +423,15 @@ impl TryFrom<Rc<Struct>> for BufferBlock {
     }
 }
 
+
+
 /// an error created if a struct contains two or more fields of the same name
 #[allow(missing_docs)]
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
-#[error("struct fields {} and {} have the same name. Field names must be unique within a structure definition", self.first_occurence + 1, self.second_occurence + 1)]
+#[error("{} and {} struct field have the same name. Field names must be unique within a structure definition", 
+    numeral_suffix(self.first_occurence + 1),
+    numeral_suffix(self.second_occurence + 1)
+)]
 pub struct StructureFieldNamesMustBeUnique {
     pub first_occurence: usize,
     pub second_occurence: usize,
