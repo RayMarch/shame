@@ -366,14 +366,21 @@ fn write_struct_mismatch(
                 write!(f, "Field")?;
             }
 
+            let field_left_name = &field_left.name;
+            let struct_left_name = &struct_left.name;
+            let requires_a_byte_size_of_right_size = display(|f| match field_right.ty.byte_size() {
+                Some(size) => write!(f, "requires a byte size of {size}"),
+                None => write!(f, "must be runtime-sized"),
+            });
+            let constraint = error.context();
+            let has_a_byte_size_of_left_size = display(|f| match field_left.ty.byte_size() {
+                Some(size) => write!(f, "has a byte size of {size}"),
+                None => write!(f, "is actually runtime-sized"),
+            });
+
             writeln!(
                 f,
-                " `{}` of `{}` requires a byte size of {} in {}, but has a byte size of {}",
-                field_left.name,
-                struct_left.name,
-                UnwrapDisplayOr(field_right.ty.byte_size(), ""),
-                error.context(),
-                UnwrapDisplayOr(field_left.ty.byte_size(), "")
+                " `{field_left_name}` of `{struct_left_name}` {requires_a_byte_size_of_right_size} in {constraint}, but {has_a_byte_size_of_left_size}",
             )?;
             writeln!(f, "The full layout of `{}` is:", struct_left.short_name())?;
             write_struct(f, struct_left, layout_info, Some(*field_index), error.colored)?;
